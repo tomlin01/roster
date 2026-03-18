@@ -6,9 +6,7 @@ from pathlib import Path
 
 from overlay_policy import load_overlay, manual_intervention_reasons, resolve_benchmark_kind
 
-ROOT = Path("/Users/tom/Documents/PHD/codex_updat")
-VIS_MATH = Path("/Users/tom/Documents/PHD/Vis_Math")
-OBSIDIAN = Path("/Users/tom/Documents/GitHub/obsidian_tom")
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def assert_true(condition: bool, message: str) -> None:
@@ -32,13 +30,20 @@ def test_load_overlay_parsed_overlay_detects_repo_signals() -> None:
 
 
 def test_load_overlay_parsed_overlay_ignores_unconfigured_workspaces() -> None:
-    vismath = load_overlay(VIS_MATH, "parsed_overlay")
-    obsidian = load_overlay(OBSIDIAN, "parsed_overlay")
-    for name, overlay in (("Vis_Math", vismath), ("obsidian_tom", obsidian)):
-        assert_true(not overlay["has_agents_md"], f"{name} should not expose AGENTS.md")
-        assert_true(not overlay["has_principles_md"], f"{name} should not expose PRINCIPLES.md")
-        assert_true(overlay["parsed_signals"] == [], f"{name} should not expose parsed signals")
-        assert_true(overlay["strictness_score"] == 0, f"{name} should have zero strictness score")
+    with tempfile.TemporaryDirectory(prefix="overlay-policy-unconfigured-") as tmp:
+        root = Path(tmp)
+        vismath = root / "Vis_Math"
+        obsidian = root / "obsidian_tom"
+        vismath.mkdir()
+        obsidian.mkdir()
+        for name, overlay in (
+            ("Vis_Math", load_overlay(vismath, "parsed_overlay")),
+            ("obsidian_tom", load_overlay(obsidian, "parsed_overlay")),
+        ):
+            assert_true(not overlay["has_agents_md"], f"{name} should not expose AGENTS.md")
+            assert_true(not overlay["has_principles_md"], f"{name} should not expose PRINCIPLES.md")
+            assert_true(overlay["parsed_signals"] == [], f"{name} should not expose parsed signals")
+            assert_true(overlay["strictness_score"] == 0, f"{name} should have zero strictness score")
 
 
 def test_manual_intervention_reasons_policy_simulation() -> None:

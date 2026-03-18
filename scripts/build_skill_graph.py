@@ -191,7 +191,7 @@ def generate_markdown(
     lines.append("## Usage")
     lines.append("Regenerate with:")
     lines.append("```bash")
-    lines.append("python3 /Users/tom/Documents/PHD/codex_updat/scripts/build_skill_graph.py")
+    lines.append("python3 scripts/build_skill_graph.py")
     lines.append("```")
     return "\n".join(lines) + "\n"
 
@@ -211,7 +211,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--mirror-output",
-        default="/Users/tom/Documents/PHD/codex_updat/contexts/skill_graph.md",
+        default=str(ROOT / "contexts" / "skill_graph.md"),
         help="Optional mirror output path (workspace copy).",
     )
     parser.add_argument(

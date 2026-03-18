@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "scripts" / "run_agent_benchmark.py"
 WRAPPER = ROOT / "scripts" / "run_agent_benchmark.sh"
 PUBLISHER = ROOT / "scripts" / "publish_agent_policy.py"
-VIS_MATH = Path("/Users/tom/Documents/PHD/Vis_Math")
+CASE_FIXTURES = ROOT / "contexts" / "agent_benchmark_cases.json"
 
 
 def run_command(cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
@@ -31,7 +31,32 @@ def assert_true(condition: bool, message: str) -> None:
         raise AssertionError(message)
 
 
-def verify_parsed_overlay_mode(tmpdir: Path) -> None:
+def build_portable_case_file(tmpdir: Path) -> tuple[Path, Path]:
+    vis_math = tmpdir / "Vis_Math"
+    obsidian = tmpdir / "obsidian_tom"
+    vis_math.mkdir()
+    obsidian.mkdir()
+    (vis_math / "AGENTS.md").write_text("# AGENTS\n- Local overlay only.\n", encoding="utf-8")
+
+    source = json.loads(CASE_FIXTURES.read_text(encoding="utf-8"))
+    portable_cases = []
+    for case in source:
+        cloned = dict(case)
+        workspace = cloned.get("workspace")
+        if workspace == "/Users/tom/Documents/PHD/codex_updat":
+            cloned["workspace"] = str(ROOT.resolve())
+        elif workspace == "/Users/tom/Documents/PHD/Vis_Math":
+            cloned["workspace"] = str(vis_math.resolve())
+        elif workspace == "/Users/tom/Documents/GitHub/obsidian_tom":
+            cloned["workspace"] = str(obsidian.resolve())
+        portable_cases.append(cloned)
+
+    case_path = tmpdir / "agent_benchmark_cases.portable.json"
+    case_path.write_text(json.dumps(portable_cases, indent=2), encoding="utf-8")
+    return case_path, vis_math
+
+
+def verify_parsed_overlay_mode(tmpdir: Path, case_path: Path) -> None:
     json_path = tmpdir / "workspace_parsed_overlay.json"
     md_path = tmpdir / "workspace_parsed_overlay.md"
     run_command(
@@ -42,6 +67,8 @@ def verify_parsed_overlay_mode(tmpdir: Path) -> None:
             "workspace",
             "--benchmark-kind",
             "parsed_overlay",
+            "--cases",
+            str(case_path),
             "--only",
             "meta_contract_refresh",
             "vismath_quick_query",
@@ -89,7 +116,7 @@ def verify_parsed_overlay_mode(tmpdir: Path) -> None:
     assert_true(obsidian_case["parsed_signals"] == [], "obsidian_tom should not inherit codex_updat signals")
 
 
-def verify_published_runner_portability(tmpdir: Path) -> None:
+def verify_published_runner_portability(tmpdir: Path, case_path: Path, vis_math: Path) -> None:
     codex_home = tmpdir / "codex_home"
     json_path = tmpdir / "portable_global.json"
     md_path = tmpdir / "portable_global.md"
@@ -108,6 +135,8 @@ def verify_published_runner_portability(tmpdir: Path) -> None:
             "global",
             "--benchmark-kind",
             "policy_simulation",
+            "--cases",
+            str(case_path),
             "--only",
             "vismath_quick_query",
             "--json-report",
@@ -115,20 +144,21 @@ def verify_published_runner_portability(tmpdir: Path) -> None:
             "--md-report",
             str(md_path),
         ],
-        cwd=VIS_MATH,
+        cwd=vis_math,
         env={"CODEX_HOME": str(codex_home)},
     )
     report = load_report(json_path)
     assert_true(report["benchmark_kind"] == "policy_simulation", "portable global run should stay policy_simulation")
     assert_true(report["passed"] == 1 and report["failed"] == 0, "portable global run should succeed")
-    assert_true(report["workspace"] == str(VIS_MATH.resolve()), "portable global run should preserve case workspace label")
+    assert_true(report["workspace"] == str(vis_math.resolve()), "portable global run should preserve case workspace label")
 
 
 def main() -> int:
     with tempfile.TemporaryDirectory(prefix="agent-benchmark-test-") as tmp:
         tmpdir = Path(tmp)
-        verify_parsed_overlay_mode(tmpdir)
-        verify_published_runner_portability(tmpdir)
+        case_path, vis_math = build_portable_case_file(tmpdir)
+        verify_parsed_overlay_mode(tmpdir, case_path)
+        verify_published_runner_portability(tmpdir, case_path, vis_math)
     print("agent benchmark regression checks passed")
     return 0
 

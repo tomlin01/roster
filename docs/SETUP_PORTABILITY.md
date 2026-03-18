@@ -20,6 +20,9 @@ At minimum, another machine should have:
 - a shell capable of running [`scripts/brain.sh`](../scripts/brain.sh)
 - access to this workspace's `policy/`, `scripts/`, and `templates/`
 
+For the current portable export, the included core governance scripts are standard-library based.
+See [`DEPENDENCY_BASELINE.md`](./DEPENDENCY_BASELINE.md).
+
 Optional but important for full CNS behavior:
 
 - Codex Desktop app
@@ -98,6 +101,6 @@ See [`RUNTIME_ARTIFACT_POLICY.md`](./RUNTIME_ARTIFACT_POLICY.md).
 ## Current Limitation
 
 This workspace does not yet have a pinned dependency manifest such as `requirements.txt` or `pyproject.toml`.
-That means runtime recreation still depends partly on command availability and local environment knowledge.
+That means full runtime recreation still depends partly on command availability and local environment knowledge.
 
 This is acceptable for now, but it should be considered an incomplete portability layer.

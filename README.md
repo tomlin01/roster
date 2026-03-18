@@ -56,13 +56,14 @@ Only read [`contexts/system_status.md`](./contexts/system_status.md) when you ne
 
 ### Multi-agent pilot
 
-  - [`policy/VIS_MATH_MULTI_AGENT_PILOT_V0.md`](./policy/VIS_MATH_MULTI_AGENT_PILOT_V0.md)
+- [`policy/VIS_MATH_MULTI_AGENT_PILOT_V0.md`](./policy/VIS_MATH_MULTI_AGENT_PILOT_V0.md)
   - current pilot for role + artifact + protocol + convergence
 
 ### Portability and setup
 
 - [`PORTABILITY_GUIDE.md`](./PORTABILITY_GUIDE.md)
 - [`docs/SETUP_PORTABILITY.md`](./docs/SETUP_PORTABILITY.md)
+- [`docs/DEPENDENCY_BASELINE.md`](./docs/DEPENDENCY_BASELINE.md)
 - [`docs/CONFIG_REFERENCE.md`](./docs/CONFIG_REFERENCE.md)
 - [`docs/RUNTIME_ARTIFACT_POLICY.md`](./docs/RUNTIME_ARTIFACT_POLICY.md)
 - [`docs/PORTABILITY_CHECKLIST.md`](./docs/PORTABILITY_CHECKLIST.md)
@@ -91,3 +92,6 @@ Portable by intent:
 
 Machine-local or runtime-derived artifacts should be treated more carefully.
 See [`PORTABILITY_GUIDE.md`](./PORTABILITY_GUIDE.md).
+
+The core exported governance scripts are currently standard-library based.
+See [`docs/DEPENDENCY_BASELINE.md`](./docs/DEPENDENCY_BASELINE.md).

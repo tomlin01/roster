@@ -8,15 +8,15 @@ Date: 2026-02-22
 - Runner script:
   - `/Users/tom/.codex/skills/requirement-skill-router/scripts/run_router_regression.py`
 - Workspace wrapper:
-  - `/Users/tom/Documents/PHD/codex_updat/scripts/run_router_regression.sh`
+  - `scripts/run_router_regression.sh`
 
 ## How to Run
 - Full suite:
-  - `bash /Users/tom/Documents/PHD/codex_updat/scripts/run_router_regression.sh`
+  - `bash scripts/run_router_regression.sh`
 - Selected cases:
-  - `bash /Users/tom/Documents/PHD/codex_updat/scripts/run_router_regression.sh --only explicit_dollar_playwright install_skill_from_repo`
+  - `bash scripts/run_router_regression.sh --only explicit_dollar_playwright install_skill_from_repo`
 - Save JSON report:
-  - `bash /Users/tom/Documents/PHD/codex_updat/scripts/run_router_regression.sh --json-report /Users/tom/Documents/PHD/codex_updat/contexts/router_regression_latest.json`
+  - `bash scripts/run_router_regression.sh --json-report contexts/router_regression_latest.json`
 
 ## Current Suite Scope
 11 cases covering:
@@ -38,5 +38,5 @@ Runner safeguards:
 - supports skill-level assertions (`skill_fields_equal`) for explicit mention flags
 
 ## Latest Run
-- Report path: `/Users/tom/Documents/PHD/codex_updat/contexts/router_regression_latest.json`
+- Report path: `contexts/router_regression_latest.json`
 - Status: PASS (11/11)

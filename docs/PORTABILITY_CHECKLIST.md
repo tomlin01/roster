@@ -9,6 +9,7 @@ Use this before treating the workspace as ready for GitHub inheritance.
 - stable core contract exists
 - skill lifecycle contract exists
 - setup and config docs exist
+- dependency baseline is documented
 
 ## Path Audit
 
@@ -22,6 +23,8 @@ Use this before treating the workspace as ready for GitHub inheritance.
 - `./scripts/brain.sh capabilities` runs
 - `./scripts/brain.sh refresh` runs
 - continuity command expectations are documented
+- `python3 -m py_compile scripts/*.py` runs
+- portable script tests pass or have documented blockers
 
 ## Artifact Boundary
 
