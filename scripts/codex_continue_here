@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+MODE="research"
+FORCE=0
+TOPIC=""
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --mode)
+      shift
+      MODE="${1:?missing mode value}"
+      ;;
+    --force)
+      FORCE=1
+      ;;
+    --topic|-t)
+      shift
+      TOPIC="${1:?missing topic value}"
+      ;;
+    --help|-h)
+      echo "usage: codex_continue_here [--mode MODE] [--force] [--topic TOPIC | TOPIC WORDS...]"
+      exit 0
+      ;;
+    --*)
+      echo "unknown option: $1" >&2
+      exit 1
+      ;;
+    *)
+      if [ -n "$TOPIC" ]; then
+        TOPIC="$TOPIC $1"
+      else
+        TOPIC="$1"
+      fi
+      ;;
+  esac
+  shift || true
+done
+
+if [ -z "$TOPIC" ]; then
+  TOPIC="$(basename "$PWD")"
+fi
+
+discover_cmd() {
+  local env_name="$1"
+  local fallback_name="$2"
+  local fallback_path="$3"
+  local raw="${!env_name:-}"
+  if [ -n "$raw" ]; then
+    printf '%s\n' "$raw"
+    return 0
+  fi
+  if command -v "$fallback_name" >/dev/null 2>&1; then
+    command -v "$fallback_name"
+    return 0
+  fi
+  if [ -x "$fallback_path" ]; then
+    printf '%s\n' "$fallback_path"
+    return 0
+  fi
+  return 1
+}
+
+CODEX_CKPT_BIN="$(discover_cmd CODEX_CKPT_CMD codex_ckpt /Users/tom/bin/codex_ckpt)" || {
+  echo "codex_ckpt not found; set CODEX_CKPT_CMD or install codex_ckpt" >&2
+  exit 1
+}
+SESSION_CKPT_BIN="$(discover_cmd SESSION_CKPT_CMD session_ckpt /Users/tom/bin/session_ckpt)" || {
+  echo "session_ckpt not found; set SESSION_CKPT_CMD or install session_ckpt" >&2
+  exit 1
+}
+
+cmd=("$CODEX_CKPT_BIN" start --mode "$MODE" --topic "$TOPIC")
+if [ "$FORCE" -eq 1 ]; then
+  cmd+=(--force)
+fi
+
+"${cmd[@]}"
+"$SESSION_CKPT_BIN" resume

@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# Local runtime and scratch output
+output/playwright/
+tmp_phase3/
+
+# Optional future local caches
+.pi/

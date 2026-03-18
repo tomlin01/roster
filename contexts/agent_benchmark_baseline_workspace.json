@@ -1,0 +1,732 @@
+{
+  "timestamp": "2026-03-14T07:11:57+00:00",
+  "benchmark_kind": "parsed_overlay",
+  "suite_version": "1.1.0",
+  "scope": "workspace",
+  "workspace": "per-case",
+  "passed": 8,
+  "failed": 4,
+  "task_success_rate": 0.666667,
+  "route_match_rate": 1.0,
+  "manual_intervention_rate": 0.333333,
+  "median_wall_time_sec": 1e-06,
+  "avg_tool_calls": 3.5,
+  "failure_reasons": [
+    {
+      "reason": "manual_intervention_required:local_overlay_requires_discussion_for_high_impact_changes+local_overlay_requires_task_lock_before_execution",
+      "count": 4
+    }
+  ],
+  "case_results": [
+    {
+      "id": "meta_contract_refresh",
+      "category": "meta-workspace",
+      "workspace": "/Users/tom/Documents/PHD/codex_updat",
+      "required_mode": "review",
+      "global_default_result": {
+        "success": true,
+        "route_match": true,
+        "flow": [
+          "explorer",
+          "worker",
+          "reviewer",
+          "main"
+        ],
+        "wall_time_sec": 3e-06,
+        "tool_calls": 4,
+        "manual_intervention": false
+      },
+      "workspace_overlay_result": {
+        "success": false,
+        "route_match": true,
+        "flow": [
+          "explorer",
+          "worker",
+          "reviewer",
+          "main"
+        ],
+        "wall_time_sec": 3e-06,
+        "tool_calls": 4,
+        "manual_intervention": true,
+        "manual_intervention_reasons": [
+          "local_overlay_requires_discussion_for_high_impact_changes",
+          "local_overlay_requires_task_lock_before_execution"
+        ],
+        "overlay_depth": 2,
+        "has_agents_md": true,
+        "has_principles_md": true,
+        "parsed_signals": [
+          "discussion_before_high_impact_changes",
+          "non_trivial_task_locking",
+          "visual_first_verification",
+          "closeout_definition_of_done",
+          "correctness_priority"
+        ],
+        "signal_sources": {
+          "discussion_before_high_impact_changes": [
+            "AGENTS.md",
+            "PRINCIPLES.md"
+          ],
+          "non_trivial_task_locking": [
+            "PRINCIPLES.md"
+          ],
+          "visual_first_verification": [
+            "PRINCIPLES.md"
+          ],
+          "closeout_definition_of_done": [
+            "AGENTS.md",
+            "PRINCIPLES.md"
+          ],
+          "correctness_priority": [
+            "AGENTS.md",
+            "PRINCIPLES.md"
+          ]
+        },
+        "strictness_score": 7
+      },
+      "delta": {
+        "success_changed": true,
+        "route_changed": false,
+        "manual_intervention_changed": true
+      }
+    },
+    {
+      "id": "meta_router_regression",
+      "category": "meta-workspace",
+      "workspace": "/Users/tom/Documents/PHD/codex_updat",
+      "required_mode": "review",
+      "global_default_result": {
+        "success": true,
+        "route_match": true,
+        "flow": [
+          "explorer",
+          "worker",
+          "reviewer",
+          "main"
+        ],
+        "wall_time_sec": 1e-06,
+        "tool_calls": 4,
+        "manual_intervention": false
+      },
+      "workspace_overlay_result": {
+        "success": true,
+        "route_match": true,
+        "flow": [
+          "explorer",
+          "worker",
+          "reviewer",
+          "main"
+        ],
+        "wall_time_sec": 1e-06,
+        "tool_calls": 4,
+        "manual_intervention": false,
+        "manual_intervention_reasons": [],
+        "overlay_depth": 2,
+        "has_agents_md": true,
+        "has_principles_md": true,
+        "parsed_signals": [
+          "discussion_before_high_impact_changes",
+          "non_trivial_task_locking",
+          "visual_first_verification",
+          "closeout_definition_of_done",
+          "correctness_priority"
+        ],
+        "signal_sources": {
+          "discussion_before_high_impact_changes": [
+            "AGENTS.md",
+            "PRINCIPLES.md"
+          ],
+          "non_trivial_task_locking": [
+            "PRINCIPLES.md"
+          ],
+          "visual_first_verification": [
+            "PRINCIPLES.md"
+          ],
+          "closeout_definition_of_done": [
+            "AGENTS.md",
+            "PRINCIPLES.md"
+          ],
+          "correctness_priority": [
+            "AGENTS.md",
+            "PRINCIPLES.md"
+          ]
+        },
+        "strictness_score": 7
+      },
+      "delta": {
+        "success_changed": false,
+        "route_changed": false,
+        "manual_intervention_changed": false
+      }
+    },
+    {
+      "id": "meta_taxonomy_update",
+      "category": "meta-workspace",
+      "workspace": "/Users/tom/Documents/PHD/codex_updat",
+      "required_mode": "research",
+      "global_default_result": {
+        "success": true,
+        "route_match": true,
+        "flow": [
+          "explorer",
+          "worker",
+          "reviewer",
+          "main"
+        ],
+        "wall_time_sec": 1e-06,
+        "tool_calls": 4,
+        "manual_intervention": false
+      },
+      "workspace_overlay_result": {
+        "success": false,
+        "route_match": true,
+        "flow": [
+          "explorer",
+          "worker",
+          "reviewer",
+          "main"
+        ],
+        "wall_time_sec": 1e-06,
+        "tool_calls": 4,
+        "manual_intervention": true,
+        "manual_intervention_reasons": [
+          "local_overlay_requires_discussion_for_high_impact_changes",
+          "local_overlay_requires_task_lock_before_execution"
+        ],
+        "overlay_depth": 2,
+        "has_agents_md": true,
+        "has_principles_md": true,
+        "parsed_signals": [
+          "discussion_before_high_impact_changes",
+          "non_trivial_task_locking",
+          "visual_first_verification",
+          "closeout_definition_of_done",
+          "correctness_priority"
+        ],
+        "signal_sources": {
+          "discussion_before_high_impact_changes": [
+            "AGENTS.md",
+            "PRINCIPLES.md"
+          ],
+          "non_trivial_task_locking": [
+            "PRINCIPLES.md"
+          ],
+          "visual_first_verification": [
+            "PRINCIPLES.md"
+          ],
+          "closeout_definition_of_done": [
+            "AGENTS.md",
+            "PRINCIPLES.md"
+          ],
+          "correctness_priority": [
+            "AGENTS.md",
+            "PRINCIPLES.md"
+          ]
+        },
+        "strictness_score": 7
+      },
+      "delta": {
+        "success_changed": true,
+        "route_changed": false,
+        "manual_intervention_changed": true
+      }
+    },
+    {
+      "id": "vismath_bugfix_scene",
+      "category": "coding",
+      "workspace": "/Users/tom/Documents/PHD/Vis_Math",
+      "required_mode": "coding",
+      "global_default_result": {
+        "success": true,
+        "route_match": true,
+        "flow": [
+          "explorer",
+          "worker",
+          "reviewer",
+          "main"
+        ],
+        "wall_time_sec": 1e-06,
+        "tool_calls": 4,
+        "manual_intervention": false
+      },
+      "workspace_overlay_result": {
+        "success": true,
+        "route_match": true,
+        "flow": [
+          "explorer",
+          "worker",
+          "reviewer",
+          "main"
+        ],
+        "wall_time_sec": 1e-06,
+        "tool_calls": 4,
+        "manual_intervention": false,
+        "manual_intervention_reasons": [],
+        "overlay_depth": 1,
+        "has_agents_md": true,
+        "has_principles_md": false,
+        "parsed_signals": [],
+        "signal_sources": {},
+        "strictness_score": 0
+      },
+      "delta": {
+        "success_changed": false,
+        "route_changed": false,
+        "manual_intervention_changed": false
+      }
+    },
+    {
+      "id": "vismath_refactor_small",
+      "category": "coding",
+      "workspace": "/Users/tom/Documents/PHD/Vis_Math",
+      "required_mode": "coding",
+      "global_default_result": {
+        "success": true,
+        "route_match": true,
+        "flow": [
+          "explorer",
+          "worker",
+          "reviewer",
+          "main"
+        ],
+        "wall_time_sec": 1e-06,
+        "tool_calls": 4,
+        "manual_intervention": false
+      },
+      "workspace_overlay_result": {
+        "success": true,
+        "route_match": true,
+        "flow": [
+          "explorer",
+          "worker",
+          "reviewer",
+          "main"
+        ],
+        "wall_time_sec": 1e-06,
+        "tool_calls": 4,
+        "manual_intervention": false,
+        "manual_intervention_reasons": [],
+        "overlay_depth": 1,
+        "has_agents_md": true,
+        "has_principles_md": false,
+        "parsed_signals": [],
+        "signal_sources": {},
+        "strictness_score": 0
+      },
+      "delta": {
+        "success_changed": false,
+        "route_changed": false,
+        "manual_intervention_changed": false
+      }
+    },
+    {
+      "id": "vismath_quick_query",
+      "category": "coding",
+      "workspace": "/Users/tom/Documents/PHD/Vis_Math",
+      "required_mode": "trivial",
+      "global_default_result": {
+        "success": true,
+        "route_match": true,
+        "flow": [
+          "main"
+        ],
+        "wall_time_sec": 1e-06,
+        "tool_calls": 1,
+        "manual_intervention": false
+      },
+      "workspace_overlay_result": {
+        "success": true,
+        "route_match": true,
+        "flow": [
+          "main"
+        ],
+        "wall_time_sec": 1e-06,
+        "tool_calls": 1,
+        "manual_intervention": false,
+        "manual_intervention_reasons": [],
+        "overlay_depth": 1,
+        "has_agents_md": true,
+        "has_principles_md": false,
+        "parsed_signals": [],
+        "signal_sources": {},
+        "strictness_score": 0
+      },
+      "delta": {
+        "success_changed": false,
+        "route_changed": false,
+        "manual_intervention_changed": false
+      }
+    },
+    {
+      "id": "obsidian_memory_review",
+      "category": "research-writing",
+      "workspace": "/Users/tom/Documents/GitHub/obsidian_tom",
+      "required_mode": "review",
+      "global_default_result": {
+        "success": true,
+        "route_match": true,
+        "flow": [
+          "explorer",
+          "worker",
+          "reviewer",
+          "main"
+        ],
+        "wall_time_sec": 1e-06,
+        "tool_calls": 4,
+        "manual_intervention": false
+      },
+      "workspace_overlay_result": {
+        "success": true,
+        "route_match": true,
+        "flow": [
+          "explorer",
+          "worker",
+          "reviewer",
+          "main"
+        ],
+        "wall_time_sec": 1e-06,
+        "tool_calls": 4,
+        "manual_intervention": false,
+        "manual_intervention_reasons": [],
+        "overlay_depth": 0,
+        "has_agents_md": false,
+        "has_principles_md": false,
+        "parsed_signals": [],
+        "signal_sources": {},
+        "strictness_score": 0
+      },
+      "delta": {
+        "success_changed": false,
+        "route_changed": false,
+        "manual_intervention_changed": false
+      }
+    },
+    {
+      "id": "obsidian_pipeline_checkpoint",
+      "category": "research-writing",
+      "workspace": "/Users/tom/Documents/GitHub/obsidian_tom",
+      "required_mode": "research",
+      "global_default_result": {
+        "success": true,
+        "route_match": true,
+        "flow": [
+          "explorer",
+          "worker",
+          "reviewer",
+          "main"
+        ],
+        "wall_time_sec": 2e-06,
+        "tool_calls": 4,
+        "manual_intervention": false
+      },
+      "workspace_overlay_result": {
+        "success": true,
+        "route_match": true,
+        "flow": [
+          "explorer",
+          "worker",
+          "reviewer",
+          "main"
+        ],
+        "wall_time_sec": 2e-06,
+        "tool_calls": 4,
+        "manual_intervention": false,
+        "manual_intervention_reasons": [],
+        "overlay_depth": 0,
+        "has_agents_md": false,
+        "has_principles_md": false,
+        "parsed_signals": [],
+        "signal_sources": {},
+        "strictness_score": 0
+      },
+      "delta": {
+        "success_changed": false,
+        "route_changed": false,
+        "manual_intervention_changed": false
+      }
+    },
+    {
+      "id": "obsidian_style_normalization",
+      "category": "research-writing",
+      "workspace": "/Users/tom/Documents/GitHub/obsidian_tom",
+      "required_mode": "writing",
+      "global_default_result": {
+        "success": true,
+        "route_match": true,
+        "flow": [
+          "explorer",
+          "worker",
+          "reviewer",
+          "main"
+        ],
+        "wall_time_sec": 1e-06,
+        "tool_calls": 4,
+        "manual_intervention": false
+      },
+      "workspace_overlay_result": {
+        "success": true,
+        "route_match": true,
+        "flow": [
+          "explorer",
+          "worker",
+          "reviewer",
+          "main"
+        ],
+        "wall_time_sec": 1e-06,
+        "tool_calls": 4,
+        "manual_intervention": false,
+        "manual_intervention_reasons": [],
+        "overlay_depth": 0,
+        "has_agents_md": false,
+        "has_principles_md": false,
+        "parsed_signals": [],
+        "signal_sources": {},
+        "strictness_score": 0
+      },
+      "delta": {
+        "success_changed": false,
+        "route_changed": false,
+        "manual_intervention_changed": false
+      }
+    },
+    {
+      "id": "cross_workspace_policy_read",
+      "category": "cross-workspace",
+      "workspace": "/Users/tom/Documents/PHD/codex_updat",
+      "required_mode": "research",
+      "global_default_result": {
+        "success": true,
+        "route_match": true,
+        "flow": [
+          "explorer",
+          "worker",
+          "reviewer",
+          "main"
+        ],
+        "wall_time_sec": 1e-06,
+        "tool_calls": 4,
+        "manual_intervention": false
+      },
+      "workspace_overlay_result": {
+        "success": false,
+        "route_match": true,
+        "flow": [
+          "explorer",
+          "worker",
+          "reviewer",
+          "main"
+        ],
+        "wall_time_sec": 1e-06,
+        "tool_calls": 4,
+        "manual_intervention": true,
+        "manual_intervention_reasons": [
+          "local_overlay_requires_discussion_for_high_impact_changes",
+          "local_overlay_requires_task_lock_before_execution"
+        ],
+        "overlay_depth": 2,
+        "has_agents_md": true,
+        "has_principles_md": true,
+        "parsed_signals": [
+          "discussion_before_high_impact_changes",
+          "non_trivial_task_locking",
+          "visual_first_verification",
+          "closeout_definition_of_done",
+          "correctness_priority"
+        ],
+        "signal_sources": {
+          "discussion_before_high_impact_changes": [
+            "AGENTS.md",
+            "PRINCIPLES.md"
+          ],
+          "non_trivial_task_locking": [
+            "PRINCIPLES.md"
+          ],
+          "visual_first_verification": [
+            "PRINCIPLES.md"
+          ],
+          "closeout_definition_of_done": [
+            "AGENTS.md",
+            "PRINCIPLES.md"
+          ],
+          "correctness_priority": [
+            "AGENTS.md",
+            "PRINCIPLES.md"
+          ]
+        },
+        "strictness_score": 7
+      },
+      "delta": {
+        "success_changed": true,
+        "route_changed": false,
+        "manual_intervention_changed": true
+      }
+    },
+    {
+      "id": "cross_workspace_overlay_guard",
+      "category": "cross-workspace",
+      "workspace": "/Users/tom/Documents/PHD/codex_updat",
+      "required_mode": "review",
+      "global_default_result": {
+        "success": true,
+        "route_match": true,
+        "flow": [
+          "explorer",
+          "worker",
+          "reviewer",
+          "main"
+        ],
+        "wall_time_sec": 1e-06,
+        "tool_calls": 4,
+        "manual_intervention": false
+      },
+      "workspace_overlay_result": {
+        "success": false,
+        "route_match": true,
+        "flow": [
+          "explorer",
+          "worker",
+          "reviewer",
+          "main"
+        ],
+        "wall_time_sec": 1e-06,
+        "tool_calls": 4,
+        "manual_intervention": true,
+        "manual_intervention_reasons": [
+          "local_overlay_requires_discussion_for_high_impact_changes",
+          "local_overlay_requires_task_lock_before_execution"
+        ],
+        "overlay_depth": 2,
+        "has_agents_md": true,
+        "has_principles_md": true,
+        "parsed_signals": [
+          "discussion_before_high_impact_changes",
+          "non_trivial_task_locking",
+          "visual_first_verification",
+          "closeout_definition_of_done",
+          "correctness_priority"
+        ],
+        "signal_sources": {
+          "discussion_before_high_impact_changes": [
+            "AGENTS.md",
+            "PRINCIPLES.md"
+          ],
+          "non_trivial_task_locking": [
+            "PRINCIPLES.md"
+          ],
+          "visual_first_verification": [
+            "PRINCIPLES.md"
+          ],
+          "closeout_definition_of_done": [
+            "AGENTS.md",
+            "PRINCIPLES.md"
+          ],
+          "correctness_priority": [
+            "AGENTS.md",
+            "PRINCIPLES.md"
+          ]
+        },
+        "strictness_score": 7
+      },
+      "delta": {
+        "success_changed": true,
+        "route_changed": false,
+        "manual_intervention_changed": true
+      }
+    },
+    {
+      "id": "cross_workspace_trivial_time",
+      "category": "cross-workspace",
+      "workspace": "/Users/tom/Documents/GitHub/obsidian_tom",
+      "required_mode": "trivial",
+      "global_default_result": {
+        "success": true,
+        "route_match": true,
+        "flow": [
+          "main"
+        ],
+        "wall_time_sec": 0.0,
+        "tool_calls": 1,
+        "manual_intervention": false
+      },
+      "workspace_overlay_result": {
+        "success": true,
+        "route_match": true,
+        "flow": [
+          "main"
+        ],
+        "wall_time_sec": 0.0,
+        "tool_calls": 1,
+        "manual_intervention": false,
+        "manual_intervention_reasons": [],
+        "overlay_depth": 0,
+        "has_agents_md": false,
+        "has_principles_md": false,
+        "parsed_signals": [],
+        "signal_sources": {},
+        "strictness_score": 0
+      },
+      "delta": {
+        "success_changed": false,
+        "route_changed": false,
+        "manual_intervention_changed": false
+      }
+    }
+  ],
+  "overlay_summary": {
+    "mode": "parsed_overlay",
+    "workspaces": [
+      {
+        "workspace": "/Users/tom/Documents/PHD/codex_updat",
+        "has_agents_md": true,
+        "has_principles_md": true,
+        "overlay_depth": 2,
+        "strictness_score": 7,
+        "parsed_signals": [
+          "discussion_before_high_impact_changes",
+          "non_trivial_task_locking",
+          "visual_first_verification",
+          "closeout_definition_of_done",
+          "correctness_priority"
+        ],
+        "signal_sources": {
+          "discussion_before_high_impact_changes": [
+            "AGENTS.md",
+            "PRINCIPLES.md"
+          ],
+          "non_trivial_task_locking": [
+            "PRINCIPLES.md"
+          ],
+          "visual_first_verification": [
+            "PRINCIPLES.md"
+          ],
+          "closeout_definition_of_done": [
+            "AGENTS.md",
+            "PRINCIPLES.md"
+          ],
+          "correctness_priority": [
+            "AGENTS.md",
+            "PRINCIPLES.md"
+          ]
+        }
+      },
+      {
+        "workspace": "/Users/tom/Documents/PHD/Vis_Math",
+        "has_agents_md": true,
+        "has_principles_md": false,
+        "overlay_depth": 1,
+        "strictness_score": 0,
+        "parsed_signals": [],
+        "signal_sources": {}
+      },
+      {
+        "workspace": "/Users/tom/Documents/GitHub/obsidian_tom",
+        "has_agents_md": false,
+        "has_principles_md": false,
+        "overlay_depth": 0,
+        "strictness_score": 0,
+        "parsed_signals": [],
+        "signal_sources": {}
+      }
+    ]
+  }
+}

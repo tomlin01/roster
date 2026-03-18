@@ -1,0 +1,54 @@
+{
+  "title": "Agent Contract Schema",
+  "version": "1.0.0",
+  "type": "object",
+  "required": [
+    "goal",
+    "inputs",
+    "constraints",
+    "out_of_scope",
+    "acceptance_checks",
+    "verification_steps",
+    "fallback_policy"
+  ],
+  "properties": {
+    "goal": {
+      "type": "string",
+      "minLength": 1
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "out_of_scope": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "acceptance_checks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "verification_steps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "fallback_policy": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,19 @@
+[workspace]
+root = ".."
+
+[paths]
+policy_dir = "policy"
+contexts_dir = "contexts"
+scripts_dir = "scripts"
+codex_home = "~/.codex"
+skill_roots = ["~/.codex/skills", "~/.agents/skills"]
+vault_path = "/Users/tom/Documents/GitHub/obsidian_tom"
+checkpoint_root = "/Users/tom/Documents/GitHub/obsidian_tom/00_system/checkpoints"
+bridge_state = "/Users/tom/Documents/GitHub/obsidian_tom/00_system/checkpoints/.state/codex_bridge_state.json"
+active_session_state = "/Users/tom/Documents/GitHub/obsidian_tom/00_system/checkpoints/.state/active_session.json"
+automation_root = "~/.codex/automations"
+
+[freshness]
+system_hours = 24
+generated_hours = 24
+report_hours = 24

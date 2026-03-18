@@ -1,0 +1,60 @@
+{
+  "title": "Benchmark Case Schema",
+  "version": "1.0.0",
+  "type": "object",
+  "required": [
+    "id",
+    "category",
+    "prompt",
+    "required_mode",
+    "expected_flow",
+    "acceptance_checks",
+    "network_needed",
+    "workspace_sensitivity",
+    "notes"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "category": {
+      "type": "string",
+      "minLength": 1
+    },
+    "prompt": {
+      "type": "string",
+      "minLength": 1
+    },
+    "required_mode": {
+      "type": "string"
+    },
+    "expected_flow": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "acceptance_checks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "network_needed": {
+      "type": "boolean"
+    },
+    "workspace_sensitivity": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "workspace": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

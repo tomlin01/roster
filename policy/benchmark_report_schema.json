@@ -1,0 +1,75 @@
+{
+  "title": "Benchmark Report Schema",
+  "version": "1.1.0",
+  "type": "object",
+  "required": [
+    "timestamp",
+    "benchmark_kind",
+    "suite_version",
+    "scope",
+    "workspace",
+    "passed",
+    "failed",
+    "task_success_rate",
+    "route_match_rate",
+    "manual_intervention_rate",
+    "median_wall_time_sec",
+    "avg_tool_calls",
+    "failure_reasons",
+    "case_results"
+  ],
+  "properties": {
+    "timestamp": {
+      "type": "string"
+    },
+    "benchmark_kind": {
+      "type": "string"
+    },
+    "suite_version": {
+      "type": "string"
+    },
+    "scope": {
+      "type": "string"
+    },
+    "workspace": {
+      "type": "string"
+    },
+    "passed": {
+      "type": "integer"
+    },
+    "failed": {
+      "type": "integer"
+    },
+    "task_success_rate": {
+      "type": "number"
+    },
+    "route_match_rate": {
+      "type": "number"
+    },
+    "manual_intervention_rate": {
+      "type": "number"
+    },
+    "median_wall_time_sec": {
+      "type": "number"
+    },
+    "avg_tool_calls": {
+      "type": "number"
+    },
+    "failure_reasons": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "case_results": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "overlay_summary": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

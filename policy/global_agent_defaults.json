@@ -1,0 +1,56 @@
+{
+  "version": "1.1.0",
+  "owner_workspace": "/Users/tom/Documents/PHD/codex_updat",
+  "workflow_defaults": {
+    "non_trivial_sequence": [
+      "explorer",
+      "worker",
+      "reviewer",
+      "main"
+    ],
+    "trivial_strategy": "single_agent_direct",
+    "ambiguity_strategy": "discussion_checkpoint_unless_user_direct"
+  },
+  "contract_required_fields": [
+    "goal",
+    "inputs",
+    "constraints",
+    "out_of_scope",
+    "acceptance_checks",
+    "verification_steps",
+    "fallback_policy"
+  ],
+  "benchmark_required_case_fields": [
+    "id",
+    "category",
+    "prompt",
+    "required_mode",
+    "expected_flow",
+    "acceptance_checks",
+    "network_needed",
+    "workspace_sensitivity",
+    "notes"
+  ],
+  "benchmark_modes": [
+    "policy_simulation",
+    "parsed_overlay"
+  ],
+  "baseline_metric_priority": [
+    "task_success_rate",
+    "route_match_rate",
+    "manual_intervention_rate",
+    "median_wall_time_sec",
+    "avg_tool_calls"
+  ],
+  "fallback_policy": {
+    "missing_overlay": "use_global_defaults",
+    "schema_violation": "fail_fast",
+    "unknown_workspace": "use_global_defaults"
+  },
+  "policy_precedence": [
+    "user_explicit_instruction",
+    "workspace_overlay",
+    "global_defaults",
+    "session_state"
+  ]
+}

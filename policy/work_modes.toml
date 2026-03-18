@@ -1,0 +1,109 @@
+[mode.analysis.file_hints]
+extensions = [".csv", ".tsv", ".xlsx", ".xls", ".parquet", ".ipynb", ".jsonl"]
+keywords = ["analysis", "dataset", "results", "model", "stat", "quality", "品保"]
+path_keywords = ["data", "dataset", "analysis", "results", "tables"]
+
+[mode.analysis]
+active_skills = ["spreadsheet", "xlsx", "polars", "statsmodels", "statistical-analysis"]
+fallback_skills = ["scikit-learn", "scikit-survival", "matplotlib"]
+output_contract = [
+  "State dataset assumptions and changed inputs explicitly.",
+  "Prefer concise statistical wording over ornate vocabulary.",
+  "Keep steps reproducible and scoped to the current dataset version."
+]
+session_preamble = "Operate as an analysis-focused session. Prefer continuity over redesign, and keep the current dataset version explicit."
+escalation_triggers = [
+  "Method changes would break comparability with prior dataset versions.",
+  "The folder looks like a new dataset drop for an existing recurring pipeline.",
+  "The requested output would change the established analysis deliverable format."
+]
+
+[mode.writing.file_hints]
+extensions = [".md", ".pdf", ".docx", ".tex", ".bib"]
+keywords = ["draft", "paper", "manuscript", "section", "outline", "writing", "review"]
+path_keywords = ["draft", "paper", "writing", "sections", "citations"]
+
+[mode.writing]
+active_skills = ["research-assistant", "citation-management", "content-research-writer", "internal-comms"]
+fallback_skills = ["draft-polisher", "humanizer", "obsidian-markdown"]
+output_contract = [
+  "Use plain academic wording and avoid rare or showy vocabulary.",
+  "Keep claims close to the available source material.",
+  "Prefer short, easy-to-scan paragraphs and explicit next edits."
+]
+session_preamble = "Operate as a writing session. Keep wording plain, keep claims close to sources, and prefer concrete revision steps over stylistic drift."
+escalation_triggers = [
+  "The request needs new sources or evidence that the current folder does not contain.",
+  "The requested writing voice conflicts with the current academic/plain-language contract.",
+  "The draft appears to belong to another paper or workspace and may need a separate session."
+]
+
+[mode.math_check.file_hints]
+extensions = [".tex", ".ipynb", ".md", ".pdf", ".png", ".jpg"]
+keywords = ["math", "proof", "derivation", "equation", "kernel", "vis_math"]
+path_keywords = ["math", "derivation", "figures", "proofs"]
+
+[mode.math_check]
+active_skills = ["statistical-analysis", "statsmodels", "matplotlib", "verification-loop"]
+fallback_skills = ["networkx", "research-assistant"]
+output_contract = [
+  "Prefer checkable derivation steps over long prose.",
+  "Make notation explicit and verify what is visible on the page.",
+  "Call out mismatches between equations, figures, and text directly."
+]
+session_preamble = "Operate as a math-check session. Favor explicit derivations, notation checks, and visible-page verification over narrative explanation."
+escalation_triggers = [
+  "Notation is inconsistent across equations, figures, or surrounding prose.",
+  "The request needs proof-level rigor beyond the visible derivation context.",
+  "A figure or rendered page appears inconsistent with the mathematical statement."
+]
+
+[mode.meeting.file_hints]
+extensions = [".md", ".pdf", ".docx", ".pptx"]
+keywords = ["meeting", "agenda", "minutes", "prof", "conference", "admin"]
+path_keywords = ["meeting", "minutes", "agenda", "conference"]
+
+[mode.meeting]
+active_skills = ["obsidian-markdown", "internal-comms", "research-assistant"]
+fallback_skills = ["docx", "pptx"]
+output_contract = [
+  "Capture decisions, owners, and next steps explicitly.",
+  "Keep equations in math syntax: inline `$...$`, block `$$...$$`.",
+  "Separate factual notes from your interpretation."
+]
+session_preamble = "Operate as a meeting session. Separate facts from interpretation and keep decisions, owners, and next steps explicit."
+escalation_triggers = [
+  "The note mixes multiple meetings or agendas that should be split.",
+  "Action items are missing owners or deadlines.",
+  "Math or technical notation is being written as code spans instead of TeX."
+]
+
+[mode.course.file_hints]
+extensions = [".md", ".pdf", ".ipynb", ".pptx", ".docx"]
+keywords = ["course", "lecture", "class", "homework", "assignment", "machinelearning"]
+path_keywords = ["course", "lecture", "homework", "assignment", "syllabus"]
+
+[mode.course]
+active_skills = ["obsidian-markdown", "jupyter-notebook", "research-assistant", "spreadsheet"]
+fallback_skills = ["docx", "pptx", "content-research-writer"]
+output_contract = [
+  "Keep lecture notes, assignments, and references distinct.",
+  "Use `$...$` and `$$...$$` for math; never backticks for equations.",
+  "Summaries should preserve definitions, assumptions, and unresolved questions."
+]
+session_preamble = "Operate as a course session. Keep lecture content, assignments, and references separate, and preserve unresolved questions explicitly."
+escalation_triggers = [
+  "Lecture notes, homework, and reference material are collapsing into one undifferentiated note.",
+  "Equation formatting is being mixed with code formatting.",
+  "The request spans multiple courses or semesters and should be split."
+]
+
+[inventory]
+cold_skills = [
+  "competitive-ads-extractor",
+  "domain-name-brainstormer",
+  "raffle-winner-picker",
+  "slack-gif-creator",
+  "twitter-algorithm-optimizer",
+  "youtube-downloader"
+]
