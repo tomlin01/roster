@@ -17,3 +17,26 @@ automation_root = "~/.codex/automations"
 system_hours = 24
 generated_hours = 24
 report_hours = 24
+
+[routing]
+team_alias_registry = "contexts/team_alias_registry.json"
+prefer_named_team_aliases = true
+artifact_harness_entrypoint = "artifact-harness"
+packet_route_entrypoint = "packet-route"
+# Relative paths resolve under the `--path <workspace-folder>` target.
+artifact_harness_packet_root = "contexts/artifact_harness_runs"
+artifact_harness_keywords = [
+  "artifact harness",
+  "harness spec",
+  "requirement form",
+  "packet init",
+  "form fill",
+  "team operating packet",
+  "capability access packet",
+  "runtime mapping",
+]
+
+[runtime_adapters]
+policy = "policy/MULTI_AGENT_RUNTIME_ADAPTERS_V0.md"
+open_multi_agent_status = "execution-adapter-candidate"
+preferred_open_multi_agent_mode = "runTasks"

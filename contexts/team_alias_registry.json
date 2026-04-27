@@ -1,0 +1,107 @@
+{
+  "version": "0.1.0",
+  "owner_workspace": "codex-cns",
+  "resolution_order": [
+    "natural_language_alias",
+    "canonical_team_surface",
+    "compatibility_entrypoint",
+    "explicit_skill_fallback"
+  ],
+  "aliases": [
+    {
+      "id": "human_resources",
+      "aliases": [
+        "HR",
+        "Human Resources",
+        "ask HR",
+        "route to HR"
+      ],
+      "entity_type": "team_surface",
+      "status": "active_local_alias",
+      "canonical_surface": "teams/human-resources/AGENTS.md",
+      "internal_contract": "teams/human-resources/TEAM.md",
+      "compatibility_entrypoints": [
+        "agents/native/hr.md"
+      ],
+      "primary_invocation_examples": [
+        "HR, help me set up the multi-agent team for this task.",
+        "HR, check whether we already have the right roles.",
+        "HR, create a Product Manager role if the current library is insufficient."
+      ],
+      "resolution_policy": {
+        "prefer_team_surface": true,
+        "use_skill_as_primary": false,
+        "allow_explicit_skill_fallback": true
+      },
+      "authorities": [
+        "role_reuse_recommendation",
+        "role_adaptation_draft",
+        "new_role_draft",
+        "team_architect_handoff_brief"
+      ],
+      "approval_boundaries": [
+        "no silent promotion to canonical or global default",
+        "no override of local or global policy layers",
+        "user approval required for high-impact new-role adoption"
+      ]
+    }
+  ],
+  "keyword_families": [
+    {
+      "id": "artifact_harness_workflow",
+      "keywords": [
+        "Artifact Harness",
+        "Harness SPEC",
+        "requirement form",
+        "packet init",
+        "form fill",
+        "artifact packet",
+        "artifact mission"
+      ],
+      "entrypoint": "scripts/brain.sh artifact-harness",
+      "target_workflow": "user mission -> Artifact Harness SPEC -> HR staffing -> Team Operating Packet -> Capability Access Packet -> runtime mapping -> verification/review",
+      "packet_root": "contexts/artifact_harness_runs",
+      "status": "active_local_keyword_family"
+    },
+    {
+      "id": "team_architect_packet",
+      "keywords": [
+        "Team Architect",
+        "Team Operating Packet",
+        "operating packet",
+        "task graph",
+        "collaboration pattern"
+      ],
+      "entrypoint": "templates/team_architect/team_operating_packet.template.md",
+      "target_workflow_stage": "Team Operating Packet",
+      "status": "active_local_keyword_family"
+    },
+    {
+      "id": "capability_access_packet",
+      "keywords": [
+        "Capability Access Packet",
+        "CAP",
+        "tool authorization",
+        "skill authorization",
+        "plugin authorization",
+        "approval gates",
+        "runtime allowlist"
+      ],
+      "entrypoint": "templates/team_architect/capability_access_packet.template.md",
+      "target_workflow_stage": "Capability Access Packet",
+      "status": "active_local_keyword_family"
+    },
+    {
+      "id": "runtime_mapping",
+      "keywords": [
+        "runtime mapping",
+        "runTasks mapping",
+        "open-multi-agent mapping",
+        "runtime adapter"
+      ],
+      "entrypoint": "templates/team_architect/open_multi_agent_runtasks_mapping.template.md",
+      "target_workflow_stage": "runtime mapping",
+      "status": "active_local_keyword_family"
+    }
+  ]
+}

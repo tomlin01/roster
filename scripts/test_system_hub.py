@@ -4,6 +4,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+import shlex
 import shutil
 import sqlite3
 import subprocess
@@ -218,6 +219,52 @@ def benchmark_cases_payload() -> str:
                 "workspace": "/tmp/workspace",
             }
         ],
+        ensure_ascii=False,
+        indent=2,
+    ) + "\n"
+
+
+def team_alias_registry_payload() -> str:
+    return json.dumps(
+        {
+            "version": "test",
+            "aliases": [
+                {
+                    "id": "human_resources",
+                    "aliases": ["HR", "Human Resources", "ask HR", "route to HR"],
+                    "entity_type": "team_surface",
+                    "status": "active_local_alias",
+                }
+            ],
+            "keyword_families": [
+                {
+                    "id": "artifact_harness_workflow",
+                    "keywords": ["packet form", "Artifact Harness", "Harness SPEC", "requirement form", "form fill", "artifact packet", "artifact mission"],
+                    "entrypoint": "scripts/brain.sh artifact-harness",
+                    "target_workflow": "user mission -> Artifact Harness SPEC -> HR staffing -> Team Operating Packet -> Capability Access Packet -> runtime mapping -> verification/review",
+                    "packet_root": "contexts/artifact_harness_runs",
+                    "status": "active_local_keyword_family",
+                },
+                {
+                    "id": "team_architect_packet",
+                    "keywords": ["Team Architect", "Team Operating Packet", "operating packet", "task graph", "collaboration pattern"],
+                    "target_workflow_stage": "Team Operating Packet",
+                    "status": "active_local_keyword_family",
+                },
+                {
+                    "id": "capability_access_packet",
+                    "keywords": ["Capability Access Packet", "CAP", "tool authorization", "skill authorization", "plugin authorization", "approval gates", "runtime allowlist"],
+                    "target_workflow_stage": "Capability Access Packet",
+                    "status": "active_local_keyword_family",
+                },
+                {
+                    "id": "runtime_mapping",
+                    "keywords": ["runtime mapping", "runTasks mapping", "open-multi-agent mapping", "runtime adapter"],
+                    "target_workflow_stage": "runtime mapping",
+                    "status": "active_local_keyword_family",
+                },
+            ],
+        },
         ensure_ascii=False,
         indent=2,
     ) + "\n"
@@ -493,6 +540,7 @@ def make_workspace(
     write_file(contexts_dir / "writing.md", "# writing\n")
     write_file(contexts_dir / "review.md", "# review\n")
     write_file(contexts_dir / "agent_benchmark_cases.json", benchmark_cases_payload())
+    write_file(contexts_dir / "team_alias_registry.json", team_alias_registry_payload())
     write_file(policy_dir / "work_modes.toml", work_modes_config())
     for name in (
         "GLOBAL_OPERATING_MODEL.md",
@@ -647,6 +695,14 @@ session_ckpt_cmd = "{session_ckpt}"
 system_hours = 24
 generated_hours = 24
 report_hours = 24
+
+[routing]
+team_alias_registry = "{contexts_dir / "team_alias_registry.json"}"
+prefer_named_team_aliases = true
+artifact_harness_entrypoint = "artifact-harness"
+packet_route_entrypoint = "packet-route"
+artifact_harness_packet_root = "contexts/artifact_harness_runs"
+artifact_harness_keywords = ["packet form", "artifact harness", "harness spec"]
 """
         write_file(policy_dir / "system_hub.toml", config.strip() + "\n")
 
@@ -703,6 +759,23 @@ def load_skill_discovery_registry(ws: Path) -> dict:
 
 def load_skill_route_registry(ws: Path) -> dict:
     return json.loads((ws / "contexts" / "skill_route_registry.json").read_text(encoding="utf-8"))
+
+
+def load_artifact_harness_registry(ws: Path) -> dict:
+    return json.loads((ws / "contexts" / "artifact_harness_registry.json").read_text(encoding="utf-8"))
+
+
+def set_artifact_harness_packet_root(ws: Path, packet_root: Path) -> None:
+    config_path = ws / "policy" / "system_hub.toml"
+    original = config_path.read_text(encoding="utf-8")
+    config_path.write_text(
+        original.replace(
+            'artifact_harness_packet_root = "contexts/artifact_harness_runs"',
+            f'artifact_harness_packet_root = "{packet_root}"',
+            1,
+        ),
+        encoding="utf-8",
+    )
 
 
 def load_memory_governance_registry(ws: Path) -> dict:
@@ -1234,6 +1307,1326 @@ def test_skill_route_writes_workflow_registry() -> None:
         entry = registry["entries"][0]
         assert_true(entry["predicted_mode"] == "analysis", "skill-route should inherit the folder mode")
         assert_true(entry["primary_skills"], "skill-route should select at least one primary skill")
+
+
+def test_artifact_harness_writes_packet_chain() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-harness-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        result = run_brain(
+            ws,
+            "artifact-harness",
+            "Draft a review-ready methods appendix",
+            "--path",
+            str(folder),
+            "--artifact",
+            "output/methods_appendix.md",
+        )
+        assert_true(result.returncode == 0, f"artifact-harness expected 0, got {result.returncode}, stderr={result.stderr}")
+        assert_true("# Artifact Harness Packet Chain" in result.stdout, "artifact-harness should render a packet summary")
+        assert_true("artifact_harness_spec" in result.stdout, "summary should include the SPEC packet")
+        registry_path = folder / "contexts" / "artifact_harness_registry.json"
+        assert_true(registry_path.exists(), "artifact-harness should write a registry")
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+        assert_true(len(registry.get("entries", [])) == 1, "artifact-harness should persist one registry entry")
+        entry = registry["entries"][0]
+        run_dir = folder / entry["run_dir"]
+        assert_true(run_dir.exists(), "artifact-harness should write a deterministic run directory")
+        status_path = folder / entry["status_path"]
+        assert_true(status_path.exists(), "artifact-harness should write lifecycle metadata")
+        status_payload = json.loads(status_path.read_text(encoding="utf-8"))
+        assert_true(status_payload["status"] == "draft", "new artifact-harness runs should start as draft")
+        assert_true(entry["status"] == "draft", "registry should expose initial lifecycle status")
+        for key in (
+            "artifact_harness_spec",
+            "hr_staffing_packet",
+            "team_operating_packet",
+            "capability_access_packet",
+            "runtime_mapping",
+            "manifest",
+        ):
+            assert_true((folder / entry["packets"][key]).exists(), f"artifact-harness should write {key}")
+        spec_text = (folder / entry["packets"]["artifact_harness_spec"]).read_text(encoding="utf-8")
+        assert_true("[source: user phrase]" in spec_text, "SPEC should include field-level source hints")
+        assert_true("method [source: user phrase or verification owner]" in spec_text, "SPEC acceptance checks should keep method source hints")
+        assert_true("owner [source: verification/review]" in spec_text, "SPEC acceptance checks should keep owner source hints")
+        assert_true("pass condition [source: user phrase or open question]" in spec_text, "SPEC acceptance checks should keep pass-condition source hints")
+        assert_true("staffing target [source: workflow default]" in spec_text, "SPEC handoff should keep staffing source hints")
+        assert_true("Team Architect target [source: workflow default]" in spec_text, "SPEC handoff should keep Team Architect source hints")
+        assert_true("verification or review target [source: workflow default]" in spec_text, "SPEC handoff should keep verification source hints")
+        template_text = (ROOT / "templates" / "artifact_harness" / "artifact_harness_spec.template.md").read_text(encoding="utf-8")
+        assert_true("method [source: user phrase, verification owner, repo evidence, or open question]" in template_text, "canonical SPEC template should keep acceptance method source hints")
+        assert_true("staffing target [source: workflow policy]" in template_text, "canonical SPEC template should keep handoff source hints")
+        assert_true("verification or review target [source: workflow policy, user phrase, or open question]" in template_text, "canonical SPEC template should keep verification handoff source hints")
+        top_text = (folder / entry["packets"]["team_operating_packet"]).read_text(encoding="utf-8")
+        assert_true(entry["packets"]["hr_staffing_packet"] in top_text, "generated TOP should link source_hr_staffing_packet")
+        manifest = json.loads((folder / entry["packets"]["manifest"]).read_text(encoding="utf-8"))
+        assert_true(
+            manifest["workflow"]
+            == [
+                "user mission",
+                "Artifact Harness SPEC",
+                "HR staffing",
+                "Team Operating Packet",
+                "Capability Access Packet",
+                "runtime mapping",
+                "verification/review",
+            ],
+            "manifest should preserve the packet chain",
+        )
+        assert_true("hr_staffing_packet" in manifest["packets"], "manifest should include hr_staffing_packet")
+        assert_true(manifest["lifecycle"]["status"] == "draft", "manifest should link initial lifecycle status")
+        assert_true(manifest["lifecycle"]["status_path"] == entry["status_path"], "manifest and registry should agree on lifecycle status path")
+
+
+def test_artifact_harness_refuses_rerun_without_force() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-rerun-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        first = run_brain(ws, "artifact-harness", "Draft a review-ready methods appendix", "--path", str(folder), "--id", "stable-run")
+        assert_true(first.returncode == 0, f"first artifact-harness run should succeed, got {first.returncode}, stderr={first.stderr}")
+        registry_path = folder / "contexts" / "artifact_harness_registry.json"
+        registry_before = registry_path.read_text(encoding="utf-8")
+        entry = load_artifact_harness_registry(folder)["entries"][0]
+        spec_path = folder / entry["packets"]["artifact_harness_spec"]
+        spec_path.write_text(spec_path.read_text(encoding="utf-8") + "\nSENTINEL_DO_NOT_OVERWRITE\n", encoding="utf-8")
+
+        second = run_brain(ws, "artifact-harness", "Draft a review-ready methods appendix", "--path", str(folder), "--id", "stable-run")
+        assert_true(second.returncode != 0, "artifact-harness rerun without force should fail")
+        assert_true("Artifact Harness packet run already exists" in second.stderr, "rerun failure should explain the existing run directory")
+        assert_true("--id <new-id>" in second.stderr and "--force" in second.stderr, "rerun failure should suggest new id or explicit force")
+        assert_true("SENTINEL_DO_NOT_OVERWRITE" in spec_path.read_text(encoding="utf-8"), "rerun without force should preserve filled packet content")
+        assert_true(registry_path.read_text(encoding="utf-8") == registry_before, "rerun without force should not update registry")
+
+        forced = run_brain(ws, "artifact-harness", "Draft a review-ready methods appendix", "--path", str(folder), "--id", "stable-run", "--force")
+        assert_true(forced.returncode == 0, f"artifact-harness --force should overwrite, got {forced.returncode}, stderr={forced.stderr}")
+        assert_true("SENTINEL_DO_NOT_OVERWRITE" not in spec_path.read_text(encoding="utf-8"), "force should allow packet overwrite")
+
+
+def test_artifact_harness_json_from_temp_cwd_writes_target_workspace() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-json-") as tmp_s:
+        tmp = Path(tmp_s)
+        cwd = tmp / "cwd"
+        target = tmp / "target_workspace"
+        cwd.mkdir(parents=True, exist_ok=True)
+        target.mkdir(parents=True, exist_ok=True)
+        brain = ROOT / "scripts" / "brain.sh"
+        result = subprocess.run(
+            [
+                str(brain),
+                "artifact-harness",
+                "Draft a review-ready methods appendix",
+                "--path",
+                str(target),
+                "--id",
+                "json-entrypoint",
+                "--json",
+            ],
+            cwd=cwd,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert_true(result.returncode == 0, f"absolute artifact-harness --json expected 0, got {result.returncode}, stderr={result.stderr}")
+        payload = json.loads(result.stdout)
+        assert_true(payload["created"] is True and payload["refused"] is False, "artifact-harness JSON should expose creation state")
+        assert_true(Path(payload["run_dir"]).resolve() == (target / "contexts" / "artifact_harness_runs" / "json-entrypoint").resolve(), "--path should define packet output workspace")
+        assert_true(Path(payload["registry_path"]).resolve() == (target / "contexts" / "artifact_harness_registry.json").resolve(), "registry should live in the target workspace contexts")
+        assert_true(Path(payload["packets"]["artifact_harness_spec"]).exists(), "JSON packet path should be directly usable")
+        assert_true(Path(payload["packets"]["hr_staffing_packet"]).exists(), "JSON packet output should include hr_staffing_packet")
+        assert_true(payload["status"] == "draft", "artifact-harness JSON should expose initial lifecycle status")
+        assert_true(Path(payload["status_path"]).exists(), "artifact-harness JSON should expose lifecycle metadata path")
+
+
+def test_artifact_harness_lifecycle_status_mark_resume() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-lifecycle-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        create = run_brain(ws, "artifact-harness", "Draft a review-ready methods appendix", "--path", str(folder), "--id", "lifecycle-run", "--json")
+        assert_true(create.returncode == 0, f"artifact-harness create should succeed, got {create.returncode}, stderr={create.stderr}")
+        create_payload = json.loads(create.stdout)
+        spec_path = Path(create_payload["packets"]["artifact_harness_spec"])
+        original_spec = spec_path.read_text(encoding="utf-8")
+        sentinel = "\nSENTINEL_LIFECYCLE_SHOULD_NOT_TOUCH_MARKDOWN\n"
+        spec_path.write_text(original_spec + sentinel, encoding="utf-8")
+
+        human_status = run_brain(ws, "artifact-harness", "status", "--path", str(folder), "--id", "lifecycle-run")
+        assert_true(human_status.returncode == 0, f"artifact-harness status should succeed, got {human_status.returncode}, stderr={human_status.stderr}")
+        assert_true("Status: `draft`" in human_status.stdout, "human status should report draft")
+
+        status_json = run_brain(ws, "artifact-harness", "status", "--path", str(folder), "--id", "lifecycle-run", "--json")
+        assert_true(status_json.returncode == 0, f"artifact-harness status --json should succeed, got {status_json.returncode}, stderr={status_json.stderr}")
+        status_payload = json.loads(status_json.stdout)
+        assert_true(status_payload["status"] == "draft", "status JSON should report draft")
+        assert_true(status_payload["refused"] is False, "status JSON should expose refused=false on success")
+
+        mark_json = run_brain(
+            ws,
+            "artifact-harness",
+            "mark",
+            "--path",
+            str(folder),
+            "--id",
+            "lifecycle-run",
+            "--status",
+            "filled",
+            "--note",
+            "SPEC and staffing packet filled",
+            "--json",
+        )
+        assert_true(mark_json.returncode == 0, f"artifact-harness mark --json should succeed, got {mark_json.returncode}, stderr={mark_json.stderr}")
+        mark_payload = json.loads(mark_json.stdout)
+        assert_true(mark_payload["status"] == "filled", "mark JSON should report the new status")
+        assert_true(mark_payload["status_note"] == "SPEC and staffing packet filled", "mark JSON should retain the note")
+        assert_true("SENTINEL_LIFECYCLE_SHOULD_NOT_TOUCH_MARKDOWN" in spec_path.read_text(encoding="utf-8"), "mark should not rewrite packet Markdown")
+
+        resume_json = run_brain(ws, "artifact-harness", "resume", "--path", str(folder), "--id", "lifecycle-run", "--json")
+        assert_true(resume_json.returncode == 0, f"artifact-harness resume --json should succeed, got {resume_json.returncode}, stderr={resume_json.stderr}")
+        resume_payload = json.loads(resume_json.stdout)
+        assert_true(resume_payload["status"] == "filled", "resume JSON should report current status")
+        assert_true(resume_payload["next_inspection"] == "team_operating_packet", "resume should recommend a packet to inspect next")
+        assert_true("resume_json" in resume_payload["commands"], "resume JSON should provide safe command forms")
+        assert_true("SENTINEL_LIFECYCLE_SHOULD_NOT_TOUCH_MARKDOWN" in spec_path.read_text(encoding="utf-8"), "resume should not rewrite packet Markdown")
+
+        registry = load_artifact_harness_registry(folder)
+        entry = registry["entries"][0]
+        assert_true(entry["status"] == "filled", "registry should track marked lifecycle status")
+        status_sidecar = json.loads((folder / entry["status_path"]).read_text(encoding="utf-8"))
+        assert_true(status_sidecar["status"] == "filled", "status sidecar should track marked lifecycle status")
+        assert_true(entry["status_updated_at"] == status_sidecar["updated_at"], "registry and status sidecar should agree on status update time")
+
+
+def test_artifact_harness_lifecycle_json_refusal_is_parseable() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-lifecycle-refusal-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        missing = run_brain(ws, "artifact-harness", "resume", "--path", str(folder), "--id", "missing-run", "--json")
+        assert_true(missing.returncode != 0, "artifact-harness resume --json should fail for a missing run")
+        payload = json.loads(missing.stdout)
+        assert_true(payload["refused"] is True, "lifecycle refusal JSON should expose refused=true")
+        assert_true(payload["reason"] == "missing_packet_run", "lifecycle refusal JSON should identify missing run")
+
+        create = run_brain(ws, "artifact-harness", "Draft a review-ready methods appendix", "--path", str(folder), "--id", "bad-status")
+        assert_true(create.returncode == 0, f"artifact-harness create should succeed before invalid-status check, got {create.returncode}")
+        invalid = run_brain(ws, "artifact-harness", "mark", "--path", str(folder), "--id", "bad-status", "--status", "secret-approved", "--json")
+        assert_true(invalid.returncode != 0, "artifact-harness mark --json should fail for an invalid status")
+        invalid_payload = json.loads(invalid.stdout)
+        assert_true(invalid_payload["refused"] is True, "invalid mark status should emit refusal JSON")
+        assert_true(invalid_payload["reason"] == "invalid_status", "invalid mark status should identify invalid_status")
+
+
+def test_artifact_harness_replay_writes_evidence_and_preserves_markdown() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-replay-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        create = run_brain(ws, "artifact-harness", "Draft a replay-ready methods appendix", "--path", str(folder), "--id", "replay-run", "--json")
+        assert_true(create.returncode == 0, f"artifact-harness create should succeed, got {create.returncode}, stderr={create.stderr}")
+        create_payload = json.loads(create.stdout)
+        spec_path = Path(create_payload["packets"]["artifact_harness_spec"])
+        spec_path.write_text(spec_path.read_text(encoding="utf-8") + "\nSENTINEL_REPLAY_SHOULD_NOT_TOUCH_MARKDOWN\n", encoding="utf-8")
+
+        replay = run_brain(ws, "artifact-harness", "replay", "--path", str(folder), "--id", "replay-run", "--json")
+        assert_true(replay.returncode == 0, f"artifact-harness replay --json should succeed, got {replay.returncode}, stderr={replay.stderr}")
+        payload = json.loads(replay.stdout)
+        assert_true(payload["refused"] is False, "replay JSON should expose refused=false")
+        assert_true(payload["status"] == "draft", "replay JSON should include lifecycle status")
+        assert_true(payload["id"] == "replay-run", "replay JSON should include packet id")
+        evidence_path = Path(payload["evidence_path"])
+        assert_true(evidence_path.exists(), "replay should write evidence inside the packet run directory")
+        assert_true(evidence_path.parent == Path(payload["run_dir"]), "replay evidence should live in the packet run directory")
+        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+        assert_true(evidence["id"] == "replay-run", "evidence JSON should record packet id")
+        assert_true(evidence["mission"] == "Draft a replay-ready methods appendix", "evidence JSON should record the tested mission")
+        assert_true(evidence["registry_status"] == "draft", "evidence JSON should record registry lifecycle status")
+        assert_true(evidence["packets"]["artifact_harness_spec"]["exists"] is True, "evidence should record packet presence")
+        assert_true(evidence["field_completion_summary"]["existing_packet_count"] >= 6, "evidence should count existing packet artifacts")
+        assert_true("empty_bullet_fields" in evidence["heuristics"], "evidence should record transparent field heuristics")
+        assert_true("SENTINEL_REPLAY_SHOULD_NOT_TOUCH_MARKDOWN" in spec_path.read_text(encoding="utf-8"), "replay should not rewrite packet Markdown")
+
+        human = run_brain(ws, "artifact-harness", "replay", "--path", str(folder), "--id", "replay-run")
+        assert_true(human.returncode == 0, f"artifact-harness replay human mode should succeed, got {human.returncode}, stderr={human.stderr}")
+        assert_true("# Artifact Harness Replay Evidence" in human.stdout, "human replay should render a summary")
+
+
+def test_artifact_harness_replay_json_refusal_is_parseable() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-replay-refusal-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        replay = run_brain(ws, "artifact-harness", "replay", "--path", str(folder), "--id", "missing-replay", "--json")
+        assert_true(replay.returncode != 0, "artifact-harness replay --json should fail for a missing run")
+        payload = json.loads(replay.stdout)
+        assert_true(payload["refused"] is True, "replay refusal JSON should expose refused=true")
+        assert_true(payload["reason"] == "missing_packet_run", "replay refusal should identify missing run")
+        assert_true(payload["evidence_path"].endswith("/artifact_replay_evidence.json"), "replay refusal should include attempted evidence path")
+        assert_true(not Path(payload["evidence_path"]).exists(), "missing-run replay should not write evidence")
+
+
+def test_artifact_harness_provenance_writes_ledger_and_preserves_markdown() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-provenance-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        create = run_brain(ws, "artifact-harness", "Draft a provenance-ready methods appendix", "--path", str(folder), "--id", "provenance-run", "--json")
+        assert_true(create.returncode == 0, f"artifact-harness create should succeed, got {create.returncode}, stderr={create.stderr}")
+        create_payload = json.loads(create.stdout)
+        spec_path = Path(create_payload["packets"]["artifact_harness_spec"])
+        spec_path.write_text(spec_path.read_text(encoding="utf-8") + "\nSENTINEL_PROVENANCE_SHOULD_NOT_TOUCH_MARKDOWN\n", encoding="utf-8")
+
+        replay = run_brain(ws, "artifact-harness", "replay", "--path", str(folder), "--id", "provenance-run", "--json")
+        assert_true(replay.returncode == 0, f"artifact-harness replay should succeed before provenance, got {replay.returncode}, stderr={replay.stderr}")
+        provenance = run_brain(ws, "artifact-harness", "provenance", "--path", str(folder), "--id", "provenance-run", "--json")
+        assert_true(provenance.returncode == 0, f"artifact-harness provenance --json should succeed, got {provenance.returncode}, stderr={provenance.stderr}")
+        payload = json.loads(provenance.stdout)
+        assert_true(payload["refused"] is False, "provenance JSON should expose refused=false")
+        assert_true(payload["id"] == "provenance-run", "provenance JSON should include packet id")
+        assert_true(payload["status"] == "draft", "provenance JSON should include lifecycle status")
+        ledger_path = Path(payload["provenance_ledger_path"])
+        assert_true(ledger_path.exists(), "provenance should write a ledger inside the packet run directory")
+        assert_true(ledger_path.parent == Path(payload["run_dir"]), "provenance ledger should live in the packet run directory")
+        ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+        assert_true(ledger["ledger_type"] == "artifact_harness_provenance_ledger", "ledger should identify its type")
+        assert_true("user_mission" in ledger["source_categories"], "ledger should list user_mission source category")
+        assert_true("packet_reference" in ledger["source_categories"], "ledger should list packet_reference source category")
+        assert_true("approval_required" in ledger["source_categories"], "ledger should list approval_required source category")
+        assert_true(ledger["field_provenance"]["mission"]["source_category"] == "user_mission", "mission should be sourced from user_mission")
+        assert_true(ledger["packet_chain_provenance"]["runtime_mapping"]["source_capability_access_packet"]["source_category"] == "packet_reference", "runtime mapping should trace to CAP")
+        assert_true(ledger["packet_chain_provenance"]["capability_access_packet"]["approval_gates"]["source_category"] == "approval_required", "CAP approval gates should require approval")
+        assert_true(ledger["packet_chain_provenance"]["replay_evidence"]["evidence_source"]["source_category"] == "repo_evidence", "existing replay evidence should be recorded as repo evidence")
+        assert_true("SENTINEL_PROVENANCE_SHOULD_NOT_TOUCH_MARKDOWN" in spec_path.read_text(encoding="utf-8"), "provenance should not rewrite packet Markdown")
+
+        human = run_brain(ws, "artifact-harness", "provenance", "--path", str(folder), "--id", "provenance-run")
+        assert_true(human.returncode == 0, f"artifact-harness provenance human mode should succeed, got {human.returncode}, stderr={human.stderr}")
+        assert_true("# Artifact Harness Provenance Ledger" in human.stdout, "human provenance should render a summary")
+
+
+def test_artifact_harness_provenance_json_refusal_is_parseable() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-provenance-refusal-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        provenance = run_brain(ws, "artifact-harness", "provenance", "--path", str(folder), "--id", "missing-provenance", "--json")
+        assert_true(provenance.returncode != 0, "artifact-harness provenance --json should fail for a missing run")
+        payload = json.loads(provenance.stdout)
+        assert_true(payload["refused"] is True, "provenance refusal JSON should expose refused=true")
+        assert_true(payload["reason"] == "missing_packet_run", "provenance refusal should identify missing run")
+        assert_true(payload["provenance_ledger_path"].endswith("/packet_provenance_ledger.json"), "provenance refusal should include attempted ledger path")
+        assert_true(not Path(payload["provenance_ledger_path"]).exists(), "missing-run provenance should not write a ledger")
+
+
+def test_artifact_harness_provenance_refuses_manifest_packet_outside_target() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-provenance-boundary-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        create = run_brain(ws, "artifact-harness", "Draft a boundary-safe provenance packet", "--path", str(folder), "--id", "provenance-boundary-run", "--json")
+        assert_true(create.returncode == 0, f"artifact-harness create should succeed, got {create.returncode}, stderr={create.stderr}")
+        create_payload = json.loads(create.stdout)
+
+        provenance_ok = run_brain(ws, "artifact-harness", "provenance", "--path", str(folder), "--id", "provenance-boundary-run", "--json")
+        assert_true(provenance_ok.returncode == 0, f"initial provenance should succeed, got {provenance_ok.returncode}, stderr={provenance_ok.stderr}")
+        ledger_path = Path(json.loads(provenance_ok.stdout)["provenance_ledger_path"])
+        ledger_before = ledger_path.read_text(encoding="utf-8")
+
+        outside_secret = ws / "outside_secret.md"
+        write_file(outside_secret, "SECRET_PROVENANCE_OPEN_QUESTION\n- stolen_field:\n")
+        manifest_path = Path(create_payload["manifest"])
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["packets"]["artifact_harness_spec"] = "../outside_secret.md"
+        write_file(manifest_path, json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
+
+        provenance = run_brain(ws, "artifact-harness", "provenance", "--path", str(folder), "--id", "provenance-boundary-run", "--json")
+        assert_true(provenance.returncode != 0, "provenance should refuse a manifest packet path outside the target workspace")
+        payload = json.loads(provenance.stdout)
+        assert_true(payload["refused"] is True, "outside manifest path refusal should expose refused=true")
+        assert_true(payload["reason"] == "manifest_packet_path_outside_target_workspace", "outside manifest path refusal should use the expected reason")
+        assert_true(payload["offending_packet_key"] == "artifact_harness_spec", "refusal should identify the offending packet key")
+        assert_true(Path(payload["attempted_path"]).resolve() == outside_secret.resolve(), "refusal should identify the attempted outside path")
+        assert_true("SECRET_PROVENANCE_OPEN_QUESTION" not in provenance.stdout, "provenance refusal should not leak outside file content")
+        assert_true("field_provenance" not in provenance.stdout, "provenance refusal should not emit field provenance from outside content")
+        assert_true(ledger_path.read_text(encoding="utf-8") == ledger_before, "provenance refusal should not rewrite existing ledger")
+
+
+def test_artifact_harness_runtime_check_default_is_conservative() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-runtime-check-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        create = run_brain(ws, "artifact-harness", "Draft a runtime readiness packet", "--path", str(folder), "--id", "runtime-run", "--json")
+        assert_true(create.returncode == 0, f"artifact-harness create should succeed, got {create.returncode}, stderr={create.stderr}")
+        create_payload = json.loads(create.stdout)
+        runtime_path = Path(create_payload["packets"]["runtime_mapping"])
+        runtime_path.write_text(runtime_path.read_text(encoding="utf-8") + "\nSENTINEL_RUNTIME_CHECK_SHOULD_NOT_TOUCH_MARKDOWN\n", encoding="utf-8")
+
+        runtime_check = run_brain(ws, "artifact-harness", "runtime-check", "--path", str(folder), "--id", "runtime-run", "--json")
+        assert_true(runtime_check.returncode == 0, f"runtime-check --json should succeed, got {runtime_check.returncode}, stderr={runtime_check.stderr}")
+        payload = json.loads(runtime_check.stdout)
+        assert_true(payload["refused"] is False, "runtime-check JSON should expose refused=false")
+        assert_true(payload["runtime_invocation_ready"] is False, "default scaffold should not be runtime-ready")
+        assert_true(payload["execution_authorized"] is False, "runtime-check must not grant execution authorization")
+        assert_true(payload["approval_gates_required"] is True, "unresolved approval gates should be treated conservatively")
+        assert_true(payload["checks"]["declares_source_cap"] is True, "default scaffold should declare CAP trace")
+        assert_true(payload["checks"]["declares_source_team_operating_packet"] is True, "default scaffold should declare TOP trace")
+        assert_true(any(finding["code"] == "authorized_capabilities_unresolved" for finding in payload["blocking_findings"]), "default scaffold should flag unresolved authorized capabilities")
+        report_path = Path(payload["runtime_readiness_report_path"])
+        assert_true(report_path.exists(), "runtime-check should write a report inside the packet run directory")
+        assert_true(report_path.parent == Path(payload["run_dir"]), "runtime readiness report should live in the packet run directory")
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        assert_true(report["report_type"] == "artifact_harness_runtime_readiness", "report should identify its type")
+        assert_true("SENTINEL_RUNTIME_CHECK_SHOULD_NOT_TOUCH_MARKDOWN" in runtime_path.read_text(encoding="utf-8"), "runtime-check should not rewrite packet Markdown")
+
+        human = run_brain(ws, "artifact-harness", "runtime-check", "--path", str(folder), "--id", "runtime-run")
+        assert_true(human.returncode == 0, f"runtime-check human mode should succeed, got {human.returncode}, stderr={human.stderr}")
+        assert_true("# Artifact Harness Runtime Readiness" in human.stdout, "human runtime-check should render a summary")
+
+
+def test_artifact_harness_runtime_check_json_refusal_is_parseable() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-runtime-refusal-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        runtime_check = run_brain(ws, "artifact-harness", "runtime-check", "--path", str(folder), "--id", "missing-runtime", "--json")
+        assert_true(runtime_check.returncode != 0, "runtime-check --json should fail for a missing run")
+        payload = json.loads(runtime_check.stdout)
+        assert_true(payload["refused"] is True, "runtime-check refusal JSON should expose refused=true")
+        assert_true(payload["reason"] == "missing_packet_run", "runtime-check refusal should identify missing run")
+        assert_true(payload["runtime_readiness_report_path"].endswith("/runtime_readiness_report.json"), "runtime-check refusal should include attempted report path")
+        assert_true(not Path(payload["runtime_readiness_report_path"]).exists(), "missing-run runtime-check should not write a report")
+
+
+def test_artifact_harness_runtime_check_blocks_approval_gate_cli_conflict() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-runtime-cli-conflict-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        create = run_brain(ws, "artifact-harness", "Draft a gated runtime packet", "--path", str(folder), "--id", "runtime-gated", "--json")
+        assert_true(create.returncode == 0, f"artifact-harness create should succeed, got {create.returncode}, stderr={create.stderr}")
+        create_payload = json.loads(create.stdout)
+        runtime_path = Path(create_payload["packets"]["runtime_mapping"])
+        text = runtime_path.read_text(encoding="utf-8")
+        text = text.replace("- approval gates required: yes/no", "- approval gates required: yes")
+        text = text.replace("- authorized skills:", "- authorized skills: artifact-builder")
+        text = text.replace("- authorized plugins:", "- authorized plugins: none")
+        text = text.replace("- authorized tools:", "- authorized tools: bash")
+        text = text.replace("- denied or withheld capabilities:", "- denied or withheld capabilities: network")
+        text = text.replace("- CAP approval gates:", "- CAP approval gates: human approval before runtime execution")
+        text = text.replace("- CLI allowed:", "- CLI allowed: yes")
+        runtime_path.write_text(text, encoding="utf-8")
+
+        runtime_check = run_brain(ws, "artifact-harness", "runtime-check", "--path", str(folder), "--id", "runtime-gated", "--json")
+        assert_true(runtime_check.returncode == 0, f"runtime-check should complete as preflight even when not ready, got {runtime_check.returncode}, stderr={runtime_check.stderr}")
+        payload = json.loads(runtime_check.stdout)
+        finding_codes = [finding["code"] for finding in payload["blocking_findings"]]
+        assert_true("approval_gate_requires_enforceable_api" in finding_codes, "approval-gated CLI execution should be blocked")
+        assert_true(payload["runtime_invocation_ready"] is False, "approval-gated CLI conflict should fail readiness")
+        assert_true(payload["execution_authorized"] is False, "runtime-check should not grant execution authorization")
+        assert_true(payload["required_execution_surface"] == "typescript_api_runTasks_with_approval_callbacks", "gated execution should require TypeScript API callbacks")
+
+
+def test_artifact_harness_runtime_check_allows_cli_when_no_approval_gate_without_authorizing_execution() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-runtime-cli-nogate-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        create = run_brain(ws, "artifact-harness", "Draft a no-gate runtime packet", "--path", str(folder), "--id", "runtime-nogate", "--json")
+        assert_true(create.returncode == 0, f"artifact-harness create should succeed, got {create.returncode}, stderr={create.stderr}")
+        create_payload = json.loads(create.stdout)
+        runtime_path = Path(create_payload["packets"]["runtime_mapping"])
+        text = runtime_path.read_text(encoding="utf-8")
+        text = text.replace("- approval gates required: yes/no", "- approval gates required: no")
+        text = text.replace("- authorized skills:", "- authorized skills: none")
+        text = text.replace("- authorized plugins:", "- authorized plugins: none")
+        text = text.replace("- authorized tools:", "- authorized tools: local shell")
+        text = text.replace("- denied or withheld capabilities:", "- denied or withheld capabilities: network")
+        text = text.replace("- CAP approval gates:", "- CAP approval gates: none")
+        text = text.replace("- CLI allowed:", "- CLI allowed: yes")
+        runtime_path.write_text(text, encoding="utf-8")
+
+        runtime_check = run_brain(ws, "artifact-harness", "runtime-check", "--path", str(folder), "--id", "runtime-nogate", "--json")
+        assert_true(runtime_check.returncode == 0, f"runtime-check should succeed, got {runtime_check.returncode}, stderr={runtime_check.stderr}")
+        payload = json.loads(runtime_check.stdout)
+        finding_codes = [finding["code"] for finding in payload["blocking_findings"]]
+        assert_true("approval_gate_requires_enforceable_api" not in finding_codes, "CLI allowed should not conflict when approval gates are explicitly not required")
+        assert_true(payload["checks"]["cli_execution_allowed"] is True, "runtime-check should detect CLI allowance")
+        assert_true(payload["approval_gates_required"] is False, "runtime-check should detect no approval gates")
+        assert_true(payload["execution_authorized"] is False, "explicit no-gate CLI allowance still should not grant execution authorization")
+
+
+def test_artifact_harness_runtime_check_refuses_manifest_packet_outside_target() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-runtime-boundary-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        create = run_brain(ws, "artifact-harness", "Draft a boundary-safe runtime packet", "--path", str(folder), "--id", "runtime-boundary-run", "--json")
+        assert_true(create.returncode == 0, f"artifact-harness create should succeed, got {create.returncode}, stderr={create.stderr}")
+        create_payload = json.loads(create.stdout)
+
+        runtime_ok = run_brain(ws, "artifact-harness", "runtime-check", "--path", str(folder), "--id", "runtime-boundary-run", "--json")
+        assert_true(runtime_ok.returncode == 0, f"initial runtime-check should succeed, got {runtime_ok.returncode}, stderr={runtime_ok.stderr}")
+        report_path = Path(json.loads(runtime_ok.stdout)["runtime_readiness_report_path"])
+        report_before = report_path.read_text(encoding="utf-8")
+
+        outside_secret = ws / "outside_secret.md"
+        write_file(outside_secret, "SECRET_RUNTIME_OPEN_QUESTION\n- stolen_field:\n")
+        manifest_path = Path(create_payload["manifest"])
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["packets"]["runtime_mapping"] = "../outside_secret.md"
+        write_file(manifest_path, json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
+
+        runtime_check = run_brain(ws, "artifact-harness", "runtime-check", "--path", str(folder), "--id", "runtime-boundary-run", "--json")
+        assert_true(runtime_check.returncode != 0, "runtime-check should refuse a manifest packet path outside the target workspace")
+        payload = json.loads(runtime_check.stdout)
+        assert_true(payload["refused"] is True, "outside manifest path refusal should expose refused=true")
+        assert_true(payload["reason"] == "manifest_packet_path_outside_target_workspace", "outside manifest path refusal should use the expected reason")
+        assert_true(payload["offending_packet_key"] == "runtime_mapping", "refusal should identify the offending packet key")
+        assert_true(Path(payload["attempted_path"]).resolve() == outside_secret.resolve(), "refusal should identify the attempted outside path")
+        assert_true("SECRET_RUNTIME_OPEN_QUESTION" not in runtime_check.stdout, "runtime-check refusal should not leak outside file content")
+        assert_true("checks" in payload and payload["checks"] == {}, "runtime-check refusal should not emit checks from outside content")
+        assert_true(report_path.read_text(encoding="utf-8") == report_before, "runtime-check refusal should not rewrite existing report")
+
+
+def configure_runtime_mapping_for_invocation(
+    runtime_path: Path,
+    *,
+    approval_gates_required: bool = True,
+    cli_allowed: bool = False,
+    authorized_tools: str = "bash, network",
+    denied_capabilities: str = "network",
+) -> None:
+    text = runtime_path.read_text(encoding="utf-8")
+    text = text.replace("- approval gates required: yes/no", f"- approval gates required: {'yes' if approval_gates_required else 'no'}")
+    text = text.replace("- authorized skills:", "- authorized skills: artifact-builder")
+    text = text.replace("- authorized plugins:", "- authorized plugins: none")
+    text = text.replace("- authorized tools:", f"- authorized tools: {authorized_tools}")
+    text = text.replace("- denied or withheld capabilities:", f"- denied or withheld capabilities: {denied_capabilities}")
+    text = text.replace("- CAP approval gates:", "- CAP approval gates: runtime_execution requires explicit approval")
+    text = text.replace("- CLI allowed:", f"- CLI allowed: {'yes' if cli_allowed else 'no'}")
+    runtime_path.write_text(text, encoding="utf-8")
+
+
+def create_runtime_invocation_ready_packet(ws: Path, folder: Path, packet_id: str) -> dict[str, object]:
+    create = run_brain(ws, "artifact-harness", "Draft an invocation-ready runtime packet", "--path", str(folder), "--id", packet_id, "--json")
+    assert_true(create.returncode == 0, f"artifact-harness create should succeed, got {create.returncode}, stderr={create.stderr}")
+    create_payload = json.loads(create.stdout)
+    configure_runtime_mapping_for_invocation(Path(create_payload["packets"]["runtime_mapping"]))
+    runtime_check = run_brain(ws, "artifact-harness", "runtime-check", "--path", str(folder), "--id", packet_id, "--json")
+    assert_true(runtime_check.returncode == 0, f"runtime-check should succeed for invocation-ready packet, got {runtime_check.returncode}, stderr={runtime_check.stderr}")
+    readiness_payload = json.loads(runtime_check.stdout)
+    assert_true(readiness_payload["runtime_invocation_ready"] is True, "configured runtime mapping should pass readiness")
+    return {"create": create_payload, "readiness": readiness_payload}
+
+
+def record_runtime_approval(ws: Path, folder: Path, packet_id: str, decision: str = "approved") -> dict[str, object]:
+    approval = run_brain(
+        ws,
+        "artifact-harness",
+        "approval",
+        "--path",
+        str(folder),
+        "--id",
+        packet_id,
+        "--gate",
+        "runtime_execution",
+        "--decision",
+        decision,
+        "--approver",
+        "test-reviewer",
+        "--note",
+        f"{decision} for regression test",
+        "--json",
+    )
+    assert_true(approval.returncode == 0, f"approval command should succeed, got {approval.returncode}, stderr={approval.stderr}")
+    return json.loads(approval.stdout)
+
+
+def test_artifact_harness_approval_records_evidence_and_preserves_markdown() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-approval-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        create = run_brain(ws, "artifact-harness", "Draft an approval evidence packet", "--path", str(folder), "--id", "approval-run", "--json")
+        assert_true(create.returncode == 0, f"artifact-harness create should succeed, got {create.returncode}, stderr={create.stderr}")
+        create_payload = json.loads(create.stdout)
+        spec_path = Path(create_payload["packets"]["artifact_harness_spec"])
+        spec_path.write_text(spec_path.read_text(encoding="utf-8") + "\nSENTINEL_APPROVAL_SHOULD_NOT_TOUCH_MARKDOWN\n", encoding="utf-8")
+        before = spec_path.read_text(encoding="utf-8")
+
+        payload = record_runtime_approval(ws, folder, "approval-run")
+        approval_path = Path(payload["approval_evidence_path"])
+        assert_true(approval_path.exists(), "approval command should write approval evidence")
+        evidence = json.loads(approval_path.read_text(encoding="utf-8"))
+        assert_true(evidence["latest_decisions"]["runtime_execution"]["decision"] == "approved", "latest approval decision should be recorded")
+        assert_true(spec_path.read_text(encoding="utf-8") == before, "approval command should not rewrite packet Markdown")
+
+
+def test_artifact_harness_approval_latest_deny_overrides_earlier_approval() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-approval-deny-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        create = run_brain(ws, "artifact-harness", "Draft an approval override packet", "--path", str(folder), "--id", "approval-deny-run", "--json")
+        assert_true(create.returncode == 0, f"artifact-harness create should succeed, got {create.returncode}, stderr={create.stderr}")
+        record_runtime_approval(ws, folder, "approval-deny-run", "approved")
+        payload = record_runtime_approval(ws, folder, "approval-deny-run", "denied")
+        assert_true(payload["latest_decisions"]["runtime_execution"]["decision"] == "denied", "latest deny should override earlier approval")
+
+
+def test_artifact_harness_runtime_invoke_refuses_readiness_blockers() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-invoke-blocked-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        create = run_brain(ws, "artifact-harness", "Draft a blocked invocation packet", "--path", str(folder), "--id", "invoke-blocked", "--json")
+        assert_true(create.returncode == 0, f"artifact-harness create should succeed, got {create.returncode}, stderr={create.stderr}")
+        invoke = run_brain(ws, "artifact-harness", "runtime-invoke", "--path", str(folder), "--id", "invoke-blocked", "--adapter", "open-multi-agent", "--surface", "typescript-runTasks", "--dry-run", "--json")
+        assert_true(invoke.returncode != 0, "runtime-invoke should refuse when runtime readiness has blocking findings")
+        payload = json.loads(invoke.stdout)
+        assert_true(payload["reason"] == "runtime_readiness_blocking_findings", "runtime-invoke should expose readiness blocking reason")
+        assert_true(payload["execution_performed"] is False, "runtime-invoke must not execute adapters")
+        assert_true(Path(payload["runtime_invocation_report_path"]).exists(), "runtime-invoke refusal should write a report when run state is valid")
+
+
+def test_artifact_harness_runtime_invoke_requires_approval_evidence() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-invoke-no-approval-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        create_runtime_invocation_ready_packet(ws, folder, "invoke-no-approval")
+        invoke = run_brain(ws, "artifact-harness", "runtime-invoke", "--path", str(folder), "--id", "invoke-no-approval", "--adapter", "open-multi-agent", "--surface", "typescript-runTasks", "--dry-run", "--json")
+        assert_true(invoke.returncode != 0, "runtime-invoke should refuse gated invocation without approval evidence")
+        payload = json.loads(invoke.stdout)
+        assert_true(payload["reason"] == "missing_required_approval_evidence", "runtime-invoke should require explicit approval evidence")
+        assert_true(payload["execution_performed"] is False, "runtime-invoke should remain non-executing")
+
+
+def test_artifact_harness_runtime_invoke_forbids_cli_when_approval_gated() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-invoke-cli-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        create_runtime_invocation_ready_packet(ws, folder, "invoke-cli")
+        record_runtime_approval(ws, folder, "invoke-cli")
+        invoke = run_brain(ws, "artifact-harness", "runtime-invoke", "--path", str(folder), "--id", "invoke-cli", "--adapter", "open-multi-agent", "--surface", "cli", "--dry-run", "--json")
+        assert_true(invoke.returncode != 0, "runtime-invoke should refuse CLI when approval gates are required")
+        payload = json.loads(invoke.stdout)
+        assert_true(payload["reason"] == "approval_gated_cli_forbidden", "runtime-invoke should identify gated CLI refusal")
+
+
+def test_artifact_harness_runtime_invoke_dry_run_with_approval_filters_denied_capabilities() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-invoke-pass-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        setup = create_runtime_invocation_ready_packet(ws, folder, "invoke-pass")
+        spec_path = Path(setup["create"]["packets"]["artifact_harness_spec"])  # type: ignore[index]
+        spec_path.write_text(spec_path.read_text(encoding="utf-8") + "\nSENTINEL_INVOKE_SHOULD_NOT_TOUCH_MARKDOWN\n", encoding="utf-8")
+        spec_before = spec_path.read_text(encoding="utf-8")
+        readiness_path = Path(setup["readiness"]["runtime_readiness_report_path"])  # type: ignore[index]
+        readiness_before = readiness_path.read_text(encoding="utf-8")
+        approval_payload = record_runtime_approval(ws, folder, "invoke-pass")
+        approval_path = Path(approval_payload["approval_evidence_path"])
+        approval_before = approval_path.read_text(encoding="utf-8")
+        run_dir = readiness_path.parent
+        before_files = {path.name for path in run_dir.iterdir()}
+
+        invoke = run_brain(ws, "artifact-harness", "runtime-invoke", "--path", str(folder), "--id", "invoke-pass", "--adapter", "open-multi-agent", "--surface", "typescript-runTasks", "--dry-run", "--json")
+        assert_true(invoke.returncode == 0, f"runtime-invoke dry-run should pass with approval, got {invoke.returncode}, stderr={invoke.stderr}")
+        payload = json.loads(invoke.stdout)
+        report_path = Path(payload["runtime_invocation_report_path"])
+        assert_true(report_path.exists(), "runtime-invoke should write invocation report")
+        assert_true(payload["runtime_invocation_allowed"] is True, "guard should allow dry-run envelope")
+        assert_true(payload["would_execute"] is True, "guard should mark would_execute only on passing dry-run")
+        assert_true(payload["execution_performed"] is False, "runtime-invoke must never execute in this round")
+        assert_true("network" not in [item.lower() for item in payload["exposed_capabilities"]], "denied capability should not be exposed")
+        assert_true("network" in [item.lower() for item in payload["withheld_capabilities"]], "denied capability should remain withheld")
+        assert_true(spec_path.read_text(encoding="utf-8") == spec_before, "runtime-invoke should not rewrite packet Markdown")
+        assert_true(readiness_path.read_text(encoding="utf-8") == readiness_before, "runtime-invoke should not rewrite existing readiness report")
+        assert_true(approval_path.read_text(encoding="utf-8") == approval_before, "runtime-invoke should not rewrite approval evidence")
+        after_files = {path.name for path in run_dir.iterdir()}
+        assert_true(after_files == before_files | {"runtime_invocation_report.json"}, "passing dry-run should add only runtime_invocation_report.json")
+
+        second = run_brain(ws, "artifact-harness", "runtime-invoke", "--path", str(folder), "--id", "invoke-pass", "--adapter", "open-multi-agent", "--surface", "typescript-runTasks", "--dry-run", "--json")
+        assert_true(second.returncode == 0, f"second dry-run should stay idempotent, got {second.returncode}, stderr={second.stderr}")
+        assert_true({path.name for path in run_dir.iterdir()} == after_files, "second dry-run should not add extra files")
+
+
+def test_artifact_harness_runtime_invoke_latest_deny_blocks_invocation() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-invoke-denied-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        create_runtime_invocation_ready_packet(ws, folder, "invoke-denied")
+        record_runtime_approval(ws, folder, "invoke-denied", "approved")
+        record_runtime_approval(ws, folder, "invoke-denied", "denied")
+        invoke = run_brain(ws, "artifact-harness", "runtime-invoke", "--path", str(folder), "--id", "invoke-denied", "--adapter", "open-multi-agent", "--surface", "typescript-runTasks", "--dry-run", "--json")
+        assert_true(invoke.returncode != 0, "runtime-invoke should refuse when latest required gate decision is denied")
+        payload = json.loads(invoke.stdout)
+        assert_true(payload["reason"] == "approval_denied", "latest denied gate should block invocation")
+        assert_true("runtime_execution" in payload["denied_gates"], "denied gate should be listed")
+
+
+def test_artifact_harness_approval_and_runtime_invoke_missing_run_refusals_are_parseable() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-invoke-missing-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        approval = run_brain(ws, "artifact-harness", "approval", "--path", str(folder), "--id", "missing-run", "--gate", "runtime_execution", "--decision", "approved", "--approver", "test-reviewer", "--json")
+        assert_true(approval.returncode != 0, "approval should refuse a missing packet run")
+        approval_payload = json.loads(approval.stdout)
+        assert_true(approval_payload["reason"] == "missing_packet_run", "approval missing-run refusal should identify missing run")
+
+        invoke = run_brain(ws, "artifact-harness", "runtime-invoke", "--path", str(folder), "--id", "missing-run", "--adapter", "open-multi-agent", "--surface", "typescript-runTasks", "--dry-run", "--json")
+        assert_true(invoke.returncode != 0, "runtime-invoke should refuse a missing packet run")
+        invoke_payload = json.loads(invoke.stdout)
+        assert_true(invoke_payload["reason"] == "missing_packet_run", "runtime-invoke missing-run refusal should identify missing run")
+        assert_true(not Path(invoke_payload["runtime_invocation_report_path"]).exists(), "missing-run runtime-invoke should not write a report")
+
+
+def test_artifact_harness_runtime_invoke_refuses_manifest_packet_outside_target() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-invoke-boundary-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        setup = create_runtime_invocation_ready_packet(ws, folder, "invoke-boundary")
+        outside_secret = ws / "outside_secret.md"
+        write_file(outside_secret, "SECRET_INVOKE_OPEN_QUESTION\n- stolen_field:\n")
+        manifest_path = Path(setup["create"]["manifest"])  # type: ignore[index]
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["packets"]["runtime_mapping"] = "../outside_secret.md"
+        write_file(manifest_path, json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
+
+        invoke = run_brain(ws, "artifact-harness", "runtime-invoke", "--path", str(folder), "--id", "invoke-boundary", "--adapter", "open-multi-agent", "--surface", "typescript-runTasks", "--dry-run", "--json")
+        assert_true(invoke.returncode != 0, "runtime-invoke should refuse a manifest packet path outside the target workspace")
+        payload = json.loads(invoke.stdout)
+        assert_true(payload["reason"] == "manifest_packet_path_outside_target_workspace", "runtime-invoke should preserve outside-target refusal reason")
+        assert_true(payload["offending_packet_key"] == "runtime_mapping", "runtime-invoke refusal should identify offending packet key")
+        assert_true("SECRET_INVOKE_OPEN_QUESTION" not in invoke.stdout, "runtime-invoke refusal should not leak outside file content")
+
+
+def test_artifact_harness_schema_check_current_run_and_missing_optional_reports() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-schema-current-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        create = run_brain(ws, "artifact-harness", "Draft a schema-current packet", "--path", str(folder), "--id", "schema-current", "--json")
+        assert_true(create.returncode == 0, f"artifact-harness create should succeed, got {create.returncode}, stderr={create.stderr}")
+        create_payload = json.loads(create.stdout)
+        spec_path = Path(create_payload["packets"]["artifact_harness_spec"])
+        spec_path.write_text(spec_path.read_text(encoding="utf-8") + "\nSENTINEL_SCHEMA_CHECK_SHOULD_NOT_TOUCH_MARKDOWN\n", encoding="utf-8")
+        before = spec_path.read_text(encoding="utf-8")
+
+        schema_check = run_brain(ws, "artifact-harness", "schema-check", "--path", str(folder), "--id", "schema-current", "--json")
+        assert_true(schema_check.returncode == 0, f"schema-check --json should succeed, got {schema_check.returncode}, stderr={schema_check.stderr}")
+        payload = json.loads(schema_check.stdout)
+        assert_true(payload["command"] == "artifact-harness schema-check", "schema-check JSON should expose command envelope")
+        assert_true(payload["schema_version"] == 1, "schema-check JSON should expose command schema version")
+        assert_true(payload["ok"] is True and payload["refused"] is False, "current schema-check should be ok")
+        assert_true(payload["compatible"] is True, "current run should be compatible")
+        assert_true(payload["migration_required"] is False, "new current run should not require migration")
+        assert_true(payload["current_schema_version"] == 1 and payload["supported_schema_version"] == 1, "schema versions should be explicit")
+        assert_true(payload["missing_files"] == [], "current run should not miss required files")
+        assert_true(payload["blocking_findings"] == [], "current run should not have blocking schema findings")
+        assert_true(Path(payload["schema_metadata_path"]).exists(), "current run should include schema metadata sidecar")
+        warning_codes = [warning["code"] for warning in payload["warnings"]]
+        assert_true("missing_optional_generated_report" in warning_codes, "missing optional generated reports should warn, not block")
+        checked_keys = [item["key"] for item in payload["checked_files"]]
+        assert_true(
+            {"replay_evidence", "runtime_readiness_report", "approval_evidence", "runtime_invocation_report", "repair_plan"}.issubset(set(checked_keys)),
+            "schema-check should inspect optional report locations",
+        )
+        assert_true("migrate_json" in payload["commands"], "schema-check JSON should provide migrate command")
+        assert_true("approval_json" in payload["commands"] and "runtime_invoke_json" in payload["commands"], "schema-check JSON should provide approval and runtime-invoke commands")
+        assert_true(spec_path.read_text(encoding="utf-8") == before, "schema-check should not rewrite packet Markdown")
+
+
+def test_artifact_harness_migrate_safe_older_run_is_idempotent_and_preserves_markdown() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-schema-migrate-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        create = run_brain(ws, "artifact-harness", "Draft an older schema packet", "--path", str(folder), "--id", "schema-old", "--json")
+        assert_true(create.returncode == 0, f"artifact-harness create should succeed, got {create.returncode}, stderr={create.stderr}")
+        create_payload = json.loads(create.stdout)
+        spec_path = Path(create_payload["packets"]["artifact_harness_spec"])
+        spec_path.write_text(spec_path.read_text(encoding="utf-8") + "\nSENTINEL_MIGRATE_SHOULD_NOT_TOUCH_MARKDOWN\n", encoding="utf-8")
+        spec_before = spec_path.read_text(encoding="utf-8")
+
+        manifest_path = Path(create_payload["manifest"])
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest.pop("schema_version", None)
+        manifest.pop("schema_contract", None)
+        write_file(manifest_path, json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
+        schema_metadata_path = Path(create_payload["schema_metadata_path"])
+        schema_metadata_path.unlink()
+        registry_path = Path(create_payload["registry_path"])
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+        registry.pop("schema_version", None)
+        for entry in registry.get("entries", []):
+            if isinstance(entry, dict) and entry.get("id") == "schema-old":
+                entry.pop("schema_version", None)
+                entry.pop("schema_metadata_path", None)
+                entry.pop("manifest_schema_version", None)
+        write_file(registry_path, json.dumps(registry, ensure_ascii=False, indent=2) + "\n")
+
+        schema_check = run_brain(ws, "artifact-harness", "schema-check", "--path", str(folder), "--id", "schema-old", "--json")
+        assert_true(schema_check.returncode == 0, f"older schema-check should succeed, got {schema_check.returncode}, stderr={schema_check.stderr}")
+        check_payload = json.loads(schema_check.stdout)
+        assert_true(check_payload["compatible"] is True, "safe older run should remain compatible")
+        assert_true(check_payload["migration_required"] is True, "safe older run should require migration")
+
+        migrate = run_brain(ws, "artifact-harness", "migrate", "--path", str(folder), "--id", "schema-old", "--json")
+        assert_true(migrate.returncode == 0, f"migrate --json should succeed, got {migrate.returncode}, stderr={migrate.stderr}")
+        payload = json.loads(migrate.stdout)
+        assert_true(payload["command"] == "artifact-harness migrate", "migrate JSON should expose command envelope")
+        assert_true(payload["ok"] is True and payload["refused"] is False, "migrate should complete for safe older run")
+        assert_true(payload["compatible"] is True, "migrated run should be compatible")
+        assert_true(payload["migration_required"] is False, "migrated run should no longer require migration")
+        assert_true(str(manifest_path) in payload["changed_files"], "migrate should update manifest compatibility fields")
+        assert_true(str(schema_metadata_path) in payload["changed_files"], "migrate should create schema metadata sidecar")
+        assert_true(str(registry_path) in payload["changed_files"], "migrate should update registry compatibility fields")
+        assert_true(spec_path.read_text(encoding="utf-8") == spec_before, "migrate should not rewrite packet Markdown")
+        manifest_after = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert_true(manifest_after["schema_version"] == 1, "migrate should restore manifest schema_version")
+        assert_true(manifest_after["schema_contract"]["schema_metadata_path"].endswith("/packet_schema_metadata.json"), "migrate should record schema metadata path in manifest")
+        assert_true(json.loads(schema_metadata_path.read_text(encoding="utf-8"))["metadata_type"] == "artifact_harness_schema_metadata", "schema metadata should identify its type")
+
+        second = run_brain(ws, "artifact-harness", "migrate", "--path", str(folder), "--id", "schema-old", "--json")
+        assert_true(second.returncode == 0, f"second migrate should be idempotent, got {second.returncode}, stderr={second.stderr}")
+        second_payload = json.loads(second.stdout)
+        assert_true(second_payload["changed_files"] == [], "second migrate should not rewrite already-current schema metadata")
+        registry_after = json.loads(registry_path.read_text(encoding="utf-8"))
+        assert_true(sum(1 for entry in registry_after["entries"] if isinstance(entry, dict) and entry.get("id") == "schema-old") == 1, "migrate should not create duplicate registry entries")
+        assert_true(spec_path.read_text(encoding="utf-8") == spec_before, "second migrate should still preserve packet Markdown")
+
+
+def test_artifact_harness_migrate_refuses_missing_required_packet() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-schema-missing-packet-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        create = run_brain(ws, "artifact-harness", "Draft a missing packet schema case", "--path", str(folder), "--id", "schema-missing-packet", "--json")
+        assert_true(create.returncode == 0, f"artifact-harness create should succeed, got {create.returncode}, stderr={create.stderr}")
+        create_payload = json.loads(create.stdout)
+        missing_packet = Path(create_payload["packets"]["hr_staffing_packet"])
+        missing_packet.unlink()
+
+        schema_check = run_brain(ws, "artifact-harness", "schema-check", "--path", str(folder), "--id", "schema-missing-packet", "--json")
+        assert_true(schema_check.returncode == 0, f"schema-check should report missing packet without refusing inspection, got {schema_check.returncode}, stderr={schema_check.stderr}")
+        check_payload = json.loads(schema_check.stdout)
+        assert_true(check_payload["compatible"] is False, "missing required packet should make run incompatible")
+        assert_true(any(item["key"] == "hr_staffing_packet" for item in check_payload["missing_files"]), "schema-check should report missing HR packet")
+
+        migrate = run_brain(ws, "artifact-harness", "migrate", "--path", str(folder), "--id", "schema-missing-packet", "--json")
+        assert_true(migrate.returncode != 0, "migrate should refuse when a required packet file is missing")
+        payload = json.loads(migrate.stdout)
+        assert_true(payload["refused"] is True, "migrate missing-packet refusal should expose refused=true")
+        assert_true(payload["reason"] == "schema_migration_blocked", "migrate missing-packet refusal should identify blocked migration")
+        assert_true(any(finding["code"] == "missing_required_file" for finding in payload["blocking_findings"]), "migrate refusal should include missing_required_file finding")
+
+
+def test_artifact_harness_schema_check_refuses_manifest_packet_outside_target() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-schema-boundary-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        create = run_brain(ws, "artifact-harness", "Draft a schema boundary packet", "--path", str(folder), "--id", "schema-boundary", "--json")
+        assert_true(create.returncode == 0, f"artifact-harness create should succeed, got {create.returncode}, stderr={create.stderr}")
+        create_payload = json.loads(create.stdout)
+
+        outside_secret = ws / "outside_secret.md"
+        write_file(outside_secret, "SECRET_SCHEMA_OUTSIDE_CONTENT\n")
+        manifest_path = Path(create_payload["manifest"])
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["packets"]["artifact_harness_spec"] = "../outside_secret.md"
+        write_file(manifest_path, json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
+
+        schema_check = run_brain(ws, "artifact-harness", "schema-check", "--path", str(folder), "--id", "schema-boundary", "--json")
+        assert_true(schema_check.returncode != 0, "schema-check should refuse manifest packet path outside target workspace")
+        payload = json.loads(schema_check.stdout)
+        assert_true(payload["refused"] is True, "schema-check outside-path refusal should expose refused=true")
+        assert_true(payload["reason"] == "manifest_packet_path_outside_target_workspace", "schema-check should use manifest outside-path refusal reason")
+        assert_true(payload["offending_packet_key"] == "artifact_harness_spec", "schema-check should identify offending packet key")
+        assert_true("SECRET_SCHEMA_OUTSIDE_CONTENT" not in schema_check.stdout, "schema-check should not read or leak outside file content")
+
+        migrate = run_brain(ws, "artifact-harness", "migrate", "--path", str(folder), "--id", "schema-boundary", "--json")
+        assert_true(migrate.returncode != 0, "migrate should refuse manifest packet path outside target workspace")
+        migrate_payload = json.loads(migrate.stdout)
+        assert_true(migrate_payload["reason"] == "manifest_packet_path_outside_target_workspace", "migrate should share manifest outside-path refusal reason")
+        assert_true("SECRET_SCHEMA_OUTSIDE_CONTENT" not in migrate.stdout, "migrate should not read or leak outside file content")
+
+
+def test_artifact_harness_repair_plan_writes_plan_and_preserves_markdown() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-repair-open-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        create = run_brain(ws, "artifact-harness", "Draft a repair-plan packet", "--path", str(folder), "--id", "repair-open", "--json")
+        assert_true(create.returncode == 0, f"artifact-harness create should succeed, got {create.returncode}, stderr={create.stderr}")
+        create_payload = json.loads(create.stdout)
+        spec_path = Path(create_payload["packets"]["artifact_harness_spec"])
+        spec_path.write_text(spec_path.read_text(encoding="utf-8") + "\nSENTINEL_REPAIR_SHOULD_NOT_TOUCH_MARKDOWN\n", encoding="utf-8")
+        spec_before = spec_path.read_text(encoding="utf-8")
+        run_dir = Path(create_payload["run_dir"])
+        before_files = {path.name for path in run_dir.iterdir()}
+
+        repair = run_brain(ws, "artifact-harness", "repair-plan", "--path", str(folder), "--id", "repair-open", "--json")
+        assert_true(repair.returncode == 0, f"repair-plan --json should succeed, got {repair.returncode}, stderr={repair.stderr}")
+        payload = json.loads(repair.stdout)
+        repair_path = Path(payload["repair_plan_path"])
+        assert_true(payload["command"] == "artifact-harness repair-plan", "repair-plan JSON should expose command envelope")
+        assert_true(payload["refused"] is False, "repair-plan should not refuse an existing run")
+        assert_true(payload["needs_repair"] is True, "draft scaffold with open fields should need repair")
+        assert_true(repair_path.exists(), "repair-plan should write repair_plan.json")
+        assert_true(any(item["code"] == "packet_open_items_detected" for item in payload["repair_items"]), "repair-plan should surface open packet fields")
+        assert_true("repair_plan_json" in payload["commands"], "repair-plan should expose a stable rerun command")
+        assert_true(spec_path.read_text(encoding="utf-8") == spec_before, "repair-plan should not rewrite packet Markdown")
+        assert_true({path.name for path in run_dir.iterdir()} == before_files | {"repair_plan.json"}, "repair-plan should add only repair_plan.json")
+
+        schema_check = run_brain(ws, "artifact-harness", "schema-check", "--path", str(folder), "--id", "repair-open", "--json")
+        assert_true(schema_check.returncode == 0, f"schema-check after repair-plan should succeed, got {schema_check.returncode}, stderr={schema_check.stderr}")
+        schema_payload = json.loads(schema_check.stdout)
+        repair_checked = [item for item in schema_payload["checked_files"] if item["key"] == "repair_plan"]
+        assert_true(repair_checked and repair_checked[0]["schema_version"] == 1, "schema-check should inspect repair_plan schema version when present")
+
+
+def test_artifact_harness_repair_plan_surfaces_blocked_lifecycle_and_denied_approval() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-repair-blocked-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        create = run_brain(ws, "artifact-harness", "Draft a blocked repair packet", "--path", str(folder), "--id", "repair-blocked", "--json")
+        assert_true(create.returncode == 0, f"artifact-harness create should succeed, got {create.returncode}, stderr={create.stderr}")
+        mark = run_brain(ws, "artifact-harness", "mark", "--path", str(folder), "--id", "repair-blocked", "--status", "blocked", "--note", "missing source evidence", "--json")
+        assert_true(mark.returncode == 0, f"mark blocked should succeed, got {mark.returncode}, stderr={mark.stderr}")
+        record_runtime_approval(ws, folder, "repair-blocked", "denied")
+
+        repair = run_brain(ws, "artifact-harness", "repair-plan", "--path", str(folder), "--id", "repair-blocked", "--json")
+        assert_true(repair.returncode == 0, f"repair-plan should succeed for blocked run, got {repair.returncode}, stderr={repair.stderr}")
+        payload = json.loads(repair.stdout)
+        codes = {item["code"] for item in payload["repair_items"]}
+        assert_true("lifecycle_blocked" in codes, "repair-plan should surface blocked lifecycle status")
+        assert_true("approval_gate_denied" in codes, "repair-plan should surface denied approval gates")
+        assert_true(payload["ready_to_continue"] is False, "blocked/denied repair plan should not be ready to continue")
+
+
+def test_artifact_harness_repair_plan_surfaces_runtime_invocation_refusal() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-repair-invoke-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        create_runtime_invocation_ready_packet(ws, folder, "repair-invoke")
+        invoke = run_brain(ws, "artifact-harness", "runtime-invoke", "--path", str(folder), "--id", "repair-invoke", "--adapter", "open-multi-agent", "--surface", "typescript-runTasks", "--dry-run", "--json")
+        assert_true(invoke.returncode != 0, "runtime-invoke should refuse gated invocation without approval evidence")
+
+        repair = run_brain(ws, "artifact-harness", "repair-plan", "--path", str(folder), "--id", "repair-invoke", "--json")
+        assert_true(repair.returncode == 0, f"repair-plan should succeed after invocation refusal, got {repair.returncode}, stderr={repair.stderr}")
+        payload = json.loads(repair.stdout)
+        codes = {item["code"] for item in payload["repair_items"]}
+        assert_true("missing_required_approval_evidence" in codes, "repair-plan should surface missing approval evidence")
+        assert_true("runtime_invocation_refused" in codes, "repair-plan should surface latest invocation refusal")
+        assert_true(payload["summary"]["runtime_invocation_report_present"] is True, "repair summary should note invocation report presence")
+
+
+def test_artifact_harness_repair_plan_missing_run_refusal_is_parseable() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-repair-missing-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        repair = run_brain(ws, "artifact-harness", "repair-plan", "--path", str(folder), "--id", "missing-run", "--json")
+        assert_true(repair.returncode != 0, "repair-plan should refuse a missing packet run")
+        payload = json.loads(repair.stdout)
+        assert_true(payload["command"] == "artifact-harness repair-plan", "repair-plan refusal should expose command envelope")
+        assert_true(payload["refused"] is True, "repair-plan missing-run refusal should expose refused=true")
+        assert_true(payload["reason"] == "missing_packet_run", "repair-plan missing-run refusal should identify missing run")
+        assert_true(not Path(payload["repair_plan_path"]).exists(), "missing-run repair-plan should not write repair_plan.json")
+
+
+def test_artifact_harness_replay_refuses_manifest_packet_outside_target() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-replay-boundary-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        create = run_brain(ws, "artifact-harness", "Draft a boundary-safe replay packet", "--path", str(folder), "--id", "boundary-run", "--json")
+        assert_true(create.returncode == 0, f"artifact-harness create should succeed, got {create.returncode}, stderr={create.stderr}")
+        create_payload = json.loads(create.stdout)
+
+        replay_ok = run_brain(ws, "artifact-harness", "replay", "--path", str(folder), "--id", "boundary-run", "--json")
+        assert_true(replay_ok.returncode == 0, f"initial replay should succeed, got {replay_ok.returncode}, stderr={replay_ok.stderr}")
+        evidence_path = Path(json.loads(replay_ok.stdout)["evidence_path"])
+        evidence_before = evidence_path.read_text(encoding="utf-8")
+
+        outside_secret = ws / "outside_secret.md"
+        write_file(outside_secret, "SECRET_OPEN_QUESTION\n- stolen_field:\n")
+        manifest_path = Path(create_payload["manifest"])
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["packets"]["artifact_harness_spec"] = "../outside_secret.md"
+        write_file(manifest_path, json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
+
+        replay = run_brain(ws, "artifact-harness", "replay", "--path", str(folder), "--id", "boundary-run", "--json")
+        assert_true(replay.returncode != 0, "replay should refuse a manifest packet path outside the target workspace")
+        payload = json.loads(replay.stdout)
+        assert_true(payload["refused"] is True, "outside manifest path refusal should expose refused=true")
+        assert_true(payload["reason"] == "manifest_packet_path_outside_target_workspace", "outside manifest path refusal should use the expected reason")
+        assert_true(payload["offending_packet_key"] == "artifact_harness_spec", "refusal should identify the offending packet key")
+        assert_true(Path(payload["attempted_path"]).resolve() == outside_secret.resolve(), "refusal should identify the attempted outside path")
+        assert_true("SECRET_OPEN_QUESTION" not in replay.stdout, "replay refusal should not leak outside file content")
+        assert_true("heuristic_open_items" not in replay.stdout, "replay refusal should not report outside file heuristics")
+        assert_true(evidence_path.read_text(encoding="utf-8") == evidence_before, "replay refusal should not rewrite existing evidence")
+
+        status = run_brain(ws, "artifact-harness", "status", "--path", str(folder), "--id", "boundary-run", "--json")
+        assert_true(status.returncode != 0, "status should also refuse a manifest packet path outside the target workspace")
+        status_payload = json.loads(status.stdout)
+        assert_true(status_payload["reason"] == "manifest_packet_path_outside_target_workspace", "status refusal should share the manifest path boundary reason")
+
+
+def test_artifact_harness_json_refuses_packet_root_outside_target_workspace() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-artifact-json-refusal-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        outside_packet_root = ws / "outside_packet_root"
+        set_artifact_harness_packet_root(ws, outside_packet_root)
+        result = run_brain(
+            ws,
+            "artifact-harness",
+            "Draft a review-ready methods appendix",
+            "--path",
+            str(folder),
+            "--id",
+            "outside-root",
+            "--json",
+        )
+        assert_true(result.returncode != 0, "artifact-harness --json should fail when packet root is outside target workspace")
+        payload = json.loads(result.stdout)
+        assert_true(payload["created"] is False and payload["refused"] is True, "refusal JSON should expose created/refused state")
+        assert_true(payload["reason"] == "packet_root_outside_target_workspace", "refusal JSON should identify packet root boundary failure")
+        assert_true(payload["target_path"] == str(folder.resolve()), "refusal JSON should include target path")
+        assert_true(Path(payload["packet_root"]).resolve() == outside_packet_root.resolve(), "refusal JSON should include attempted packet root")
+        assert_true(Path(payload["run_dir"]).resolve() == (outside_packet_root / "outside-root").resolve(), "refusal JSON should include attempted run directory")
+        assert_true(Path(payload["registry_path"]).resolve() == (ws / "artifact_harness_registry.json").resolve(), "refusal JSON should include attempted registry path")
+        assert_true("outside target workspace" in result.stderr, "refusal should retain human stderr diagnostics")
+        assert_true(not outside_packet_root.exists(), "refusal should not create packet root outside target workspace")
+
+
+def test_repo_does_not_carry_smoke_artifact_harness_outputs() -> None:
+    smoke_dir = ROOT / "contexts" / "artifact_harness_runs" / "smoke-artifact-harness"
+    assert_true(not smoke_dir.exists(), "repo should not carry smoke-artifact-harness run output")
+    registry_path = ROOT / "contexts" / "artifact_harness_registry.json"
+    if registry_path.exists():
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+        entries = registry.get("entries", [])
+        assert_true(
+            not any(isinstance(entry, dict) and entry.get("id") == "smoke-artifact-harness" for entry in entries),
+            "repo artifact harness registry should not retain smoke-artifact-harness entries",
+        )
+
+
+def test_packet_route_keyword_routes_to_artifact_harness() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-hit-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        result = run_brain(ws, "packet-route", "please packet form this methods appendix", "--path", str(folder))
+        assert_true(result.returncode == 0, f"packet-route hit expected 0, got {result.returncode}, stderr={result.stderr}")
+        assert_true("# Packet Route" in result.stdout, "packet-route should render a route summary")
+        assert_true("Matched: `true`" in result.stdout, "packet-route should match the fixture keyword")
+        assert_true("Route: `artifact_harness_workflow`" in result.stdout, "packet-route should target Artifact Harness workflow")
+        assert_true("/scripts/brain.sh artifact-harness" in result.stdout, "packet-route should show the executable artifact-harness command")
+        assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "packet-route without --create should not write packets")
+
+
+def test_packet_route_natural_artifact_missions_are_create_ready() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-natural-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        cases = [
+            ("make a review-ready methods appendix", "methods appendix"),
+            ("make this lecture slide task organized", "slide"),
+            ("幫我整理這個投影片任務", "投影片"),
+        ]
+        for utterance, expected_deliverable in cases:
+            result = run_brain(ws, "packet-route", utterance, "--path", str(folder), "--json")
+            assert_true(result.returncode == 0, f"natural route expected 0 for {utterance!r}, got {result.returncode}, stderr={result.stderr}")
+            payload = json.loads(result.stdout)
+            assert_true(payload["matched"] is True, f"natural artifact route should match for {utterance!r}")
+            assert_true(payload["recommended_route"] == "artifact_harness_workflow", "natural artifact route should recommend Artifact Harness")
+            assert_true(payload["user_intent"] == "artifact_production", "natural artifact route should expose artifact-production intent")
+            assert_true(payload["create_allowed"] is True, "natural artifact route should allow packet creation")
+            assert_true(payload["needs_clarification"] is False, "create-ready natural route should not require clarification")
+            assert_true(expected_deliverable in payload["natural_triggers"]["deliverables"], "natural route should expose deliverable trigger")
+            command_parts = shlex.split(payload["recommended_command"])
+            assert_true(Path(command_parts[0]).is_absolute() and command_parts[0].endswith("/scripts/brain.sh"), "natural route command should use absolute brain.sh path")
+        assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "natural route without --create should not write packets")
+
+
+def test_packet_route_underspecified_artifact_hint_refuses_create() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-clarify-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        result = run_brain(ws, "packet-route", "can you help with this artifact?", "--path", str(folder), "--create", "--json")
+        assert_true(result.returncode != 0, "underspecified artifact --create should refuse")
+        payload = json.loads(result.stdout)
+        assert_true(payload["matched"] is True, "underspecified artifact hint should still be recognized")
+        assert_true(payload["recommended_route"] == "artifact_harness_workflow", "underspecified artifact hint should point to Artifact Harness")
+        assert_true(payload["user_intent"] == "artifact_hint", "underspecified artifact hint should expose artifact_hint intent")
+        assert_true(payload["needs_clarification"] is True, "underspecified artifact hint should require clarification")
+        assert_true(payload["create_allowed"] is False, "underspecified artifact hint should not allow create")
+        assert_true(payload["reason"] == "needs_clarification", "underspecified artifact create refusal should identify clarification need")
+        assert_true(payload["clarifying_questions"], "underspecified artifact route should return clarifying questions")
+        assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "underspecified create refusal should not write packet output")
+
+
+def test_packet_route_front_door_hr_artifact_is_spec_first() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-hr-artifact-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        result = run_brain(ws, "packet-route", "HR, help me design roles for this artifact", "--path", str(folder), "--json")
+        assert_true(result.returncode == 0, f"HR artifact route expected 0, got {result.returncode}, stderr={result.stderr}")
+        payload = json.loads(result.stdout)
+        assert_true(payload["matched"] is True, "HR artifact route should match")
+        assert_true("human_resources" in payload["recognized_front_doors"], "HR should be recorded as the recognized front door")
+        assert_true(payload["recommended_route"] == "artifact_harness_workflow", "artifact production should start with Artifact Harness workflow")
+        assert_true(payload["chain_start"] == "Artifact Harness SPEC", "artifact production should remain SPEC-first")
+        assert_true(payload["handoff_target"] == "HR staffing", "HR front door should be recorded as downstream handoff")
+        assert_true(payload["create_allowed"] is True, "artifact mission should allow packet-chain creation")
+        assert_true(payload["boundaries"]["human_resources"] == "staffing and role design only", "route JSON should preserve HR boundary")
+        assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "route without --create should not write packets")
+
+
+def test_packet_route_front_door_hr_only_does_not_create_packets() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-hr-only-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "staffing_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        result = run_brain(ws, "packet-route", "HR, do we have the right roles?", "--path", str(folder), "--json")
+        assert_true(result.returncode == 0, f"HR-only route expected 0, got {result.returncode}, stderr={result.stderr}")
+        payload = json.loads(result.stdout)
+        assert_true(payload["recommended_route"] == "human_resources", "HR-only request should route to HR team surface")
+        assert_true(payload["user_intent"] == "hr_staffing", "HR-only request should expose HR staffing intent")
+        assert_true(payload["create_allowed"] is False, "HR-only request should not allow packet creation")
+        assert_true(payload["recommended_command"] is None, "HR-only route should not emit an Artifact Harness create command")
+        assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "HR-only route should not write packets")
+
+        ask = run_brain(ws, "packet-route", "ask HR to check staffing", "--path", str(folder), "--json")
+        assert_true(ask.returncode == 0, f"ask HR route expected 0, got {ask.returncode}, stderr={ask.stderr}")
+        ask_payload = json.loads(ask.stdout)
+        assert_true("human_resources" in ask_payload["recognized_front_doors"], "standalone HR phrase should match the HR front door")
+        assert_true(ask_payload["recommended_route"] == "human_resources", "staffing-only HR phrase should stay HR-only")
+        assert_true(ask_payload["create_allowed"] is False, "staffing-only HR phrase should not allow packet creation")
+
+        create = run_brain(ws, "packet-route", "HR, do we have the right roles?", "--path", str(folder), "--create", "--json")
+        assert_true(create.returncode != 0, "HR-only --create should refuse rather than create a misleading packet chain")
+        create_payload = json.loads(create.stdout)
+        assert_true(create_payload["refused"] is True, "HR-only --create should emit refusal JSON")
+        assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "HR-only --create refusal should not write packets")
+
+
+def test_packet_route_requirement_form_create_writes_packet_chain() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-requirement-create-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        result = run_brain(ws, "packet-route", "fill requirement form for methods appendix", "--path", str(folder), "--create", "--json")
+        assert_true(result.returncode == 0, f"requirement form --create expected 0, got {result.returncode}, stderr={result.stderr}")
+        payload = json.loads(result.stdout)
+        assert_true(payload["recommended_route"] == "artifact_harness_workflow", "requirement form should route to Artifact Harness workflow")
+        assert_true(payload["create_allowed"] is True, "requirement form should allow create")
+        assert_true(payload["artifact_harness"]["created"] is True, "packet-route --create should create Artifact Harness packet chain")
+        registry = load_artifact_harness_registry(folder)
+        assert_true("artifact_harness_spec" in registry["entries"][0]["packets"], "created chain should include SPEC packet")
+
+
+def test_packet_route_downstream_front_doors_are_spec_first_without_id() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-downstream-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+
+        team = run_brain(ws, "packet-route", "Team Architect for this artifact production task", "--path", str(folder), "--json")
+        assert_true(team.returncode == 0, f"Team Architect route expected 0, got {team.returncode}, stderr={team.stderr}")
+        team_payload = json.loads(team.stdout)
+        assert_true(team_payload["recognized_front_doors"] == ["team_architect_packet"], "Team Architect should be distinguished as a front door")
+        assert_true(team_payload["recommended_route"] == "artifact_harness_workflow", "Team Architect artifact request should start SPEC-first")
+        assert_true(team_payload["handoff_target"] == "Team Operating Packet", "Team Architect handoff should be recorded")
+
+        cap = run_brain(ws, "packet-route", "create CAP for this artifact task", "--path", str(folder), "--json")
+        assert_true(cap.returncode == 0, f"CAP route expected 0, got {cap.returncode}, stderr={cap.stderr}")
+        cap_payload = json.loads(cap.stdout)
+        assert_true(cap_payload["recognized_front_doors"] == ["capability_access_packet"], "CAP should be distinguished as a front door")
+        assert_true(cap_payload["recommended_route"] == "artifact_harness_workflow", "CAP artifact request should start SPEC-first")
+        assert_true(cap_payload["handoff_target"] == "Capability Access Packet", "CAP handoff should be recorded")
+
+        runtime = run_brain(ws, "packet-route", "runtime mapping for this packet", "--path", str(folder), "--json")
+        assert_true(runtime.returncode == 0, f"runtime mapping route expected 0, got {runtime.returncode}, stderr={runtime.stderr}")
+        runtime_payload = json.loads(runtime.stdout)
+        assert_true(runtime_payload["recognized_front_doors"] == ["runtime_mapping"], "runtime mapping should be distinguished as a front door")
+        assert_true(runtime_payload["recommended_route"] == "artifact_harness_workflow", "downstream-only runtime request should point back to SPEC-first chain")
+        assert_true(runtime_payload["user_intent"] == "downstream_packet_reference", "downstream-only runtime request should expose downstream packet intent")
+        assert_true(runtime_payload["create_allowed"] is False, "downstream-only runtime request without artifact mission or id should not create")
+        assert_true(runtime_payload["boundaries"]["runtime_mapping"].startswith("execution mapping only"), "runtime route should not imply execution")
+
+
+def test_packet_route_short_alias_does_not_match_inside_words() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-boundary-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+
+        runtime = run_brain(ws, "packet-route", "walk me through runtime mapping", "--path", str(folder), "--json")
+        assert_true(runtime.returncode == 0, f"runtime boundary route expected 0, got {runtime.returncode}, stderr={runtime.stderr}")
+        runtime_payload = json.loads(runtime.stdout)
+        assert_true(runtime_payload["recognized_front_doors"] == ["runtime_mapping"], "HR must not match inside the word 'through'")
+        assert_true("human_resources" not in runtime_payload["recognized_front_doors"], "short HR alias should require a standalone boundary")
+        assert_true(runtime_payload["recommended_route"] == "artifact_harness_workflow", "downstream runtime request should still point back to the SPEC-first chain")
+        assert_true(runtime_payload["create_allowed"] is False, "downstream-only runtime request should not allow packet creation")
+        assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "boundary route without --create should not write packets")
+
+        requirement = run_brain(ws, "packet-route", "walk through the requirement form", "--path", str(folder), "--json")
+        assert_true(requirement.returncode == 0, f"requirement boundary route expected 0, got {requirement.returncode}, stderr={requirement.stderr}")
+        requirement_payload = json.loads(requirement.stdout)
+        assert_true("human_resources" not in requirement_payload["recognized_front_doors"], "HR must not match inside 'through' for requirement-form utterances")
+        assert_true(requirement_payload["recommended_route"] == "artifact_harness_workflow", "requirement-form keyword should route to Artifact Harness workflow")
+        assert_true(requirement_payload["create_allowed"] is True, "requirement-form keyword should allow packet creation")
+        assert_true("requirement form" in [keyword.lower() for keyword in requirement_payload["matched_keywords"]], "requirement-form keyword should be reported")
+        assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "requirement route without --create should not write packets")
+
+
+def test_packet_route_existing_id_routes_to_safe_existing_packet_command() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-existing-id-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        create = run_brain(ws, "artifact-harness", "Draft an existing packet route target", "--path", str(folder), "--id", "existing-route-run", "--json")
+        assert_true(create.returncode == 0, f"artifact-harness create should succeed, got {create.returncode}, stderr={create.stderr}")
+
+        cap = run_brain(ws, "packet-route", "create CAP for this artifact task", "--path", str(folder), "--id", "existing-route-run", "--json")
+        assert_true(cap.returncode == 0, f"CAP existing-id route expected 0, got {cap.returncode}, stderr={cap.stderr}")
+        cap_payload = json.loads(cap.stdout)
+        assert_true(cap_payload["recommended_route"] == "capability_access_packet", "CAP request with existing id should route to existing CAP inspection")
+        assert_true(cap_payload["command_action"] == "resume", "CAP existing-id route should recommend a safe resume command")
+        assert_true("artifact-harness resume" in cap_payload["recommended_command"], "CAP existing-id command should use artifact-harness resume")
+
+        runtime = run_brain(ws, "packet-route", "runtime mapping for packet existing-route-run", "--path", str(folder), "--id", "existing-route-run", "--json")
+        assert_true(runtime.returncode == 0, f"runtime existing-id route expected 0, got {runtime.returncode}, stderr={runtime.stderr}")
+        runtime_payload = json.loads(runtime.stdout)
+        assert_true(runtime_payload["recommended_route"] == "runtime_mapping", "runtime request with existing id should route to existing runtime inspection")
+        assert_true(runtime_payload["command_action"] == "runtime-check", "runtime existing-id route should recommend runtime-check")
+        assert_true("artifact-harness runtime-check" in runtime_payload["recommended_command"], "runtime existing-id command should use artifact-harness runtime-check")
+
+
+def test_packet_route_json_from_temp_cwd_uses_absolute_next_command() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-json-") as tmp_s:
+        tmp = Path(tmp_s)
+        cwd = tmp / "cwd"
+        target = tmp / "target_workspace"
+        cwd.mkdir(parents=True, exist_ok=True)
+        target.mkdir(parents=True, exist_ok=True)
+        brain = ROOT / "scripts" / "brain.sh"
+        result = subprocess.run(
+            [str(brain), "packet-route", "please Artifact Harness this methods appendix", "--path", str(target), "--json"],
+            cwd=cwd,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert_true(result.returncode == 0, f"absolute packet-route --json expected 0, got {result.returncode}, stderr={result.stderr}")
+        payload = json.loads(result.stdout)
+        assert_true(payload["matched"] is True, "packet-route JSON should expose matched=true")
+        assert_true(payload["route"] == "artifact_harness_workflow", "packet-route JSON should expose the target route")
+        assert_true(payload["matched_keywords"], "packet-route JSON should expose matched keywords")
+        assert_true(payload["create"] is False and payload["force"] is False, "packet-route JSON should expose create/force flags")
+        command_parts = shlex.split(payload["command"])
+        assert_true(command_parts[0] == str(brain), "packet-route next command should use an absolute brain.sh path")
+        next_result = subprocess.run(command_parts, cwd=cwd, text=True, capture_output=True, check=False)
+        assert_true(next_result.returncode == 0, f"packet-route next command should be executable, got {next_result.returncode}, stderr={next_result.stderr}")
+        assert_true((target / "contexts" / "artifact_harness_registry.json").exists(), "next command should write packets into the target workspace")
+
+
+def test_packet_route_create_json_refuses_packet_root_outside_target_workspace() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-json-refusal-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        outside_packet_root = ws / "outside_packet_root"
+        set_artifact_harness_packet_root(ws, outside_packet_root)
+        result = run_brain(
+            ws,
+            "packet-route",
+            "please packet form this methods appendix",
+            "--path",
+            str(folder),
+            "--create",
+            "--json",
+        )
+        assert_true(result.returncode != 0, "packet-route --create --json should fail when packet root is outside target workspace")
+        payload = json.loads(result.stdout)
+        assert_true(payload["matched"] is True and payload["create"] is True, "route JSON should still expose route state")
+        artifact_payload = payload.get("artifact_harness", {})
+        assert_true(artifact_payload.get("created") is False and artifact_payload.get("refused") is True, "route JSON should include nested artifact refusal")
+        assert_true(artifact_payload.get("reason") == "packet_root_outside_target_workspace", "nested refusal should identify packet root boundary failure")
+        assert_true(Path(artifact_payload["packet_root"]).resolve() == outside_packet_root.resolve(), "nested refusal should include attempted packet root")
+        assert_true(Path(artifact_payload["run_dir"]).resolve().parent == outside_packet_root.resolve(), "nested refusal should include attempted run directory")
+        assert_true("outside target workspace" in result.stderr, "packet-route refusal should retain human stderr diagnostics")
+        assert_true(not outside_packet_root.exists(), "packet-route refusal should not create packet root outside target workspace")
+
+
+def test_packet_route_create_writes_artifact_harness_chain() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-create-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        result = run_brain(ws, "packet-route", "please packet form this methods appendix", "--path", str(folder), "--create")
+        assert_true(result.returncode == 0, f"packet-route create expected 0, got {result.returncode}, stderr={result.stderr}")
+        assert_true("Matched: `true`" in result.stdout, "packet-route create should report a match")
+        assert_true("# Artifact Harness Packet Chain" in result.stdout, "packet-route --create should write the packet chain")
+        assert_true((folder / "contexts" / "artifact_harness_registry.json").exists(), "packet-route --create should write artifact harness registry")
+        registry = load_artifact_harness_registry(folder)
+        assert_true("hr_staffing_packet" in registry["entries"][0]["packets"], "registry should include hr_staffing_packet after packet-route create")
+
+
+def test_packet_route_create_refuses_rerun_without_force() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-rerun-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        utterance = "please packet form this methods appendix"
+        first = run_brain(ws, "packet-route", utterance, "--path", str(folder), "--create")
+        assert_true(first.returncode == 0, f"first packet-route --create should succeed, got {first.returncode}, stderr={first.stderr}")
+        registry_path = folder / "contexts" / "artifact_harness_registry.json"
+        registry_before = registry_path.read_text(encoding="utf-8")
+        entry = load_artifact_harness_registry(folder)["entries"][0]
+        spec_path = folder / entry["packets"]["artifact_harness_spec"]
+        spec_path.write_text(spec_path.read_text(encoding="utf-8") + "\nSENTINEL_DO_NOT_OVERWRITE\n", encoding="utf-8")
+
+        second = run_brain(ws, "packet-route", utterance, "--path", str(folder), "--create")
+        assert_true(second.returncode != 0, "packet-route --create rerun without force should fail")
+        assert_true("Artifact Harness packet run already exists" in second.stderr, "packet-route rerun should surface artifact-harness overwrite guard")
+        assert_true("SENTINEL_DO_NOT_OVERWRITE" in spec_path.read_text(encoding="utf-8"), "packet-route rerun without force should preserve filled packet content")
+        assert_true(registry_path.read_text(encoding="utf-8") == registry_before, "packet-route rerun without force should not update registry")
+
+        forced = run_brain(ws, "packet-route", utterance, "--path", str(folder), "--create", "--force")
+        assert_true(forced.returncode == 0, f"packet-route --create --force should overwrite, got {forced.returncode}, stderr={forced.stderr}")
+        assert_true("SENTINEL_DO_NOT_OVERWRITE" not in spec_path.read_text(encoding="utf-8"), "packet-route --force should allow packet overwrite")
+
+
+def test_packet_route_non_artifact_phrase_does_not_route() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-miss-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "ordinary_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        result = run_brain(ws, "packet-route", "what time is the meeting tomorrow", "--path", str(folder))
+        assert_true(result.returncode == 0, f"packet-route miss expected 0, got {result.returncode}, stderr={result.stderr}")
+        assert_true("Matched: `false`" in result.stdout, "packet-route should not match non-artifact phrases")
+        assert_true("Route: `none`" in result.stdout, "packet-route miss should not name an artifact route")
+        assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "packet-route miss should not write artifact harness registry")
 
 
 def test_skill_route_gap_triggers_discovery() -> None:
@@ -2223,6 +3616,55 @@ def main() -> int:
         test_closeout_skips_existing_fallback_or_active_skill,
         test_closeout_records_unknown_skill_as_discovery_hint,
         test_skill_route_writes_workflow_registry,
+        test_artifact_harness_writes_packet_chain,
+        test_artifact_harness_refuses_rerun_without_force,
+        test_artifact_harness_json_from_temp_cwd_writes_target_workspace,
+        test_artifact_harness_lifecycle_status_mark_resume,
+        test_artifact_harness_lifecycle_json_refusal_is_parseable,
+        test_artifact_harness_replay_writes_evidence_and_preserves_markdown,
+        test_artifact_harness_replay_json_refusal_is_parseable,
+        test_artifact_harness_provenance_writes_ledger_and_preserves_markdown,
+        test_artifact_harness_provenance_json_refusal_is_parseable,
+        test_artifact_harness_provenance_refuses_manifest_packet_outside_target,
+        test_artifact_harness_runtime_check_default_is_conservative,
+        test_artifact_harness_runtime_check_json_refusal_is_parseable,
+        test_artifact_harness_runtime_check_blocks_approval_gate_cli_conflict,
+        test_artifact_harness_runtime_check_allows_cli_when_no_approval_gate_without_authorizing_execution,
+        test_artifact_harness_runtime_check_refuses_manifest_packet_outside_target,
+        test_artifact_harness_approval_records_evidence_and_preserves_markdown,
+        test_artifact_harness_approval_latest_deny_overrides_earlier_approval,
+        test_artifact_harness_runtime_invoke_refuses_readiness_blockers,
+        test_artifact_harness_runtime_invoke_requires_approval_evidence,
+        test_artifact_harness_runtime_invoke_forbids_cli_when_approval_gated,
+        test_artifact_harness_runtime_invoke_dry_run_with_approval_filters_denied_capabilities,
+        test_artifact_harness_runtime_invoke_latest_deny_blocks_invocation,
+        test_artifact_harness_approval_and_runtime_invoke_missing_run_refusals_are_parseable,
+        test_artifact_harness_runtime_invoke_refuses_manifest_packet_outside_target,
+        test_artifact_harness_schema_check_current_run_and_missing_optional_reports,
+        test_artifact_harness_migrate_safe_older_run_is_idempotent_and_preserves_markdown,
+        test_artifact_harness_migrate_refuses_missing_required_packet,
+        test_artifact_harness_schema_check_refuses_manifest_packet_outside_target,
+        test_artifact_harness_repair_plan_writes_plan_and_preserves_markdown,
+        test_artifact_harness_repair_plan_surfaces_blocked_lifecycle_and_denied_approval,
+        test_artifact_harness_repair_plan_surfaces_runtime_invocation_refusal,
+        test_artifact_harness_repair_plan_missing_run_refusal_is_parseable,
+        test_artifact_harness_replay_refuses_manifest_packet_outside_target,
+        test_artifact_harness_json_refuses_packet_root_outside_target_workspace,
+        test_repo_does_not_carry_smoke_artifact_harness_outputs,
+        test_packet_route_keyword_routes_to_artifact_harness,
+        test_packet_route_natural_artifact_missions_are_create_ready,
+        test_packet_route_underspecified_artifact_hint_refuses_create,
+        test_packet_route_front_door_hr_artifact_is_spec_first,
+        test_packet_route_front_door_hr_only_does_not_create_packets,
+        test_packet_route_requirement_form_create_writes_packet_chain,
+        test_packet_route_downstream_front_doors_are_spec_first_without_id,
+        test_packet_route_short_alias_does_not_match_inside_words,
+        test_packet_route_existing_id_routes_to_safe_existing_packet_command,
+        test_packet_route_json_from_temp_cwd_uses_absolute_next_command,
+        test_packet_route_create_json_refuses_packet_root_outside_target_workspace,
+        test_packet_route_create_writes_artifact_harness_chain,
+        test_packet_route_create_refuses_rerun_without_force,
+        test_packet_route_non_artifact_phrase_does_not_route,
         test_skill_route_gap_triggers_discovery,
         test_skill_route_uses_closeout_quality_signals,
         test_skill_review_lists_open_proposals,

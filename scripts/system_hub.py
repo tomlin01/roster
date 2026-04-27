@@ -8,6 +8,7 @@ import json
 import os
 import plistlib
 import re
+import shlex
 import shutil
 import sqlite3
 import subprocess
@@ -31,12 +32,196 @@ MEMORY_TRIAGE_WINDOWS = {
 }
 SESSION_STALE_DAYS = 3
 MEMORY_DEFAULT_LANE = "default"
+ARTIFACT_HARNESS_DEFAULT_KEYWORDS = (
+    "artifact harness",
+    "harness spec",
+    "requirement form",
+    "packet init",
+    "form fill",
+    "artifact packet",
+    "artifact mission",
+)
+ARTIFACT_HARNESS_STATUSES = (
+    "draft",
+    "filled",
+    "reviewed",
+    "approved",
+    "blocked",
+    "executed",
+    "verified",
+    "superseded",
+    "archived",
+)
+ARTIFACT_HARNESS_PROVENANCE_CATEGORIES = (
+    "user_mission",
+    "template_default",
+    "generated_scaffold",
+    "packet_reference",
+    "repo_evidence",
+    "agent_inference",
+    "runtime_output",
+    "test_result",
+    "human_approval",
+    "approval_required",
+    "unresolved",
+    "unknown",
+)
+ARTIFACT_HARNESS_SCHEMA_VERSION = 1
+ARTIFACT_HARNESS_COMMAND_SCHEMA_VERSION = 1
+ARTIFACT_HARNESS_REQUIRED_PACKET_KEYS = (
+    "artifact_harness_spec",
+    "hr_staffing_packet",
+    "team_operating_packet",
+    "capability_access_packet",
+    "runtime_mapping",
+)
+ARTIFACT_HARNESS_OPTIONAL_REPORT_KEYS = (
+    "replay_evidence",
+    "provenance_ledger",
+    "runtime_readiness_report",
+    "approval_evidence",
+    "runtime_invocation_report",
+    "repair_plan",
+)
+ARTIFACT_HARNESS_SCHEMA_METADATA_FILENAME = "packet_schema_metadata.json"
+ARTIFACT_HARNESS_APPROVAL_EVIDENCE_FILENAME = "approval_evidence.json"
+ARTIFACT_HARNESS_RUNTIME_INVOCATION_REPORT_FILENAME = "runtime_invocation_report.json"
+ARTIFACT_HARNESS_REPAIR_PLAN_FILENAME = "repair_plan.json"
+ARTIFACT_HARNESS_RUNTIME_APPROVAL_GATE_ID = "runtime_execution"
+ARTIFACT_HARNESS_SUPPORTED_RUNTIME_ADAPTERS = ("open-multi-agent",)
+ARTIFACT_HARNESS_SUPPORTED_EXECUTION_SURFACES = ("typescript-runTasks", "cli")
+PACKET_ROUTE_NATURAL_PRODUCTION_CUES = (
+    "make",
+    "create",
+    "draft",
+    "write",
+    "prepare",
+    "produce",
+    "generate",
+    "build",
+    "assemble",
+    "compose",
+    "design",
+    "edit",
+    "revise",
+    "polish",
+    "organize",
+    "organized",
+    "finish",
+    "complete",
+    "repair",
+    "render",
+    "做",
+    "製作",
+    "生成",
+    "產生",
+    "寫",
+    "撰寫",
+    "草擬",
+    "整理",
+    "組",
+    "組好",
+    "完成",
+    "修改",
+    "潤飾",
+    "準備",
+)
+PACKET_ROUTE_NATURAL_QUALITY_CUES = (
+    "review-ready",
+    "publication-ready",
+    "final",
+    "polished",
+    "complete",
+    "finished",
+    "verified",
+    "ready",
+    "可審查",
+    "審查",
+    "完成版",
+    "可用",
+    "整理好",
+)
+PACKET_ROUTE_NATURAL_PROCESS_CUES = (
+    "task",
+    "workflow",
+    "packet form",
+    "requirement form",
+    "form fill",
+    "organized",
+    "deliverable",
+    "output",
+    "artifact",
+    "任務",
+    "流程",
+    "成果",
+    "產出",
+)
+PACKET_ROUTE_NATURAL_DELIVERABLE_TERMS = (
+    "appendix",
+    "methods appendix",
+    "slides",
+    "slide",
+    "slide deck",
+    "lecture slides",
+    "deck",
+    "presentation",
+    "video",
+    "lecture video",
+    "report",
+    "manuscript",
+    "paper",
+    "draft",
+    "section",
+    "note",
+    "notes",
+    "figure",
+    "table",
+    "worksheet",
+    "handout",
+    "problem set",
+    "solution",
+    "script",
+    "module",
+    "dashboard",
+    "artifact",
+    "deliverable",
+    "投影片",
+    "簡報",
+    "影片",
+    "講義",
+    "附錄",
+    "文稿",
+    "草稿",
+    "報告",
+    "圖表",
+    "表格",
+    "教材",
+    "筆記",
+    "文件",
+    "成果",
+    "產出",
+)
+PACKET_ROUTE_UNDERSPECIFIED_ARTIFACT_REFERENCES = (
+    "this artifact",
+    "the artifact",
+    "artifact?",
+    "this deliverable",
+    "the deliverable",
+    "這個 artifact",
+    "這份 artifact",
+    "這個成果",
+    "這份成果",
+    "這個產出",
+    "這份產出",
+)
 DEFAULT_BRAIN_COMMANDS = (
     "refresh",
     "doctor",
     "status",
     "bootstrap",
     "intake",
+    "artifact-harness",
+    "packet-route",
     "overlay",
     "closeout",
     "skill-route",
@@ -358,6 +543,29 @@ def parse_args() -> argparse.Namespace:
     bootstrap.add_argument("--cwd", default=None, help="Optional cwd override used for session-gate advice.")
     intake = sub.add_parser("intake", help="Scan a folder, predict the working mode, and suggest the next step.")
     intake.add_argument("path", nargs="?", default=".", help="Folder to inspect. Defaults to the current directory.")
+    artifact_harness = sub.add_parser("artifact-harness", help="Create or inspect a deterministic Artifact Harness packet chain.")
+    artifact_harness.add_argument("mission", nargs="?", help="User mission to convert into packet scaffolds, or status/resume/mark/replay/provenance/runtime-check/approval/runtime-invoke/schema-check/migrate/repair-plan for packet commands.")
+    artifact_harness.add_argument("--path", default=".", help="Target workspace folder for the mission and packet output. Defaults to the current directory.")
+    artifact_harness.add_argument("--id", default=None, help="Optional stable packet id. Defaults to a mission/path-derived id.")
+    artifact_harness.add_argument("--artifact", default=None, help="Optional expected artifact path or label from the user mission.")
+    artifact_harness.add_argument("--force", "--overwrite", action="store_true", dest="force", help="Explicitly overwrite an existing packet run.")
+    artifact_harness.add_argument("--status", default=None, help="Lifecycle status for `artifact-harness mark`.")
+    artifact_harness.add_argument("--note", default="", help="Optional lifecycle note for `artifact-harness mark`.")
+    artifact_harness.add_argument("--gate", default=None, help="Approval gate id for `artifact-harness approval`.")
+    artifact_harness.add_argument("--decision", default=None, help="Approval decision for `artifact-harness approval`: approved or denied.")
+    artifact_harness.add_argument("--approver", default=None, help="Approver label for `artifact-harness approval`.")
+    artifact_harness.add_argument("--adapter", default=None, help="Runtime adapter for `artifact-harness runtime-invoke`; supported: open-multi-agent.")
+    artifact_harness.add_argument("--surface", default=None, help="Runtime execution surface for `artifact-harness runtime-invoke`; supported: typescript-runTasks, cli.")
+    artifact_harness.add_argument("--dry-run", action="store_true", help="Create a guarded runtime invocation envelope without executing the adapter.")
+    artifact_harness.add_argument("--json", action="store_true", help="Emit a machine-readable JSON result instead of Markdown.")
+    packet_route = sub.add_parser("packet-route", help="Route a keyword phrase to a packet workflow; optionally create the packet chain.")
+    packet_route.add_argument("utterance", help="User phrase to route with deterministic keyword matching.")
+    packet_route.add_argument("--path", default=".", help="Target workspace folder for the routed packet and packet output. Defaults to the current directory.")
+    packet_route.add_argument("--id", default=None, help="Optional existing or desired Artifact Harness packet id for downstream packet routing.")
+    packet_route.add_argument("--create", action="store_true", help="Create the routed packet chain when a route matches.")
+    packet_route.add_argument("--artifact", default=None, help="Optional expected artifact path or label passed through to artifact-harness.")
+    packet_route.add_argument("--force", "--overwrite", action="store_true", dest="force", help="Explicitly overwrite an existing routed packet run when used with --create.")
+    packet_route.add_argument("--json", action="store_true", help="Emit a machine-readable JSON route instead of Markdown.")
     overlay = sub.add_parser("overlay", help="Generate a runtime overlay brief for a working folder.")
     overlay.add_argument("path", nargs="?", default=".", help="Folder to inspect. Defaults to the current directory.")
     closeout = sub.add_parser("closeout", help="Record task closeout notes and generate candidate skill proposals.")
@@ -870,6 +1078,14 @@ def memory_governance_status_path(config: HubConfig) -> Path:
     return config.contexts_dir / "memory_governance_status.md"
 
 
+def artifact_harness_registry_path(config: HubConfig) -> Path:
+    return config.contexts_dir / "artifact_harness_registry.json"
+
+
+def artifact_harness_runs_dir(config: HubConfig) -> Path:
+    return config.contexts_dir / "artifact_harness_runs"
+
+
 def codex_session_index_path(config: HubConfig) -> Path:
     return config.codex_home / "session_index.jsonl"
 
@@ -896,6 +1112,18 @@ def new_record_id(prefix: str) -> str:
     return f"{prefix}-{stamp}-{digest}"
 
 
+def stable_packet_id(prefix: str, mission: str, target: Path, explicit_id: str | None = None) -> str:
+    raw = explicit_id.strip() if explicit_id else mission.strip()
+    slug = re.sub(r"[^a-z0-9]+", "-", raw.lower()).strip("-")
+    if not slug:
+        slug = "artifact-mission"
+    slug = slug[:64].strip("-") or "artifact-mission"
+    if explicit_id:
+        return slug
+    digest = hashlib.sha1(f"{mission.strip()}|{target.resolve()}".encode("utf-8")).hexdigest()[:8]
+    return f"{prefix}-{slug}-{digest}"
+
+
 def default_runtime_overlay_registry() -> dict[str, Any]:
     return {"schema_version": 1, "generated_at": None, "entries": []}
 
@@ -920,6 +1148,10 @@ def default_skill_route_registry() -> dict[str, Any]:
     return {"schema_version": 1, "generated_at": None, "entries": []}
 
 
+def default_artifact_harness_registry() -> dict[str, Any]:
+    return {"schema_version": 1, "generated_at": None, "entries": []}
+
+
 def load_json_file(path: Path, default: dict[str, Any]) -> dict[str, Any]:
     if not path.exists():
         return json.loads(json.dumps(default))
@@ -939,6 +1171,93 @@ def load_json_file_strict(path: Path, default: dict[str, Any], label: str) -> di
     if not isinstance(payload, dict):
         raise HubRuntimeError(f"Invalid {label} payload: {path} must contain a JSON object.")
     return payload
+
+
+def load_routing_section(config: HubConfig) -> dict[str, Any]:
+    if not config.config_path.exists():
+        return {}
+    try:
+        payload = tomllib.loads(config.config_path.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError:
+        return {}
+    section = payload.get("routing")
+    if not isinstance(section, dict):
+        return {}
+    return section
+
+
+def resolve_routing_path(config: HubConfig, value: Any, default: str) -> Path:
+    raw = value if isinstance(value, str) and value.strip() else default
+    path = Path(raw).expanduser()
+    if path.is_absolute():
+        return path.resolve()
+    return (config.workspace_root / path).resolve()
+
+
+def load_team_alias_registry(config: HubConfig, routing: dict[str, Any]) -> dict[str, Any]:
+    path = resolve_routing_path(config, routing.get("team_alias_registry"), "contexts/team_alias_registry.json")
+    return load_json_file(path, {})
+
+
+def artifact_harness_keyword_list(config: HubConfig) -> list[str]:
+    routing = load_routing_section(config)
+    registry = load_team_alias_registry(config, routing)
+    keywords: list[str] = list(ARTIFACT_HARNESS_DEFAULT_KEYWORDS)
+    raw_config_keywords = routing.get("artifact_harness_keywords", [])
+    if isinstance(raw_config_keywords, list):
+        keywords.extend(item for item in raw_config_keywords if isinstance(item, str))
+    for family in registry.get("keyword_families", []):
+        if not isinstance(family, dict) or family.get("id") != "artifact_harness_workflow":
+            continue
+        raw_family_keywords = family.get("keywords", [])
+        if isinstance(raw_family_keywords, list):
+            keywords.extend(item for item in raw_family_keywords if isinstance(item, str))
+
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for keyword in keywords:
+        normalized = " ".join(keyword.strip().lower().split())
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        deduped.append(keyword.strip())
+    return deduped
+
+
+def artifact_harness_entrypoint(config: HubConfig) -> str:
+    routing = load_routing_section(config)
+    raw = routing.get("artifact_harness_entrypoint", "artifact-harness")
+    if not isinstance(raw, str) or not raw.strip():
+        raw = "artifact-harness"
+    return raw.strip()
+
+
+def artifact_harness_packet_root(config: HubConfig, target: Path) -> Path:
+    routing = load_routing_section(config)
+    raw = routing.get("artifact_harness_packet_root", "contexts/artifact_harness_runs")
+    if not isinstance(raw, str) or not raw.strip():
+        raw = "contexts/artifact_harness_runs"
+    root = Path(raw).expanduser()
+    if root.is_absolute():
+        return root.resolve()
+    return (target / root).resolve()
+
+
+def artifact_harness_registry_path_for_target(config: HubConfig, target: Path) -> Path:
+    return artifact_harness_packet_root(config, target).parent / "artifact_harness_registry.json"
+
+
+def relative_path_from(root: Path, path: Path) -> str:
+    return path.resolve().relative_to(root.resolve()).as_posix()
+
+
+def ensure_targets_under_root(root: Path, targets: dict[str, Path]) -> None:
+    root_resolved = root.resolve()
+    for label, path in targets.items():
+        try:
+            path.resolve().relative_to(root_resolved)
+        except ValueError as exc:
+            raise HubRuntimeError(f"Refusing to write {label} outside target workspace: {path}") from exc
 
 
 def dump_json(path: Path, payload: dict[str, Any]) -> None:
@@ -1209,7 +1528,13 @@ def is_reconciliation_context_file(path: Path) -> bool:
         return True
     if lower == "folder_hub_reconciliation.md":
         return True
-    if lower in {"runtime_overlay_registry.json", "skill_iteration_registry.json", "skill_discovery_registry.json", "skill_route_registry.json"}:
+    if lower in {
+        "runtime_overlay_registry.json",
+        "skill_iteration_registry.json",
+        "skill_discovery_registry.json",
+        "skill_route_registry.json",
+        "artifact_harness_registry.json",
+    }:
         return True
     return any(token in lower for token in ("system", "hub", "memory", "benchmark", "router", "skill"))
 
@@ -1242,7 +1567,12 @@ def collect_reconciliation_artifacts(config: HubConfig) -> list[Path]:
         for child in sorted(config.contexts_dir.iterdir(), key=lambda item: item.name.lower()):
             if child.is_file() and is_reconciliation_context_file(child):
                 artifacts.append(child)
-    for base in (runtime_overlays_dir(config), skill_iteration_closeouts_dir(config), skill_iteration_proposals_dir(config)):
+    for base in (
+        runtime_overlays_dir(config),
+        skill_iteration_closeouts_dir(config),
+        skill_iteration_proposals_dir(config),
+        artifact_harness_runs_dir(config),
+    ):
         if not base.exists():
             continue
         for child in sorted(base.rglob("*"), key=lambda item: item.as_posix().lower()):
@@ -1300,12 +1630,18 @@ def runtime_writer_paths(config: HubConfig) -> set[str]:
         skill_iteration_registry_path(config),
         skill_discovery_registry_path(config),
         skill_route_registry_path(config),
+        artifact_harness_registry_path(config),
         memory_governance_registry_path(config),
         memory_governance_status_path(config),
     ):
         if extra.exists():
             writer_paths.add(relative_path(config, extra))
-    for base in (runtime_overlays_dir(config), skill_iteration_closeouts_dir(config), skill_iteration_proposals_dir(config)):
+    for base in (
+        runtime_overlays_dir(config),
+        skill_iteration_closeouts_dir(config),
+        skill_iteration_proposals_dir(config),
+        artifact_harness_runs_dir(config),
+    ):
         if not base.exists():
             continue
         for child in base.rglob("*"):
@@ -4060,6 +4396,27 @@ def save_skill_route_registry(config: HubConfig, payload: dict[str, Any]) -> Non
     dump_json(path, payload)
 
 
+def load_artifact_harness_registry(config: HubConfig, path: Path | None = None) -> dict[str, Any]:
+    payload = load_json_file_strict(
+        path or artifact_harness_registry_path(config),
+        default_artifact_harness_registry(),
+        "artifact harness registry",
+    )
+    if not isinstance(payload.get("entries", []), list):
+        raise HubRuntimeError("Artifact harness registry must contain list field `entries`.")
+    return payload
+
+
+def save_artifact_harness_registry(config: HubConfig, payload: dict[str, Any], path: Path | None = None, target_root: Path | None = None) -> None:
+    path = path or artifact_harness_registry_path(config)
+    if target_root is None:
+        ensure_repo_targets(config, {"artifact_harness_registry_json": path})
+    else:
+        ensure_targets_under_root(target_root, {"artifact_harness_registry_json": path})
+    payload.setdefault("schema_version", 1)
+    dump_json(path, payload)
+
+
 def parse_used_skills(raw: str) -> list[str]:
     if not raw.strip():
         return []
@@ -4836,6 +5193,4106 @@ def do_skill_discover(config: HubConfig, query: str) -> int:
     save_skill_discovery_registry(config, payload)
     print(render_skill_discover_markdown(payload), end="")
     return 0 if payload["status"] == "healthy" else 2
+
+
+def render_artifact_harness_spec_packet(mission: str, target: Path, expected_artifact: str, packet_paths: dict[str, str]) -> str:
+    return f"""# Artifact Harness SPEC
+
+## Metadata
+
+- owner: Artifact Harness
+- status: draft
+- target_mission: {mission}
+- generated_by: system_hub artifact-harness
+- expected_downstream_packet: {packet_paths['hr_staffing_packet']}
+- autofill_source: user mission; --path; --artifact when provided
+
+## Field Source Map
+
+- user mission: user phrase
+- expected artifact: --artifact or inferred from user phrase
+- artifact location: --artifact or open question
+- artifact consumer: user phrase or open question
+- rules: user phrase or open question
+- acceptance checks: user phrase or open question
+- boundaries: user phrase, repo policy, or open question
+- handoff targets: fixed Artifact Harness workflow
+
+## Mission
+
+- user mission [source: user phrase]: {mission}
+- expected artifact [source: --artifact or inference]: {expected_artifact or 'open question'}
+- artifact location [source: --artifact or open question]: {expected_artifact or 'open question'}
+- artifact consumer [source: user phrase or open question]: open question
+- why a harness is needed [source: workflow default]: artifact task needs explicit rules, acceptance, and boundaries before staffing or runtime mapping
+
+## Artifact Contract
+
+- artifact type [source: user phrase or inference]: open question
+- required sections or fields [source: user phrase or open question]: open question
+- required inputs [source: user phrase or repo evidence]: open question
+- allowed source material [source: user phrase, repo evidence, or approval question]: open question
+- required output format [source: user phrase or artifact type]: open question
+- required evidence [source: acceptance needs]: open question
+
+## Rules
+
+- invariant rules [source: user phrase or repo policy]: open question
+- sequencing rules [source: workflow default]: SPEC before staffing; staffing before Team Operating Packet; CAP before runtime mapping
+- naming or path rules [source: generated packet layout]: {packet_paths['run_dir']}
+- source-use rules [source: user phrase or approval question]: open question
+- review rules [source: workflow default]: verify against this SPEC before acceptance
+
+## Acceptance Checks
+
+- check:
+  - method [source: user phrase or verification owner]: open question
+  - owner [source: verification/review]: verification/review
+  - pass condition [source: user phrase or open question]: open question
+  - failure action [source: workflow default]: revise packet or artifact before promotion
+
+## Boundaries
+
+- in scope [source: user phrase]: {mission}
+- out of scope [source: user phrase or open question]: open question
+- must not change [source: repo policy]: HR staffing boundary; Team Architect collaboration boundary; CAP authorization boundary; runtime execution-only boundary
+- user approval required for [source: approval gate]: widening artifact scope, tool access, or runtime authority
+- deferred [source: open questions]: unresolved fields above
+
+## Handoff
+
+- staffing target [source: workflow default]: {packet_paths['hr_staffing_packet']}
+- Team Architect target [source: workflow default]: {packet_paths['team_operating_packet']}
+- capability access expected [source: workflow default]: yes if skills, plugins, tools, or runtime gates are needed
+- runtime adapter expected [source: user phrase or open question]: open question
+- verification or review target [source: workflow default]: verification/review
+
+## Must Not Do
+
+- choose or redesign staffing
+- authorize skills, plugins, or tools
+- choose runtime execution mechanics
+- change memory-engine level or promotion state
+- claim full automation without filled-run or executable evidence
+
+## Open Questions
+
+- Fill artifact type, required fields, allowed sources, and pass conditions before execution.
+"""
+
+
+def render_hr_staffing_packet_scaffold(mission: str, packet_paths: dict[str, str]) -> str:
+    return f"""# HR Staffing Packet
+
+## Metadata
+
+- owner: HR
+- status: draft
+- target_mission: {mission}
+- generated_by: system_hub artifact-harness
+- source_artifact_harness_spec: {packet_paths['artifact_harness_spec']}
+- expected_team_architect_packet: {packet_paths['team_operating_packet']}
+
+## Fill Notes
+
+- Fill this packet from the user mission, Artifact Harness SPEC boundaries, and local role surfaces.
+- Keep this file agent-readable Markdown in the same workspace folder.
+- This packet owns staffing only. It does not authorize capabilities, choose a runtime adapter, or accept the final artifact.
+
+## Staffing Objective
+
+- staffing request:
+- why staffing is needed:
+- expected team shape:
+- Team Architect handoff required: yes/no
+
+## Role Reuse And Fit
+
+- reused roles:
+- adapted roles:
+- new roles required:
+- unresolved role gaps:
+
+## Role Boundaries
+
+- role:
+  - mission:
+  - owns:
+  - must_not_do:
+
+## Staffing Decision
+
+- reuse/adapt/create rationale:
+- staffing risks:
+- user approval required for:
+
+## Team Architect Handoff
+
+- handoff target: {packet_paths['team_operating_packet']}
+- handoff package: mission, Artifact Harness SPEC, role fit, role gaps
+- collaboration constraints from staffing:
+- open questions for Team Architect:
+
+## Must Not Do
+
+- authorize skills, plugins, or tools
+- choose runtime execution mechanics
+- own artifact acceptance or verification
+- rewrite Artifact Harness SPEC rules, contract, acceptance, or boundaries
+- silently widen role authority beyond staffing needs
+
+## Open Questions
+
+- Fill after HR staffing review of local role surfaces.
+"""
+
+
+def render_team_operating_packet_scaffold(mission: str, packet_paths: dict[str, str]) -> str:
+    return f"""# Team Operating Packet
+
+## Metadata
+
+- owner: Team Architect
+- status: draft
+- target_mission: {mission}
+- generated_by: system_hub artifact-harness
+- source_artifact_harness_spec: {packet_paths['artifact_harness_spec']}
+- source_hr_staffing_packet: {packet_paths['hr_staffing_packet']}
+
+## Fill Notes
+
+- Fill this template from the Artifact Harness SPEC, HR staffing packet, and coordination baseline.
+- Keep this file agent-readable Markdown in the same workspace folder.
+- This packet owns collaboration structure, not staffing or capability authorization.
+- Generate or link a Capability Access Packet when skills, plugins, tools, or runtime approval gates are needed.
+
+## Team Shape
+
+- team name:
+- task shape:
+- chosen collaboration pattern:
+- why this pattern fits:
+
+## Roles
+
+- role:
+  - mission:
+  - owns:
+  - must_produce:
+  - must_not_do:
+
+## Inputs From Staffing
+
+- reused roles:
+- adapted roles:
+- new roles:
+- unresolved role gaps:
+
+## Shared Artifacts
+
+- artifact:
+  - owner:
+  - purpose:
+  - handoff target:
+  - promotion rule:
+
+## Capability Access
+
+- source Artifact Harness SPEC: {packet_paths['artifact_harness_spec']}
+- capability access packet: {packet_paths['capability_access_packet']}
+- required: yes/no
+- reason required:
+- authorized capability summary:
+- approval gate summary:
+- access boundaries:
+
+## Interaction Protocol
+
+1. publish:
+2. request:
+3. revise:
+4. promote:
+5. closeout:
+
+## Escalation And Convergence
+
+- escalation triggers:
+- dominant issue owner rule:
+- stop conditions:
+- fallback if the pattern stalls:
+
+## Authority Envelope
+
+- what this team may decide:
+- what requires user approval:
+- what must not be changed silently:
+
+## Invocation Guidance
+
+- how to call the team:
+- when to use this team:
+- when not to use this team:
+
+## Execution Runtime Mapping
+
+- runtime adapter:
+- runtime mode:
+- why this mode fits:
+- task graph source:
+- mapping artifact: {packet_paths['runtime_mapping']}
+- source capability access packet: {packet_paths['capability_access_packet']}
+- approval gate locations:
+- expected runtime byproducts:
+
+## Open Questions
+
+- Fill after HR staffing packet is available.
+"""
+
+
+def render_capability_access_packet_scaffold(mission: str, packet_paths: dict[str, str]) -> str:
+    return f"""# Capability Access Packet
+
+## Metadata
+
+- owner: Team Architect
+- status: draft
+- target_mission: {mission}
+- generated_by: system_hub artifact-harness
+- source_artifact_harness_spec: {packet_paths['artifact_harness_spec']}
+- source_team_operating_packet: {packet_paths['team_operating_packet']}
+
+## Fill Notes
+
+- Fill this template from the Artifact Harness SPEC, Team Operating Packet, and available local skills, plugins, and tools.
+- Keep this file agent-readable Markdown in the same workspace folder.
+- This packet authorizes capabilities and gates only. It does not choose roles, collaboration patterns, artifact acceptance, or runtime ownership.
+
+## Purpose
+
+- why capability access is needed:
+- expected artifact or runtime outcome from source packets:
+- capability risk level:
+
+## Authorized Capabilities
+
+- skill:
+  - allowed use:
+  - scope:
+  - output expected:
+  - approval gate:
+- plugin:
+  - allowed use:
+  - scope:
+  - output expected:
+  - approval gate:
+- tool:
+  - allowed use:
+  - scope:
+  - output expected:
+  - approval gate:
+
+## Runtime Allowlist
+
+- exposed skills:
+- exposed plugins:
+- exposed tools:
+- withheld capabilities:
+- allowlist source:
+
+## Denied Or Deferred Capabilities
+
+- capability:
+  - reason:
+  - fallback:
+
+## Access Boundaries
+
+- allowed files or folders:
+- allowed external services:
+- allowed network use:
+- allowed writes:
+- forbidden writes:
+- secrets or credentials rule:
+- runtime byproducts rule:
+
+## Approval Gates
+
+- gate:
+  - trigger:
+  - approval owner:
+  - allowed continuation:
+  - rejected fallback:
+
+## Runtime Exposure Constraints
+
+- runtime adapter from Team Operating Packet:
+- runtime mapping artifact from Team Architect: {packet_paths['runtime_mapping']}
+- capabilities to expose:
+- capabilities to withhold:
+- approval gates to enforce:
+- evidence to return:
+
+This section constrains runtime exposure only. It does not choose the runtime adapter and does not create the runtime task graph.
+
+## Evidence For Verification
+
+- access evidence:
+- capability exposure evidence:
+- approval gate evidence:
+- closeout evidence to return:
+
+This section supplies evidence to verification/review. It does not decide artifact acceptance.
+
+## Must Not Do
+
+- choose or redesign staffing
+- replace the Team Architect operating packet
+- change the Artifact Harness SPEC rules, contract, acceptance, or boundaries
+- own verification or artifact acceptance
+- make the runtime adapter a governance owner
+- claim complete automation without executable evidence
+
+## Open Questions
+
+- Fill after Team Operating Packet identifies capability needs.
+"""
+
+
+def render_runtime_mapping_scaffold(mission: str, packet_paths: dict[str, str]) -> str:
+    return f"""# open-multi-agent runTasks Mapping
+
+## Metadata
+
+- source operating packet: {packet_paths['team_operating_packet']}
+- source capability access packet: {packet_paths['capability_access_packet']}
+- status: draft
+- runtime adapter: open-multi-agent
+- runtime mode: runTasks
+- generated_by: system_hub artifact-harness
+
+## Fill Notes
+
+- Fill this mapping from the Team Operating Packet, Capability Access Packet, and runtime adapter policy.
+- Keep this file agent-readable Markdown in the same workspace folder.
+- This mapping is for optional runtime execution; it does not make the runtime adapter a governance owner.
+- No persistent server is required by this template.
+
+## Adapter Decision
+
+- why `runTasks()` is appropriate:
+- why `runTeam()` is not the primary mode:
+- expected runtime risk:
+- approval gates required: yes/no
+- execution surface:
+  - TypeScript API required when approval gates are required
+  - CLI allowed only when no approval gates are required and no runtime object wiring is needed
+
+## Capability Access Trace
+
+- CAP source: {packet_paths['capability_access_packet']}
+- authorized skills:
+- authorized plugins:
+- authorized tools:
+- denied or withheld capabilities:
+- CAP approval gates:
+- CAP access boundaries:
+- runtime exposure rule:
+  - expose only capabilities listed above
+  - withhold any capability not authorized by CAP
+
+## TeamConfig
+
+```json
+{{
+  "name": "",
+  "agents": [
+    {{
+      "name": "",
+      "provider": "",
+      "model": "",
+      "systemPrompt": "",
+      "tools": []
+    }}
+  ],
+  "sharedMemory": true,
+  "maxConcurrency": 1
+}}
+```
+
+## Tasks
+
+```json
+[
+  {{
+    "title": "",
+    "description": "",
+    "assignee": "",
+    "dependsOn": [],
+    "memoryScope": "dependencies"
+  }}
+]
+```
+
+## Artifact Mapping
+
+- task:
+  - expected artifact:
+  - artifact owner:
+  - acceptance check:
+  - promotion rule:
+
+## Approval Gates
+
+- after task:
+  - CAP gate source:
+  - gate reason:
+  - enforcement surface:
+  - approved continuation:
+  - rejected fallback:
+
+If any approval gate is required, this mapping must be executed through the TypeScript API with an enforceable approval callback. The `oma` CLI path is not allowed for gated execution because JSON configuration cannot carry function callbacks such as `onApproval`.
+
+## Convergence
+
+- stop conditions:
+- fallback behavior:
+- final synthesis owner:
+
+## Runtime Notes
+
+- preferred API surface:
+- same workspace folder:
+- CLI allowed:
+  - yes only if no approval gates are required
+  - no when CAP approval gates, runtime object wiring, or human approval are required
+- expected local byproducts:
+- byproducts to keep local:
+
+## Open Questions
+
+- Fill only if runtime execution is actually needed for mission: {mission}
+"""
+
+
+def render_artifact_harness_summary(entry: dict[str, Any]) -> str:
+    lines = [
+        "# Artifact Harness Packet Chain",
+        "",
+        f"- Packet ID: `{entry['id']}`",
+        f"- Mission: {entry['mission']}",
+        f"- Target path: `{entry['target_path']}`",
+        f"- Generated at: `{entry['generated_at']}`",
+        f"- Run directory: `{entry['run_dir']}`",
+        f"- Lifecycle status: `{entry.get('status', 'draft')}`",
+        f"- Lifecycle metadata: `{entry.get('status_path', '')}`",
+        "",
+        "## Packets",
+        "",
+    ]
+    for key in ("artifact_harness_spec", "hr_staffing_packet", "team_operating_packet", "capability_access_packet", "runtime_mapping", "manifest"):
+        lines.append(f"- {key}: `{entry['packets'][key]}`")
+    lines.extend(
+        [
+            "",
+            "## Next Steps",
+            "",
+            "- Complete the Artifact Harness SPEC fields that remain open questions.",
+            "- Fill the HR staffing packet before Team Architect finalizes the operating packet.",
+            "- Have Team Architect complete the Team Operating Packet and CAP before runtime mapping.",
+            "- Treat runtime mapping as optional execution wiring, not governance ownership.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def existing_artifact_harness_run_conflicts(run_dir: Path, absolute_paths: dict[str, Path]) -> list[str]:
+    conflicts: list[str] = []
+    if run_dir.exists():
+        conflicts.append(f"run directory: {run_dir}")
+    for key in (
+        "artifact_harness_spec",
+        "hr_staffing_packet",
+        "team_operating_packet",
+        "capability_access_packet",
+        "runtime_mapping",
+        "manifest",
+        "status",
+        "schema_metadata",
+    ):
+        path = absolute_paths[key]
+        if path.exists():
+            conflicts.append(f"{key}: {path}")
+    return conflicts
+
+
+def artifact_harness_refusal_payload(
+    packet_id: str,
+    mission: str,
+    target: Path,
+    run_dir: Path,
+    packet_paths: dict[str, Path],
+    registry_path: Path,
+    reason: str,
+) -> dict[str, Any]:
+    return {
+        "id": packet_id,
+        "mission": mission,
+        "target_path": str(target),
+        "packet_root": str(run_dir.parent),
+        "run_dir": str(run_dir),
+        "packets": {key: str(packet_paths[key]) for key in ("artifact_harness_spec", "hr_staffing_packet", "team_operating_packet", "capability_access_packet", "runtime_mapping", "manifest")},
+        "status_path": str(packet_paths["status"]) if "status" in packet_paths else None,
+        "registry_path": str(registry_path),
+        "created": False,
+        "refused": True,
+        "reason": reason,
+    }
+
+
+def artifact_harness_lifecycle_payload(
+    packet_id: str,
+    status: str,
+    updated_at: str,
+    note: str,
+    updated_by: str,
+) -> dict[str, Any]:
+    event = {
+        "status": status,
+        "note": note,
+        "updated_at": updated_at,
+        "updated_by": updated_by,
+    }
+    return {
+        "schema_version": 1,
+        "id": packet_id,
+        "status": status,
+        "note": note,
+        "updated_at": updated_at,
+        "updated_by": updated_by,
+        "governance_boundary": "Lifecycle status is continuity metadata only; it does not grant approval, capability access, runtime execution authority, or artifact acceptance.",
+        "allowed_statuses": list(ARTIFACT_HARNESS_STATUSES),
+        "history": [event],
+    }
+
+
+def artifact_harness_run_paths(config: HubConfig, target: Path, packet_id: str) -> tuple[Path, Path, dict[str, Path]]:
+    packet_root = artifact_harness_packet_root(config, target)
+    run_dir = packet_root / packet_id
+    registry_path = artifact_harness_registry_path_for_target(config, target)
+    packet_paths = {
+        "artifact_harness_spec": run_dir / "artifact_harness_spec.md",
+        "hr_staffing_packet": run_dir / "hr_staffing_packet.md",
+        "team_operating_packet": run_dir / "team_operating_packet.md",
+        "capability_access_packet": run_dir / "capability_access_packet.md",
+        "runtime_mapping": run_dir / "open_multi_agent_runtasks_mapping.md",
+        "manifest": run_dir / "packet_manifest.json",
+        "status": run_dir / "packet_status.json",
+        "replay_evidence": run_dir / "artifact_replay_evidence.json",
+        "provenance_ledger": run_dir / "packet_provenance_ledger.json",
+        "runtime_readiness_report": run_dir / "runtime_readiness_report.json",
+        "approval_evidence": run_dir / ARTIFACT_HARNESS_APPROVAL_EVIDENCE_FILENAME,
+        "runtime_invocation_report": run_dir / ARTIFACT_HARNESS_RUNTIME_INVOCATION_REPORT_FILENAME,
+        "repair_plan": run_dir / ARTIFACT_HARNESS_REPAIR_PLAN_FILENAME,
+        "schema_metadata": run_dir / ARTIFACT_HARNESS_SCHEMA_METADATA_FILENAME,
+    }
+    return run_dir, registry_path, packet_paths
+
+
+def artifact_harness_lifecycle_refusal_payload(
+    action: str,
+    packet_id: str | None,
+    target: Path | None,
+    run_dir: Path | None,
+    status_path: Path | None,
+    registry_path: Path | None,
+    reason: str,
+    offending_packet_key: str | None = None,
+    attempted_path: Path | str | None = None,
+) -> dict[str, Any]:
+    return {
+        "action": action,
+        "id": packet_id,
+        "target_path": str(target) if target is not None else None,
+        "run_dir": str(run_dir) if run_dir is not None else None,
+        "status_path": str(status_path) if status_path is not None else None,
+        "evidence_path": str(run_dir / "artifact_replay_evidence.json") if action == "replay" and run_dir is not None else None,
+        "registry_path": str(registry_path) if registry_path is not None else None,
+        "manifest": None,
+        "status": None,
+        "packets": {},
+        "provenance_ledger_path": str(run_dir / "packet_provenance_ledger.json") if action == "provenance" and run_dir is not None else None,
+        "runtime_readiness_report_path": str(run_dir / "runtime_readiness_report.json") if action in {"runtime-check", "runtime-invoke"} and run_dir is not None else None,
+        "approval_evidence_path": str(run_dir / ARTIFACT_HARNESS_APPROVAL_EVIDENCE_FILENAME) if action in {"approval", "runtime-invoke"} and run_dir is not None else None,
+        "runtime_invocation_report_path": str(run_dir / ARTIFACT_HARNESS_RUNTIME_INVOCATION_REPORT_FILENAME) if action == "runtime-invoke" and run_dir is not None else None,
+        "repair_plan_path": str(run_dir / ARTIFACT_HARNESS_REPAIR_PLAN_FILENAME) if action == "repair-plan" and run_dir is not None else None,
+        "schema_metadata_path": str(run_dir / ARTIFACT_HARNESS_SCHEMA_METADATA_FILENAME) if action in {"schema-check", "migrate"} and run_dir is not None else None,
+        "current_schema_version": None if action in {"schema-check", "migrate"} else None,
+        "supported_schema_version": ARTIFACT_HARNESS_SCHEMA_VERSION if action in {"schema-check", "migrate"} else None,
+        "compatible": False if action in {"schema-check", "migrate"} else None,
+        "migration_required": False if action in {"schema-check", "migrate"} else None,
+        "checked_files": [] if action in {"schema-check", "migrate"} else None,
+        "missing_files": [] if action in {"schema-check", "migrate"} else None,
+        "missing_required_fields": [] if action in {"schema-check", "migrate"} else None,
+        "warnings": [] if action in {"schema-check", "migrate"} else None,
+        "source_categories": list(ARTIFACT_HARNESS_PROVENANCE_CATEGORIES) if action == "provenance" else [],
+        "packet_chain_provenance": {},
+        "runtime_invocation_ready": False if action in {"runtime-check", "runtime-invoke"} else None,
+        "execution_authorized": False if action in {"runtime-check", "runtime-invoke"} else None,
+        "approval_gates_required": False if action in {"runtime-check", "runtime-invoke"} else None,
+        "required_execution_surface": None,
+        "blocking_findings": [],
+        "checks": {},
+        "offending_packet_key": offending_packet_key,
+        "attempted_path": str(attempted_path) if attempted_path is not None else None,
+        "refused": True,
+        "reason": reason,
+    }
+
+
+def artifact_harness_lifecycle_command(
+    config: HubConfig,
+    action: str,
+    target: Path,
+    packet_id: str,
+    *,
+    status: str | None = None,
+    note: str | None = None,
+    emit_json: bool = False,
+) -> str:
+    command_parts = [
+        str(config.scripts_dir / "brain.sh"),
+        "artifact-harness",
+        action,
+        "--path",
+        str(target),
+        "--id",
+        packet_id,
+    ]
+    if status:
+        command_parts.extend(["--status", status])
+    if note:
+        command_parts.extend(["--note", note])
+    if emit_json:
+        command_parts.append("--json")
+    return " ".join(shlex.quote(part) for part in command_parts)
+
+
+def artifact_harness_approval_command(
+    config: HubConfig,
+    target: Path,
+    packet_id: str,
+    gate_id: str = ARTIFACT_HARNESS_RUNTIME_APPROVAL_GATE_ID,
+    decision: str = "approved",
+    approver: str = "<approver>",
+    *,
+    note: str | None = None,
+    emit_json: bool = False,
+) -> str:
+    command_parts = [
+        str(config.scripts_dir / "brain.sh"),
+        "artifact-harness",
+        "approval",
+        "--path",
+        str(target),
+        "--id",
+        packet_id,
+        "--gate",
+        gate_id,
+        "--decision",
+        decision,
+        "--approver",
+        approver,
+    ]
+    if note:
+        command_parts.extend(["--note", note])
+    if emit_json:
+        command_parts.append("--json")
+    return " ".join(shlex.quote(part) for part in command_parts)
+
+
+def artifact_harness_runtime_invoke_command(
+    config: HubConfig,
+    target: Path,
+    packet_id: str,
+    *,
+    adapter: str = "open-multi-agent",
+    surface: str = "typescript-runTasks",
+    dry_run: bool = True,
+    emit_json: bool = False,
+) -> str:
+    command_parts = [
+        str(config.scripts_dir / "brain.sh"),
+        "artifact-harness",
+        "runtime-invoke",
+        "--path",
+        str(target),
+        "--id",
+        packet_id,
+        "--adapter",
+        adapter,
+        "--surface",
+        surface,
+    ]
+    if dry_run:
+        command_parts.append("--dry-run")
+    if emit_json:
+        command_parts.append("--json")
+    return " ".join(shlex.quote(part) for part in command_parts)
+
+
+def artifact_harness_repair_plan_command(
+    config: HubConfig,
+    target: Path,
+    packet_id: str,
+    *,
+    emit_json: bool = False,
+) -> str:
+    command_parts = [
+        str(config.scripts_dir / "brain.sh"),
+        "artifact-harness",
+        "repair-plan",
+        "--path",
+        str(target),
+        "--id",
+        packet_id,
+    ]
+    if emit_json:
+        command_parts.append("--json")
+    return " ".join(shlex.quote(part) for part in command_parts)
+
+
+def artifact_harness_next_step(status: str) -> tuple[str, str]:
+    if status == "draft":
+        return (
+            "artifact_harness_spec",
+            "Inspect the Artifact Harness SPEC first, then fill unresolved packet fields before marking the run filled.",
+        )
+    if status == "filled":
+        return (
+            "team_operating_packet",
+            "Review the filled packets against their boundaries; mark reviewed or blocked explicitly.",
+        )
+    if status == "reviewed":
+        return (
+            "capability_access_packet",
+            "Seek explicit approval if approval is required; status alone is not approval.",
+        )
+    if status == "approved":
+        return (
+            "runtime_mapping",
+            "Proceed only through the approved CAP and runtime mapping; status alone does not execute anything.",
+        )
+    if status == "blocked":
+        return (
+            "status",
+            "Resolve the recorded blocker note before changing lifecycle status.",
+        )
+    if status == "executed":
+        return (
+            "runtime_mapping",
+            "Inspect runtime evidence and verify the artifact against the upstream packets.",
+        )
+    if status == "verified":
+        return (
+            "manifest",
+            "Keep as current continuity evidence or mark archived when it is no longer active.",
+        )
+    if status == "superseded":
+        return (
+            "manifest",
+            "Do not treat this run as current; inspect the replacement run or registry note.",
+        )
+    if status == "archived":
+        return (
+            "manifest",
+            "Use this run as historical evidence only.",
+        )
+    return (
+        "status",
+        "Inspect lifecycle metadata and packet manifest before continuing.",
+    )
+
+
+def load_artifact_harness_lifecycle_state(
+    config: HubConfig,
+    action: str,
+    target_arg: str,
+    packet_id: str | None,
+) -> tuple[int, dict[str, Any], list[str], dict[str, Any] | None, dict[str, Any] | None]:
+    if not packet_id or not packet_id.strip():
+        payload = artifact_harness_lifecycle_refusal_payload(action, None, None, None, None, None, "missing_packet_id")
+        return 1, payload, ["Artifact Harness lifecycle commands require `--id <packet-id>`."], None, None
+    target = Path(target_arg).expanduser().resolve()
+    if not target.exists():
+        payload = artifact_harness_lifecycle_refusal_payload(action, packet_id, target, None, None, None, "missing_target")
+        return 1, payload, [f"Target path does not exist: {target}"], None, None
+    if not target.is_dir():
+        payload = artifact_harness_lifecycle_refusal_payload(action, packet_id, target, None, None, None, "target_not_directory")
+        return 1, payload, [f"Target path must be a directory: {target}"], None, None
+
+    run_dir, registry_path, packet_paths = artifact_harness_run_paths(config, target, packet_id.strip())
+    try:
+        ensure_targets_under_root(target, {"run_dir": run_dir, "registry_path": registry_path, **packet_paths})
+    except HubRuntimeError as exc:
+        payload = artifact_harness_lifecycle_refusal_payload(
+            action,
+            packet_id.strip(),
+            target,
+            run_dir,
+            packet_paths["status"],
+            registry_path,
+            "packet_root_outside_target_workspace",
+        )
+        return 1, payload, [str(exc)], None, None
+    if not run_dir.exists():
+        payload = artifact_harness_lifecycle_refusal_payload(action, packet_id.strip(), target, run_dir, packet_paths["status"], registry_path, "missing_packet_run")
+        return 1, payload, [f"Artifact Harness packet run does not exist: {run_dir}"], None, None
+    if not packet_paths["manifest"].exists():
+        payload = artifact_harness_lifecycle_refusal_payload(action, packet_id.strip(), target, run_dir, packet_paths["status"], registry_path, "missing_manifest")
+        return 1, payload, [f"Artifact Harness packet manifest does not exist: {packet_paths['manifest']}"], None, None
+    if not packet_paths["status"].exists():
+        payload = artifact_harness_lifecycle_refusal_payload(action, packet_id.strip(), target, run_dir, packet_paths["status"], registry_path, "missing_packet_status")
+        return 1, payload, [f"Artifact Harness lifecycle metadata does not exist: {packet_paths['status']}"], None, None
+
+    try:
+        manifest = load_json_file_strict(packet_paths["manifest"], {}, "artifact harness manifest")
+        status_payload = load_json_file_strict(packet_paths["status"], {}, "artifact harness lifecycle status")
+        registry = load_artifact_harness_registry(config, registry_path)
+    except HubRuntimeError as exc:
+        payload = artifact_harness_lifecycle_refusal_payload(action, packet_id.strip(), target, run_dir, packet_paths["status"], registry_path, "invalid_lifecycle_json")
+        return 1, payload, [str(exc)], None, None
+
+    status_value = status_payload.get("status")
+    if status_value not in ARTIFACT_HARNESS_STATUSES:
+        payload = artifact_harness_lifecycle_refusal_payload(action, packet_id.strip(), target, run_dir, packet_paths["status"], registry_path, "invalid_status")
+        return 1, payload, [f"Invalid Artifact Harness lifecycle status in {packet_paths['status']}: {status_value}"], None, None
+
+    packets: dict[str, str] = {}
+    manifest_packets = manifest.get("packets", {})
+    if not isinstance(manifest_packets, dict):
+        manifest_packets = {}
+    for key, rel in manifest_packets.items():
+        if not isinstance(key, str) or not isinstance(rel, str):
+            continue
+        raw_path = Path(rel).expanduser()
+        resolved_path = raw_path.resolve() if raw_path.is_absolute() else (target / raw_path).resolve()
+        try:
+            ensure_targets_under_root(target, {f"manifest_packet:{key}": resolved_path})
+        except HubRuntimeError as exc:
+            payload = artifact_harness_lifecycle_refusal_payload(
+                action,
+                packet_id.strip(),
+                target,
+                run_dir,
+                packet_paths["status"],
+                registry_path,
+                "manifest_packet_path_outside_target_workspace",
+                key,
+                resolved_path,
+            )
+            payload["manifest"] = str(packet_paths["manifest"])
+            return 1, payload, [str(exc)], None, None
+        packets[key] = str(resolved_path)
+    packets["manifest"] = str(packet_paths["manifest"])
+    state = {
+        "action": action,
+        "id": packet_id.strip(),
+        "target_path": str(target),
+        "packet_root": str(run_dir.parent),
+        "run_dir": str(run_dir),
+        "status_path": str(packet_paths["status"]),
+        "schema_metadata_path": str(packet_paths["schema_metadata"]),
+        "manifest": str(packet_paths["manifest"]),
+        "registry_path": str(registry_path),
+        "packets": packets,
+        "status": status_value,
+        "status_note": status_payload.get("note"),
+        "updated_at": status_payload.get("updated_at"),
+        "updated_by": status_payload.get("updated_by"),
+        "history": status_payload.get("history", []),
+        "allowed_statuses": list(ARTIFACT_HARNESS_STATUSES),
+        "refused": False,
+        "reason": None,
+    }
+    registry_entry = next((entry for entry in registry.get("entries", []) if isinstance(entry, dict) and entry.get("id") == packet_id.strip()), None)
+    if isinstance(registry_entry, dict):
+        state["registry_status"] = registry_entry.get("status")
+        state["registry_status_updated_at"] = registry_entry.get("status_updated_at")
+    return 0, state, [], manifest, status_payload
+
+
+def render_artifact_harness_lifecycle_markdown(payload: dict[str, Any]) -> str:
+    if payload.get("refused"):
+        return f"# Artifact Harness Lifecycle\n\n- Refused: `true`\n- Reason: `{payload.get('reason')}`\n"
+    lines = [
+        "# Artifact Harness Lifecycle",
+        "",
+        f"- Action: `{payload['action']}`",
+        f"- Packet ID: `{payload['id']}`",
+        f"- Status: `{payload['status']}`",
+        f"- Updated at: `{payload.get('updated_at')}`",
+        f"- Run directory: `{payload['run_dir']}`",
+        f"- Lifecycle metadata: `{payload['status_path']}`",
+    ]
+    if payload.get("next_inspection"):
+        lines.extend(
+            [
+                f"- Next inspection: `{payload['next_inspection']}`",
+                f"- Next action: {payload['next_action']}",
+            ]
+        )
+    lines.extend(["", "## Commands", ""])
+    for label, command in payload.get("commands", {}).items():
+        lines.append(f"- {label}: `{command}`")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def do_artifact_harness_lifecycle(
+    config: HubConfig,
+    action: str,
+    target_arg: str,
+    packet_id: str | None,
+    new_status: str | None,
+    note: str,
+    emit_json: bool = False,
+) -> int:
+    if action not in {"status", "resume", "mark"}:
+        payload = artifact_harness_lifecycle_refusal_payload(action, packet_id, None, None, None, None, "unknown_lifecycle_action")
+        if emit_json:
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        else:
+            print(f"Unknown Artifact Harness lifecycle action: {action}", file=sys.stderr)
+        return 1
+    code, payload, errors, _manifest, status_payload = load_artifact_harness_lifecycle_state(config, action, target_arg, packet_id)
+    if code != 0:
+        for line in errors:
+            print(line, file=sys.stderr)
+        if emit_json:
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return code
+
+    target = Path(payload["target_path"])
+    packet_id = payload["id"]
+    status_path = Path(payload["status_path"])
+    registry_path = Path(payload["registry_path"])
+
+    if action == "mark":
+        if not new_status or new_status.strip() not in ARTIFACT_HARNESS_STATUSES:
+            refused = artifact_harness_lifecycle_refusal_payload(action, packet_id, target, Path(payload["run_dir"]), status_path, registry_path, "invalid_status")
+            errors = [
+                "Artifact Harness lifecycle status must be one of: "
+                + ", ".join(ARTIFACT_HARNESS_STATUSES)
+            ]
+            for line in errors:
+                print(line, file=sys.stderr)
+            if emit_json:
+                print(json.dumps(refused, ensure_ascii=False, indent=2))
+            return 1
+        updated_at = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+        status_payload = dict(status_payload or {})
+        history = status_payload.get("history", [])
+        if not isinstance(history, list):
+            history = []
+        event = {
+            "status": new_status.strip(),
+            "note": note.strip(),
+            "updated_at": updated_at,
+            "updated_by": "system_hub artifact-harness mark",
+        }
+        history.append(event)
+        status_payload.update(
+            {
+                "schema_version": 1,
+                "id": packet_id,
+                "status": new_status.strip(),
+                "note": note.strip(),
+                "updated_at": updated_at,
+                "updated_by": "system_hub artifact-harness mark",
+                "governance_boundary": "Lifecycle status is continuity metadata only; it does not grant approval, capability access, runtime execution authority, or artifact acceptance.",
+                "allowed_statuses": list(ARTIFACT_HARNESS_STATUSES),
+                "history": history[-50:],
+            }
+        )
+        dump_json(status_path, status_payload)
+
+        registry = load_artifact_harness_registry(config, registry_path)
+        entries = []
+        found = False
+        for entry in registry.get("entries", []):
+            if isinstance(entry, dict) and entry.get("id") == packet_id:
+                entry = dict(entry)
+                entry["status"] = new_status.strip()
+                entry["status_note"] = note.strip()
+                entry["status_updated_at"] = updated_at
+                entry["status_path"] = relative_path_from(target, status_path)
+                found = True
+            entries.append(entry)
+        if not found:
+            entries.append(
+                {
+                    "id": packet_id,
+                    "target_path": str(target),
+                    "run_dir": relative_path_from(target, Path(payload["run_dir"])),
+                    "status": new_status.strip(),
+                    "status_note": note.strip(),
+                    "status_updated_at": updated_at,
+                    "status_path": relative_path_from(target, status_path),
+                }
+            )
+        registry["generated_at"] = updated_at
+        registry["entries"] = entries[-50:]
+        save_artifact_harness_registry(config, registry, registry_path, target)
+        payload["status"] = new_status.strip()
+        payload["status_note"] = note.strip()
+        payload["updated_at"] = updated_at
+        payload["updated_by"] = "system_hub artifact-harness mark"
+        payload["history"] = status_payload["history"]
+        payload["registry_status"] = new_status.strip()
+        payload["registry_status_updated_at"] = updated_at
+
+    next_inspection, next_action = artifact_harness_next_step(str(payload["status"]))
+    payload["next_inspection"] = next_inspection
+    payload["next_action"] = next_action
+    payload["commands"] = {
+        "status_json": artifact_harness_lifecycle_command(config, "status", target, packet_id, emit_json=True),
+        "resume_json": artifact_harness_lifecycle_command(config, "resume", target, packet_id, emit_json=True),
+        "schema_check_json": artifact_harness_lifecycle_command(config, "schema-check", target, packet_id, emit_json=True),
+        "migrate_json": artifact_harness_lifecycle_command(config, "migrate", target, packet_id, emit_json=True),
+        "replay_json": artifact_harness_lifecycle_command(config, "replay", target, packet_id, emit_json=True),
+        "provenance_json": artifact_harness_lifecycle_command(config, "provenance", target, packet_id, emit_json=True),
+        "runtime_check_json": artifact_harness_lifecycle_command(config, "runtime-check", target, packet_id, emit_json=True),
+        "repair_plan_json": artifact_harness_repair_plan_command(config, target, packet_id, emit_json=True),
+        "mark_filled_json": artifact_harness_lifecycle_command(config, "mark", target, packet_id, status="filled", note="packet fields filled", emit_json=True),
+        "mark_blocked_json": artifact_harness_lifecycle_command(config, "mark", target, packet_id, status="blocked", note="describe blocker", emit_json=True),
+    }
+    if emit_json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print(render_artifact_harness_lifecycle_markdown(payload), end="")
+    return 0
+
+
+def artifact_harness_packet_completion_heuristics(path: Path) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "exists": path.exists(),
+        "path": str(path),
+        "kind": path.suffix.lstrip(".") or "unknown",
+        "byte_count": 0,
+        "line_count": 0,
+        "open_question_markers": 0,
+        "empty_bullet_fields": 0,
+        "placeholder_markers": 0,
+        "heuristic_open_items": 0,
+        "completion_state": "missing",
+    }
+    if not path.exists():
+        return result
+    text = path.read_text(encoding="utf-8", errors="replace")
+    lines = text.splitlines()
+    lower = text.lower()
+    open_question_markers = sum(1 for line in lines if "open question" in line.lower())
+    empty_bullet_fields = sum(1 for line in lines if re.match(r"^\s*-\s+[^:\n]+:\s*$", line))
+    empty_bullets = sum(1 for line in lines if re.match(r"^\s*-\s*$", line))
+    placeholder_markers = sum(
+        lower.count(marker)
+        for marker in (
+            "to be filled",
+            "fill only",
+            "yes/no",
+            "draft/reviewed/approved",
+            "open questions",
+        )
+    )
+    heuristic_open_items = open_question_markers + empty_bullet_fields + empty_bullets + placeholder_markers
+    result.update(
+        {
+            "byte_count": len(text.encode("utf-8")),
+            "line_count": len(lines),
+            "open_question_markers": open_question_markers,
+            "empty_bullet_fields": empty_bullet_fields + empty_bullets,
+            "placeholder_markers": placeholder_markers,
+            "heuristic_open_items": heuristic_open_items,
+            "completion_state": "open_items_detected" if heuristic_open_items else "no_obvious_open_items",
+        }
+    )
+    return result
+
+
+def build_artifact_harness_replay_evidence(
+    config: HubConfig,
+    target_arg: str,
+    packet_id: str | None,
+) -> tuple[int, dict[str, Any], list[str]]:
+    code, state, errors, manifest, _status_payload = load_artifact_harness_lifecycle_state(config, "replay", target_arg, packet_id)
+    if code != 0:
+        return code, state, errors
+    manifest = manifest or {}
+
+    target = Path(state["target_path"])
+    run_dir = Path(state["run_dir"])
+    evidence_path = run_dir / "artifact_replay_evidence.json"
+    try:
+        ensure_targets_under_root(target, {"evidence_path": evidence_path})
+    except HubRuntimeError as exc:
+        payload = dict(state)
+        payload.update({"evidence_path": str(evidence_path), "refused": True, "reason": "evidence_path_outside_target_workspace"})
+        return 1, payload, [str(exc)]
+
+    packet_paths = {
+        "artifact_harness_spec": Path(state["packets"].get("artifact_harness_spec", run_dir / "artifact_harness_spec.md")),
+        "hr_staffing_packet": Path(state["packets"].get("hr_staffing_packet", run_dir / "hr_staffing_packet.md")),
+        "team_operating_packet": Path(state["packets"].get("team_operating_packet", run_dir / "team_operating_packet.md")),
+        "capability_access_packet": Path(state["packets"].get("capability_access_packet", run_dir / "capability_access_packet.md")),
+        "runtime_mapping": Path(state["packets"].get("runtime_mapping", run_dir / "open_multi_agent_runtasks_mapping.md")),
+        "manifest": Path(state["manifest"]),
+        "status": Path(state["status_path"]),
+    }
+    packets = {key: artifact_harness_packet_completion_heuristics(path) for key, path in packet_paths.items()}
+    summary = {
+        "packet_count": len(packets),
+        "existing_packet_count": sum(1 for item in packets.values() if item["exists"]),
+        "missing_packet_count": sum(1 for item in packets.values() if not item["exists"]),
+        "heuristic_open_items_total": sum(int(item.get("heuristic_open_items", 0)) for item in packets.values()),
+    }
+    generated_at = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    evidence = {
+        "schema_version": 1,
+        "evidence_type": "artifact_harness_replay_evidence",
+        "generated_at": generated_at,
+        "id": state["id"],
+        "mission": manifest.get("mission"),
+        "expected_artifact": manifest.get("expected_artifact"),
+        "workflow": manifest.get("workflow", []),
+        "target_path": state["target_path"],
+        "run_dir": state["run_dir"],
+        "manifest": state["manifest"],
+        "registry_path": state["registry_path"],
+        "status": state["status"],
+        "registry_status": state.get("registry_status"),
+        "registry_status_updated_at": state.get("registry_status_updated_at"),
+        "status_path": state["status_path"],
+        "status_note": state.get("status_note"),
+        "lifecycle_updated_at": state.get("updated_at"),
+        "packets": packets,
+        "field_completion_summary": summary,
+        "heuristics": {
+            "open_question_markers": "line contains `open question` case-insensitively",
+            "empty_bullet_fields": "Markdown bullet line ending with an empty colon, plus fully empty bullet lines",
+            "placeholder_markers": "simple substring counts for visible scaffold placeholders",
+            "completion_state": "heuristic only; it is not artifact acceptance or review approval",
+        },
+        "commands": {
+            "replay_json": artifact_harness_lifecycle_command(config, "replay", target, state["id"], emit_json=True),
+            "provenance_json": artifact_harness_lifecycle_command(config, "provenance", target, state["id"], emit_json=True),
+            "runtime_check_json": artifact_harness_lifecycle_command(config, "runtime-check", target, state["id"], emit_json=True),
+            "status_json": artifact_harness_lifecycle_command(config, "status", target, state["id"], emit_json=True),
+            "resume_json": artifact_harness_lifecycle_command(config, "resume", target, state["id"], emit_json=True),
+        },
+        "governance_boundary": "Replay evidence is observation and continuity only. It does not accept artifacts, approve capabilities, select runtime, replace upstream packets, or execute adapters.",
+        "evidence_path": str(evidence_path),
+        "refused": False,
+        "reason": None,
+    }
+    dump_json(evidence_path, evidence)
+    return 0, evidence, []
+
+
+def render_artifact_harness_replay_markdown(payload: dict[str, Any]) -> str:
+    if payload.get("refused"):
+        return f"# Artifact Harness Replay Evidence\n\n- Refused: `true`\n- Reason: `{payload.get('reason')}`\n"
+    summary = payload.get("field_completion_summary", {})
+    lines = [
+        "# Artifact Harness Replay Evidence",
+        "",
+        f"- Packet ID: `{payload['id']}`",
+        f"- Target path: `{payload['target_path']}`",
+        f"- Run directory: `{payload['run_dir']}`",
+        f"- Status: `{payload['status']}`",
+        f"- Evidence path: `{payload['evidence_path']}`",
+        f"- Existing packets: `{summary.get('existing_packet_count')}`",
+        f"- Heuristic open items: `{summary.get('heuristic_open_items_total')}`",
+        "",
+        "## Packet Presence",
+        "",
+    ]
+    for key, item in payload.get("packets", {}).items():
+        lines.append(f"- {key}: `{'exists' if item.get('exists') else 'missing'}` `{item.get('completion_state')}`")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def do_artifact_harness_replay(
+    config: HubConfig,
+    target_arg: str,
+    packet_id: str | None,
+    emit_json: bool = False,
+) -> int:
+    code, payload, errors = build_artifact_harness_replay_evidence(config, target_arg, packet_id)
+    for line in errors:
+        print(line, file=sys.stderr)
+    if emit_json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    elif code == 0:
+        print(render_artifact_harness_replay_markdown(payload), end="")
+    return code
+
+
+def artifact_harness_provenance_record(
+    source_category: str,
+    confidence: str,
+    *,
+    source_path: str | None = None,
+    source_field: str | None = None,
+    value: Any | None = None,
+    note: str = "",
+    grounded: bool = False,
+) -> dict[str, Any]:
+    category = source_category if source_category in ARTIFACT_HARNESS_PROVENANCE_CATEGORIES else "unknown"
+    record: dict[str, Any] = {
+        "source_category": category,
+        "confidence": confidence,
+        "grounded": grounded,
+        "note": note,
+    }
+    if source_path is not None:
+        record["source_path"] = source_path
+    if source_field is not None:
+        record["source_field"] = source_field
+    if value is not None:
+        record["value"] = value
+    return record
+
+
+def collect_artifact_harness_provenance_counts(value: Any) -> Counter[str]:
+    counts: Counter[str] = Counter()
+    if isinstance(value, dict):
+        category = value.get("source_category")
+        if isinstance(category, str) and category in ARTIFACT_HARNESS_PROVENANCE_CATEGORIES:
+            counts[category] += 1
+        for nested in value.values():
+            counts.update(collect_artifact_harness_provenance_counts(nested))
+    elif isinstance(value, list):
+        for item in value:
+            counts.update(collect_artifact_harness_provenance_counts(item))
+    return counts
+
+
+def build_artifact_harness_provenance_ledger(
+    config: HubConfig,
+    target_arg: str,
+    packet_id: str | None,
+) -> tuple[int, dict[str, Any], list[str]]:
+    code, state, errors, manifest, status_payload = load_artifact_harness_lifecycle_state(config, "provenance", target_arg, packet_id)
+    if code != 0:
+        payload = dict(state)
+        payload.setdefault("provenance_ledger_path", str(Path(payload["run_dir"]) / "packet_provenance_ledger.json") if payload.get("run_dir") else None)
+        payload.setdefault("source_categories", list(ARTIFACT_HARNESS_PROVENANCE_CATEGORIES))
+        payload.setdefault("packet_chain_provenance", {})
+        return code, payload, errors
+    manifest = manifest or {}
+    status_payload = status_payload or {}
+
+    target = Path(state["target_path"])
+    run_dir = Path(state["run_dir"])
+    ledger_path = run_dir / "packet_provenance_ledger.json"
+    replay_evidence_path = run_dir / "artifact_replay_evidence.json"
+    try:
+        ensure_targets_under_root(target, {"provenance_ledger_path": ledger_path, "replay_evidence_path": replay_evidence_path})
+    except HubRuntimeError as exc:
+        payload = dict(state)
+        payload.update(
+            {
+                "provenance_ledger_path": str(ledger_path),
+                "source_categories": list(ARTIFACT_HARNESS_PROVENANCE_CATEGORIES),
+                "packet_chain_provenance": {},
+                "refused": True,
+                "reason": "provenance_ledger_path_outside_target_workspace",
+            }
+        )
+        return 1, payload, [str(exc)]
+
+    packet_paths = {
+        "artifact_harness_spec": Path(state["packets"].get("artifact_harness_spec", run_dir / "artifact_harness_spec.md")),
+        "hr_staffing_packet": Path(state["packets"].get("hr_staffing_packet", run_dir / "hr_staffing_packet.md")),
+        "team_operating_packet": Path(state["packets"].get("team_operating_packet", run_dir / "team_operating_packet.md")),
+        "capability_access_packet": Path(state["packets"].get("capability_access_packet", run_dir / "capability_access_packet.md")),
+        "runtime_mapping": Path(state["packets"].get("runtime_mapping", run_dir / "open_multi_agent_runtasks_mapping.md")),
+        "manifest": Path(state["manifest"]),
+        "status": Path(state["status_path"]),
+    }
+    packet_observations = {key: artifact_harness_packet_completion_heuristics(path) for key, path in packet_paths.items()}
+    unresolved_total = sum(int(item.get("heuristic_open_items", 0)) for item in packet_observations.values())
+
+    manifest_path = str(packet_paths["manifest"])
+    status_path = str(packet_paths["status"])
+    replay_record = (
+        artifact_harness_provenance_record(
+            "repo_evidence",
+            "high",
+            source_path=str(replay_evidence_path),
+            note="Replay evidence exists and can be inspected as prior observation evidence.",
+            grounded=True,
+        )
+        if replay_evidence_path.exists()
+        else artifact_harness_provenance_record(
+            "unresolved",
+            "high",
+            source_path=str(replay_evidence_path),
+            note="No replay evidence file exists for this packet run yet.",
+        )
+    )
+    expected_artifact = manifest.get("expected_artifact")
+    field_provenance = {
+        "packet_id": artifact_harness_provenance_record(
+            "generated_scaffold",
+            "high",
+            source_path=manifest_path,
+            source_field="id",
+            value=state["id"],
+            note="Packet id is generated by the Artifact Harness scaffold or supplied explicitly.",
+            grounded=True,
+        ),
+        "mission": artifact_harness_provenance_record(
+            "user_mission",
+            "high",
+            source_path=manifest_path,
+            source_field="mission",
+            value=manifest.get("mission"),
+            note="Mission is copied from the user-supplied artifact-harness command.",
+            grounded=True,
+        ),
+        "expected_artifact": artifact_harness_provenance_record(
+            "user_mission" if expected_artifact else "unresolved",
+            "medium" if expected_artifact else "high",
+            source_path=manifest_path,
+            source_field="expected_artifact",
+            value=expected_artifact,
+            note="Expected artifact is explicit only when supplied by the mission or --artifact.",
+            grounded=bool(expected_artifact),
+        ),
+        "target_workspace": artifact_harness_provenance_record(
+            "user_mission",
+            "high",
+            source_path=manifest_path,
+            source_field="target_path",
+            value=state["target_path"],
+            note="Target workspace comes from the explicit --path argument.",
+            grounded=True,
+        ),
+        "packet_paths": artifact_harness_provenance_record(
+            "generated_scaffold",
+            "high",
+            source_path=manifest_path,
+            source_field="packets",
+            value=manifest.get("packets", {}),
+            note="Packet paths are scaffold outputs recorded in the manifest.",
+            grounded=True,
+        ),
+        "lifecycle_status": artifact_harness_provenance_record(
+            "repo_evidence",
+            "high",
+            source_path=status_path,
+            source_field="status",
+            value=state["status"],
+            note="Lifecycle status is continuity metadata only, not approval or acceptance.",
+            grounded=True,
+        ),
+        "lifecycle_history": artifact_harness_provenance_record(
+            "repo_evidence",
+            "high",
+            source_path=status_path,
+            source_field="history",
+            value=status_payload.get("history", []),
+            note="Lifecycle history is read from packet_status.json.",
+            grounded=True,
+        ),
+        "replay_evidence": replay_record,
+        "open_field_heuristics": artifact_harness_provenance_record(
+            "unresolved" if unresolved_total else "repo_evidence",
+            "low",
+            source_path=str(ledger_path),
+            value={"heuristic_open_items_total": unresolved_total},
+            note="Open-field counts are simple heuristics and are not verification results.",
+            grounded=False,
+        ),
+    }
+    packet_chain_provenance = {
+        "artifact_harness_spec": {
+            "packet_path": str(packet_paths["artifact_harness_spec"]),
+            "mission_source": field_provenance["mission"],
+            "contract_source": artifact_harness_provenance_record("generated_scaffold", "medium", source_path=str(packet_paths["artifact_harness_spec"]), note="Contract fields are scaffolded from the mission and template until filled.", grounded=False),
+            "acceptance_source": artifact_harness_provenance_record("generated_scaffold", "medium", source_path=str(packet_paths["artifact_harness_spec"]), note="Acceptance checks begin as scaffolded prompts and must be reviewed against the mission.", grounded=False),
+            "boundary_source": artifact_harness_provenance_record("template_default", "high", source_path=str(packet_paths["artifact_harness_spec"]), note="SPEC boundary is rule / contract / acceptance / boundary only.", grounded=True),
+        },
+        "hr_staffing_packet": {
+            "packet_path": str(packet_paths["hr_staffing_packet"]),
+            "source_spec": artifact_harness_provenance_record("packet_reference", "high", source_path=str(packet_paths["artifact_harness_spec"]), note="HR staffing is derived from the SPEC and mission.", grounded=True),
+            "staffing_boundary": artifact_harness_provenance_record("template_default", "high", source_path=str(packet_paths["hr_staffing_packet"]), note="HR owns staffing and role design only.", grounded=True),
+            "role_fit": artifact_harness_provenance_record("agent_inference", "medium", source_path=str(packet_paths["hr_staffing_packet"]), note="Role fit remains an inferred staffing decision until reviewed.", grounded=False),
+        },
+        "team_operating_packet": {
+            "packet_path": str(packet_paths["team_operating_packet"]),
+            "source_spec": artifact_harness_provenance_record("packet_reference", "high", source_path=str(packet_paths["artifact_harness_spec"]), note="Team Operating Packet references SPEC constraints.", grounded=True),
+            "source_hr_staffing_packet": artifact_harness_provenance_record("packet_reference", "high", source_path=str(packet_paths["hr_staffing_packet"]), note="Team Operating Packet references HR staffing output.", grounded=True),
+            "collaboration_model": artifact_harness_provenance_record("generated_scaffold", "medium", source_path=str(packet_paths["team_operating_packet"]), note="Collaboration model starts as scaffolded coordination guidance.", grounded=False),
+        },
+        "capability_access_packet": {
+            "packet_path": str(packet_paths["capability_access_packet"]),
+            "source_team_operating_packet": artifact_harness_provenance_record("packet_reference", "high", source_path=str(packet_paths["team_operating_packet"]), note="CAP derives capability needs from the Team Operating Packet.", grounded=True),
+            "authorization_boundary": artifact_harness_provenance_record("template_default", "high", source_path=str(packet_paths["capability_access_packet"]), note="CAP owns skill/plugin/tool authorization, approval gates, and runtime allowlist only.", grounded=True),
+            "approval_gates": artifact_harness_provenance_record("approval_required", "high", source_path=str(packet_paths["capability_access_packet"]), note="Approval gates require explicit approval before capability exposure or continuation.", grounded=False),
+        },
+        "runtime_mapping": {
+            "packet_path": str(packet_paths["runtime_mapping"]),
+            "source_team_operating_packet": artifact_harness_provenance_record("packet_reference", "high", source_path=str(packet_paths["team_operating_packet"]), note="Runtime mapping must trace to the Team Operating Packet.", grounded=True),
+            "source_capability_access_packet": artifact_harness_provenance_record("packet_reference", "high", source_path=str(packet_paths["capability_access_packet"]), note="Runtime mapping must trace allowed tools and approvals to CAP.", grounded=True),
+            "execution_boundary": artifact_harness_provenance_record("template_default", "high", source_path=str(packet_paths["runtime_mapping"]), note="Runtime mapping is an execution layer only, not a governance owner.", grounded=True),
+            "runtime_output": artifact_harness_provenance_record("runtime_output", "low", source_path=str(packet_paths["runtime_mapping"]), note="No runtime output is implied by the scaffold unless execution evidence is attached.", grounded=False),
+        },
+        "lifecycle_status": {
+            "status_path": status_path,
+            "status_source": field_provenance["lifecycle_status"],
+        },
+        "replay_evidence": {
+            "evidence_path": str(replay_evidence_path),
+            "evidence_source": replay_record,
+        },
+    }
+    source_counts = collect_artifact_harness_provenance_counts({"field_provenance": field_provenance, "packet_chain_provenance": packet_chain_provenance})
+    generated_at = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    ledger = {
+        "schema_version": 1,
+        "ledger_type": "artifact_harness_provenance_ledger",
+        "generated_at": generated_at,
+        "id": state["id"],
+        "mission": manifest.get("mission"),
+        "target_path": state["target_path"],
+        "run_dir": state["run_dir"],
+        "manifest": state["manifest"],
+        "registry_path": state["registry_path"],
+        "status": state["status"],
+        "status_path": state["status_path"],
+        "provenance_ledger_path": str(ledger_path),
+        "source_categories": list(ARTIFACT_HARNESS_PROVENANCE_CATEGORIES),
+        "source_category_summary": {category: int(source_counts.get(category, 0)) for category in ARTIFACT_HARNESS_PROVENANCE_CATEGORIES},
+        "field_provenance": field_provenance,
+        "packet_chain_provenance": packet_chain_provenance,
+        "packet_observations": packet_observations,
+        "grounding_summary": {
+            "grounded_categories": ["user_mission", "packet_reference", "repo_evidence"],
+            "scaffold_categories": ["template_default", "generated_scaffold", "agent_inference"],
+            "requires_attention_categories": ["approval_required", "unresolved", "unknown"],
+            "heuristic_open_items_total": unresolved_total,
+        },
+        "commands": {
+            "provenance_json": artifact_harness_lifecycle_command(config, "provenance", target, state["id"], emit_json=True),
+            "runtime_check_json": artifact_harness_lifecycle_command(config, "runtime-check", target, state["id"], emit_json=True),
+            "replay_json": artifact_harness_lifecycle_command(config, "replay", target, state["id"], emit_json=True),
+            "status_json": artifact_harness_lifecycle_command(config, "status", target, state["id"], emit_json=True),
+            "resume_json": artifact_harness_lifecycle_command(config, "resume", target, state["id"], emit_json=True),
+        },
+        "governance_boundary": "Provenance ledger is source tracking only. It does not accept artifacts, approve capabilities, select runtime, replace upstream packet ownership, perform verification, or execute adapters.",
+        "refused": False,
+        "reason": None,
+    }
+    dump_json(ledger_path, ledger)
+    return 0, ledger, []
+
+
+def render_artifact_harness_provenance_markdown(payload: dict[str, Any]) -> str:
+    if payload.get("refused"):
+        return f"# Artifact Harness Provenance Ledger\n\n- Refused: `true`\n- Reason: `{payload.get('reason')}`\n"
+    summary = payload.get("source_category_summary", {})
+    lines = [
+        "# Artifact Harness Provenance Ledger",
+        "",
+        f"- Packet ID: `{payload['id']}`",
+        f"- Target path: `{payload['target_path']}`",
+        f"- Run directory: `{payload['run_dir']}`",
+        f"- Status: `{payload['status']}`",
+        f"- Ledger path: `{payload['provenance_ledger_path']}`",
+        "",
+        "## Source Categories",
+        "",
+    ]
+    for category in payload.get("source_categories", []):
+        lines.append(f"- {category}: `{summary.get(category, 0)}`")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def do_artifact_harness_provenance(
+    config: HubConfig,
+    target_arg: str,
+    packet_id: str | None,
+    emit_json: bool = False,
+) -> int:
+    code, payload, errors = build_artifact_harness_provenance_ledger(config, target_arg, packet_id)
+    for line in errors:
+        print(line, file=sys.stderr)
+    if emit_json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    elif code == 0:
+        print(render_artifact_harness_provenance_markdown(payload), end="")
+    return code
+
+
+def artifact_harness_markdown_label_value(text: str, label: str) -> str | None:
+    pattern = re.compile(rf"^[ \t]*-[ \t]*{re.escape(label)}[ \t]*:[ \t]*(.*)$", re.IGNORECASE | re.MULTILINE)
+    match = pattern.search(text)
+    if not match:
+        return None
+    value = match.group(1).strip()
+    return value or None
+
+
+def artifact_harness_markdown_label_is_resolved(text: str, label: str) -> bool:
+    value = artifact_harness_markdown_label_value(text, label)
+    if value is None:
+        return False
+    return value.lower() not in {"yes/no", "n/a", "none", "todo", "tbd", "open", "unresolved"}
+
+
+def artifact_harness_markdown_bool(text: str, label: str) -> str:
+    value = artifact_harness_markdown_label_value(text, label)
+    if value is None:
+        return "unknown"
+    normalized = value.lower().strip("` ")
+    if normalized == "yes/no":
+        return "unknown"
+    if re.match(r"^(yes|true|required)\b", normalized):
+        return "yes"
+    if re.match(r"^(no|false|not required|none)\b", normalized):
+        return "no"
+    return "unknown"
+
+
+def artifact_harness_runtime_finding(code: str, severity: str, message: str, source_path: Path | str) -> dict[str, str]:
+    return {
+        "code": code,
+        "severity": severity,
+        "message": message,
+        "source_path": str(source_path),
+    }
+
+
+def artifact_harness_normalize_decision(value: str | None) -> str:
+    return (value or "").strip().lower()
+
+
+def artifact_harness_latest_approval_decisions(evidence: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
+    if not isinstance(evidence, dict):
+        return {}
+    decisions = evidence.get("decisions", [])
+    if not isinstance(decisions, list):
+        return {}
+    latest: dict[str, dict[str, Any]] = {}
+    for decision in decisions:
+        if not isinstance(decision, dict):
+            continue
+        gate_id = str(decision.get("gate_id") or "").strip()
+        if not gate_id:
+            continue
+        latest[gate_id] = decision
+    return latest
+
+
+def artifact_harness_approval_decision_lists(evidence: dict[str, Any] | None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    latest = artifact_harness_latest_approval_decisions(evidence)
+    approved: list[dict[str, Any]] = []
+    denied: list[dict[str, Any]] = []
+    for decision in latest.values():
+        normalized = artifact_harness_normalize_decision(str(decision.get("decision") or ""))
+        if normalized == "approved":
+            approved.append(decision)
+        elif normalized == "denied":
+            denied.append(decision)
+    return approved, denied
+
+
+def artifact_harness_load_approval_evidence(approval_path: Path) -> dict[str, Any]:
+    if not approval_path.exists():
+        return {}
+    return load_json_file_strict(approval_path, {}, "artifact harness approval evidence")
+
+
+def artifact_harness_split_capability_value(value: str | None) -> list[str]:
+    if not value:
+        return []
+    raw_items = re.split(r"[,;\n]+|\s+\|\s+", value)
+    items: list[str] = []
+    for raw_item in raw_items:
+        item = raw_item.strip(" `\t\r\n-")
+        if not item:
+            continue
+        if item.lower() in {"none", "n/a", "na", "yes/no", "todo", "tbd", "open", "unresolved"}:
+            continue
+        if item not in items:
+            items.append(item)
+    return items
+
+
+def artifact_harness_extract_runtime_capabilities(runtime_text: str, cap_text: str) -> tuple[list[str], list[str]]:
+    exposed: list[str] = []
+    for label in (
+        "authorized skills",
+        "authorized plugins",
+        "authorized tools",
+        "capabilities to expose",
+        "runtime allowlist",
+    ):
+        for item in artifact_harness_split_capability_value(artifact_harness_markdown_label_value(runtime_text, label)):
+            if item not in exposed:
+                exposed.append(item)
+
+    withheld: list[str] = []
+    for text in (runtime_text, cap_text):
+        for label in (
+            "denied or withheld capabilities",
+            "withheld capabilities",
+            "capabilities to withhold",
+            "denied capabilities",
+        ):
+            for item in artifact_harness_split_capability_value(artifact_harness_markdown_label_value(text, label)):
+                if item not in withheld:
+                    withheld.append(item)
+
+    withheld_lc = {item.lower() for item in withheld}
+    filtered_exposed = [item for item in exposed if item.lower() not in withheld_lc]
+    return filtered_exposed, withheld
+
+
+def build_artifact_harness_runtime_readiness_report(
+    config: HubConfig,
+    target_arg: str,
+    packet_id: str | None,
+) -> tuple[int, dict[str, Any], list[str]]:
+    code, state, errors, manifest, _status_payload = load_artifact_harness_lifecycle_state(config, "runtime-check", target_arg, packet_id)
+    if code != 0:
+        payload = dict(state)
+        payload.setdefault("runtime_readiness_report_path", str(Path(payload["run_dir"]) / "runtime_readiness_report.json") if payload.get("run_dir") else None)
+        payload.setdefault("runtime_invocation_ready", False)
+        payload.setdefault("execution_authorized", False)
+        payload.setdefault("approval_gates_required", False)
+        payload.setdefault("required_execution_surface", None)
+        payload.setdefault("blocking_findings", [])
+        payload.setdefault("checks", {})
+        return code, payload, errors
+    manifest = manifest or {}
+
+    target = Path(state["target_path"])
+    run_dir = Path(state["run_dir"])
+    report_path = run_dir / "runtime_readiness_report.json"
+    replay_evidence_path = run_dir / "artifact_replay_evidence.json"
+    provenance_ledger_path = run_dir / "packet_provenance_ledger.json"
+    approval_evidence_path = run_dir / ARTIFACT_HARNESS_APPROVAL_EVIDENCE_FILENAME
+    try:
+        ensure_targets_under_root(
+            target,
+            {
+                "runtime_readiness_report_path": report_path,
+                "replay_evidence_path": replay_evidence_path,
+                "provenance_ledger_path": provenance_ledger_path,
+                "approval_evidence_path": approval_evidence_path,
+            },
+        )
+    except HubRuntimeError as exc:
+        payload = dict(state)
+        payload.update(
+            {
+                "runtime_readiness_report_path": str(report_path),
+                "runtime_invocation_ready": False,
+                "execution_authorized": False,
+                "approval_gates_required": False,
+                "required_execution_surface": None,
+                "blocking_findings": [],
+                "checks": {},
+                "refused": True,
+                "reason": "runtime_readiness_report_path_outside_target_workspace",
+            }
+        )
+        return 1, payload, [str(exc)]
+
+    packet_paths = {
+        "team_operating_packet": Path(state["packets"].get("team_operating_packet", run_dir / "team_operating_packet.md")),
+        "capability_access_packet": Path(state["packets"].get("capability_access_packet", run_dir / "capability_access_packet.md")),
+        "runtime_mapping": Path(state["packets"].get("runtime_mapping", run_dir / "open_multi_agent_runtasks_mapping.md")),
+    }
+    cap_path = packet_paths["capability_access_packet"]
+    top_path = packet_paths["team_operating_packet"]
+    runtime_path = packet_paths["runtime_mapping"]
+    cap_text = cap_path.read_text(encoding="utf-8", errors="replace") if cap_path.exists() else ""
+    runtime_text = runtime_path.read_text(encoding="utf-8", errors="replace") if runtime_path.exists() else ""
+    runtime_lower = runtime_text.lower()
+    cap_lower = cap_text.lower()
+
+    source_cap_value = artifact_harness_markdown_label_value(runtime_text, "source capability access packet") or artifact_harness_markdown_label_value(runtime_text, "CAP source")
+    source_top_value = artifact_harness_markdown_label_value(runtime_text, "source operating packet")
+    declares_source_cap = bool(source_cap_value)
+    declares_source_top = bool(source_top_value)
+    expected_cap_rel = manifest.get("packets", {}).get("capability_access_packet") if isinstance(manifest.get("packets"), dict) else None
+    expected_top_rel = manifest.get("packets", {}).get("team_operating_packet") if isinstance(manifest.get("packets"), dict) else None
+    source_cap_matches_manifest = bool(source_cap_value and expected_cap_rel and expected_cap_rel in source_cap_value)
+    source_top_matches_manifest = bool(source_top_value and expected_top_rel and expected_top_rel in source_top_value)
+
+    authorized_fields_present = all(label in runtime_lower for label in ("authorized skills", "authorized plugins", "authorized tools"))
+    authorized_capabilities_resolved = any(
+        artifact_harness_markdown_label_is_resolved(runtime_text, label)
+        for label in ("authorized skills", "authorized plugins", "authorized tools")
+    )
+    denied_fields_present = "denied or withheld capabilities" in runtime_lower or "withheld capabilities" in runtime_lower
+    denied_capabilities_resolved = any(
+        artifact_harness_markdown_label_is_resolved(text, label)
+        for text in (runtime_text, cap_text)
+        for label in ("denied or withheld capabilities", "withheld capabilities", "capabilities to withhold")
+    )
+    cap_gate_fields_present = "cap approval gates" in runtime_lower or "approval gates" in cap_lower
+    runtime_exposure_boundaries_present = "runtime exposure rule" in runtime_lower and "expose only capabilities" in runtime_lower and "withhold any capability" in runtime_lower
+    cap_access_boundaries_present = "access boundaries" in cap_lower or "cap access boundaries" in runtime_lower
+
+    approval_gate_state = artifact_harness_markdown_bool(runtime_text, "approval gates required")
+    if approval_gate_state == "yes":
+        approval_gates_required = True
+    elif approval_gate_state == "no":
+        approval_gates_required = False
+    else:
+        approval_gates_required = True
+    approval_gates_unresolved = approval_gate_state == "unknown"
+
+    cli_allowed_state = artifact_harness_markdown_bool(runtime_text, "CLI allowed")
+    cli_execution_allowed = cli_allowed_state == "yes" or bool(re.search(r"\boma\s+cli\s+allowed\s*:\s*(yes|true)\b", runtime_lower))
+    enforceable_api_surface = (
+        "typescript api" in runtime_lower
+        and "runtasks" in runtime_lower
+        and ("approval callback" in runtime_lower or "onapproval" in runtime_lower)
+    )
+    required_execution_surface = "typescript_api_runTasks_with_approval_callbacks" if approval_gates_required else "cli_or_api_without_approval_gates"
+    explicit_human_approval_evidence = False
+    if provenance_ledger_path.exists():
+        try:
+            provenance = load_json_file_strict(provenance_ledger_path, {}, "artifact harness provenance ledger")
+            summary = provenance.get("source_category_summary", {})
+            explicit_human_approval_evidence = isinstance(summary, dict) and int(summary.get("human_approval", 0) or 0) > 0
+        except HubRuntimeError:
+            explicit_human_approval_evidence = False
+    if not explicit_human_approval_evidence:
+        explicit_human_approval_evidence = bool(re.search(r"\b(human approval|approval evidence)\s*:\s*(approved|granted|yes|true)\b", cap_lower))
+    approved_gate_records: list[dict[str, Any]] = []
+    denied_gate_records: list[dict[str, Any]] = []
+    if approval_evidence_path.exists():
+        try:
+            approval_evidence = artifact_harness_load_approval_evidence(approval_evidence_path)
+            approved_gate_records, denied_gate_records = artifact_harness_approval_decision_lists(approval_evidence)
+            if not explicit_human_approval_evidence and approved_gate_records:
+                explicit_human_approval_evidence = True
+        except HubRuntimeError:
+            approved_gate_records = []
+            denied_gate_records = []
+
+    blocking_findings: list[dict[str, str]] = []
+    advisory_findings: list[dict[str, str]] = []
+    if not declares_source_cap:
+        blocking_findings.append(artifact_harness_runtime_finding("missing_source_cap_trace", "P1", "Runtime mapping does not declare a source Capability Access Packet.", runtime_path))
+    elif not source_cap_matches_manifest:
+        blocking_findings.append(artifact_harness_runtime_finding("source_cap_trace_mismatch", "P1", "Runtime mapping source CAP does not match the manifest CAP packet path.", runtime_path))
+    if not declares_source_top:
+        blocking_findings.append(artifact_harness_runtime_finding("missing_source_team_operating_packet_trace", "P1", "Runtime mapping does not declare a source Team Operating Packet.", runtime_path))
+    elif not source_top_matches_manifest:
+        blocking_findings.append(artifact_harness_runtime_finding("source_team_operating_packet_trace_mismatch", "P1", "Runtime mapping source operating packet does not match the manifest TOP path.", runtime_path))
+    if not authorized_fields_present or not authorized_capabilities_resolved:
+        blocking_findings.append(artifact_harness_runtime_finding("authorized_capabilities_unresolved", "P1", "Runtime mapping does not resolve CAP-derived authorized capabilities.", runtime_path))
+    if not denied_fields_present:
+        blocking_findings.append(artifact_harness_runtime_finding("denied_capabilities_trace_missing", "P2", "Runtime mapping does not record denied or withheld capabilities.", runtime_path))
+    elif not denied_capabilities_resolved:
+        advisory_findings.append(artifact_harness_runtime_finding("denied_capabilities_unresolved", "P2", "Denied or withheld capabilities are present but not filled.", runtime_path))
+    if not cap_gate_fields_present:
+        blocking_findings.append(artifact_harness_runtime_finding("cap_approval_gates_missing", "P1", "Runtime mapping does not record CAP approval gates.", runtime_path))
+    if approval_gates_unresolved:
+        blocking_findings.append(artifact_harness_runtime_finding("approval_gate_state_unresolved", "P1", "Runtime mapping leaves approval gate requirement as unresolved.", runtime_path))
+    if approval_gates_required and not enforceable_api_surface:
+        blocking_findings.append(artifact_harness_runtime_finding("approval_gate_requires_enforceable_api", "P1", "Approval-gated execution requires the TypeScript runTasks() API with approval callbacks.", runtime_path))
+    if approval_gates_required and cli_execution_allowed:
+        blocking_findings.append(artifact_harness_runtime_finding("approval_gate_requires_enforceable_api", "P1", "Approval gates are required, but the mapping allows CLI execution; the oma CLI is non-enforcing for approval callbacks.", runtime_path))
+    if not runtime_exposure_boundaries_present or not cap_access_boundaries_present:
+        blocking_findings.append(artifact_harness_runtime_finding("runtime_exposure_boundaries_missing", "P1", "Runtime exposure boundaries are missing or incomplete.", runtime_path))
+
+    execution_authorized = bool(explicit_human_approval_evidence and not blocking_findings)
+    if not explicit_human_approval_evidence:
+        advisory_findings.append(artifact_harness_runtime_finding("missing_explicit_human_approval", "P2", "No explicit human approval evidence was found; lifecycle status alone is not approval.", cap_path))
+    checks = {
+        "source_cap_packet_path": str(cap_path),
+        "source_team_operating_packet_path": str(top_path),
+        "declares_source_cap": declares_source_cap,
+        "source_cap_matches_manifest": source_cap_matches_manifest,
+        "declares_source_team_operating_packet": declares_source_top,
+        "source_team_operating_packet_matches_manifest": source_top_matches_manifest,
+        "includes_cap_derived_authorized_capabilities": authorized_capabilities_resolved,
+        "authorized_capability_fields_present": authorized_fields_present,
+        "includes_denied_or_withheld_capabilities": denied_fields_present,
+        "denied_or_withheld_capabilities_resolved": denied_capabilities_resolved,
+        "records_cap_approval_gates": cap_gate_fields_present,
+        "approval_gate_state": approval_gate_state,
+        "enforceable_api_surface_present": enforceable_api_surface,
+        "cli_execution_allowed": cli_execution_allowed,
+        "runtime_exposure_boundaries_present": runtime_exposure_boundaries_present,
+        "cap_access_boundaries_present": cap_access_boundaries_present,
+        "explicit_human_approval_evidence": explicit_human_approval_evidence,
+        "lifecycle_status_counts_as_approval": False,
+        "replay_evidence_present": replay_evidence_path.exists(),
+        "provenance_ledger_present": provenance_ledger_path.exists(),
+        "approval_evidence_present": approval_evidence_path.exists(),
+        "approved_runtime_gates": [record.get("gate_id") for record in approved_gate_records],
+        "denied_runtime_gates": [record.get("gate_id") for record in denied_gate_records],
+    }
+    generated_at = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    report = {
+        "schema_version": 1,
+        "report_type": "artifact_harness_runtime_readiness",
+        "generated_at": generated_at,
+        "id": state["id"],
+        "mission": manifest.get("mission"),
+        "target_path": state["target_path"],
+        "run_dir": state["run_dir"],
+        "manifest": state["manifest"],
+        "registry_path": state["registry_path"],
+        "status": state["status"],
+        "status_path": state["status_path"],
+        "runtime_readiness_report_path": str(report_path),
+        "runtime_invocation_ready": not blocking_findings,
+        "execution_authorized": execution_authorized,
+        "approval_gates_required": approval_gates_required,
+        "required_execution_surface": required_execution_surface,
+        "blocking_findings": blocking_findings,
+        "advisory_findings": advisory_findings,
+        "checks": checks,
+        "evidence_inputs": {
+            "capability_access_packet": str(cap_path),
+            "team_operating_packet": str(top_path),
+            "runtime_mapping": str(runtime_path),
+            "replay_evidence": str(replay_evidence_path) if replay_evidence_path.exists() else None,
+            "provenance_ledger": str(provenance_ledger_path) if provenance_ledger_path.exists() else None,
+            "approval_evidence": str(approval_evidence_path) if approval_evidence_path.exists() else None,
+        },
+        "commands": {
+            "runtime_check_json": artifact_harness_lifecycle_command(config, "runtime-check", target, state["id"], emit_json=True),
+            "approval_json": artifact_harness_approval_command(config, target, state["id"], emit_json=True),
+            "runtime_invoke_json": artifact_harness_runtime_invoke_command(config, target, state["id"], emit_json=True),
+            "provenance_json": artifact_harness_lifecycle_command(config, "provenance", target, state["id"], emit_json=True),
+            "replay_json": artifact_harness_lifecycle_command(config, "replay", target, state["id"], emit_json=True),
+            "status_json": artifact_harness_lifecycle_command(config, "status", target, state["id"], emit_json=True),
+        },
+        "governance_boundary": "Runtime readiness is preflight evidence only. It does not approve capabilities, authorize execution, accept artifacts, make the runtime adapter a governance owner, or invoke an external runtime.",
+        "refused": False,
+        "reason": None,
+    }
+    dump_json(report_path, report)
+    return 0, report, []
+
+
+def render_artifact_harness_runtime_readiness_markdown(payload: dict[str, Any]) -> str:
+    if payload.get("refused"):
+        return f"# Artifact Harness Runtime Readiness\n\n- Refused: `true`\n- Reason: `{payload.get('reason')}`\n"
+    lines = [
+        "# Artifact Harness Runtime Readiness",
+        "",
+        f"- Packet ID: `{payload['id']}`",
+        f"- Target path: `{payload['target_path']}`",
+        f"- Run directory: `{payload['run_dir']}`",
+        f"- Status: `{payload['status']}`",
+        f"- Report path: `{payload['runtime_readiness_report_path']}`",
+        f"- Runtime invocation ready: `{'true' if payload['runtime_invocation_ready'] else 'false'}`",
+        f"- Execution authorized: `{'true' if payload['execution_authorized'] else 'false'}`",
+        f"- Approval gates required: `{'true' if payload['approval_gates_required'] else 'false'}`",
+        f"- Required execution surface: `{payload['required_execution_surface']}`",
+        "",
+        "## Blocking Findings",
+        "",
+    ]
+    findings = payload.get("blocking_findings", [])
+    if findings:
+        for finding in findings:
+            lines.append(f"- `{finding.get('code')}`: {finding.get('message')}")
+    else:
+        lines.append("- none")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def do_artifact_harness_runtime_check(
+    config: HubConfig,
+    target_arg: str,
+    packet_id: str | None,
+    emit_json: bool = False,
+) -> int:
+    code, payload, errors = build_artifact_harness_runtime_readiness_report(config, target_arg, packet_id)
+    for line in errors:
+        print(line, file=sys.stderr)
+    if emit_json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    elif code == 0:
+        print(render_artifact_harness_runtime_readiness_markdown(payload), end="")
+    return code
+
+
+def artifact_harness_approval_refusal_payload(
+    config: HubConfig,
+    state: dict[str, Any],
+    reason: str,
+    *,
+    gate_id: str | None = None,
+    decision: str | None = None,
+    approver: str | None = None,
+) -> dict[str, Any]:
+    payload = dict(state)
+    target = Path(payload["target_path"]) if payload.get("target_path") else None
+    packet_id = str(payload.get("id") or "") if payload.get("id") else ""
+    approval_path = Path(payload["run_dir"]) / ARTIFACT_HARNESS_APPROVAL_EVIDENCE_FILENAME if payload.get("run_dir") else None
+    payload.update(
+        {
+            "command": "artifact-harness approval",
+            "schema_version": ARTIFACT_HARNESS_COMMAND_SCHEMA_VERSION,
+            "approval_evidence_path": str(approval_path) if approval_path else payload.get("approval_evidence_path"),
+            "gate_id": gate_id,
+            "decision": decision,
+            "approver": approver,
+            "decisions": [],
+            "latest_decisions": {},
+            "commands": {
+                "status_json": artifact_harness_lifecycle_command(config, "status", target, packet_id, emit_json=True)
+                if target is not None and packet_id
+                else None,
+            },
+            "governance_boundary": "Approval evidence records explicit decisions only. It does not rewrite CAP, approve capabilities by itself, accept artifacts, mark lifecycle status, or execute runtime adapters.",
+            "refused": True,
+            "reason": reason,
+        }
+    )
+    return payload
+
+
+def build_artifact_harness_approval_evidence(
+    config: HubConfig,
+    target_arg: str,
+    packet_id: str | None,
+    gate_id: str | None,
+    decision: str | None,
+    approver: str | None,
+    note: str,
+) -> tuple[int, dict[str, Any], list[str]]:
+    code, state, errors, _manifest, _status_payload = load_artifact_harness_lifecycle_state(config, "approval", target_arg, packet_id)
+    if code != 0:
+        return code, artifact_harness_approval_refusal_payload(config, state, state.get("reason") or "approval_refused", gate_id=gate_id, decision=decision, approver=approver), errors
+
+    normalized_gate = (gate_id or "").strip()
+    normalized_decision = artifact_harness_normalize_decision(decision)
+    normalized_approver = (approver or "").strip()
+    validation_errors: list[str] = []
+    if not normalized_gate:
+        validation_errors.append("Artifact Harness approval requires `--gate <gate-id>`.")
+    if normalized_decision not in {"approved", "denied"}:
+        validation_errors.append("Artifact Harness approval requires `--decision approved|denied`.")
+    if not normalized_approver:
+        validation_errors.append("Artifact Harness approval requires `--approver <label>`.")
+    if validation_errors:
+        reason = "missing_required_approval_fields" if not normalized_gate or not normalized_approver else "invalid_approval_decision"
+        return 1, artifact_harness_approval_refusal_payload(config, state, reason, gate_id=gate_id, decision=decision, approver=approver), validation_errors
+
+    target = Path(state["target_path"])
+    run_dir = Path(state["run_dir"])
+    approval_path = run_dir / ARTIFACT_HARNESS_APPROVAL_EVIDENCE_FILENAME
+    try:
+        ensure_targets_under_root(target, {"approval_evidence_path": approval_path})
+    except HubRuntimeError as exc:
+        return 1, artifact_harness_approval_refusal_payload(config, state, "approval_evidence_path_outside_target_workspace", gate_id=normalized_gate, decision=normalized_decision, approver=normalized_approver), [str(exc)]
+
+    try:
+        existing = artifact_harness_load_approval_evidence(approval_path)
+    except HubRuntimeError as exc:
+        return 1, artifact_harness_approval_refusal_payload(config, state, "invalid_approval_evidence_json", gate_id=normalized_gate, decision=normalized_decision, approver=normalized_approver), [str(exc)]
+
+    decisions = existing.get("decisions", []) if isinstance(existing, dict) else []
+    if not isinstance(decisions, list):
+        decisions = []
+    created_at = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    decision_record = {
+        "gate_id": normalized_gate,
+        "decision": normalized_decision,
+        "approver": normalized_approver,
+        "note": note.strip(),
+        "source": "user_cli",
+        "created_at": created_at,
+    }
+    decisions.append(decision_record)
+    evidence = {
+        "schema_version": ARTIFACT_HARNESS_COMMAND_SCHEMA_VERSION,
+        "evidence_type": "artifact_harness_approval_evidence",
+        "id": state["id"],
+        "target_path": state["target_path"],
+        "run_dir": state["run_dir"],
+        "approval_evidence_path": str(approval_path),
+        "updated_at": created_at,
+        "decisions": decisions,
+        "latest_decisions": artifact_harness_latest_approval_decisions({"decisions": decisions}),
+        "governance_boundary": "Approval evidence records explicit gate decisions only. It does not replace CAP ownership, lifecycle status, artifact acceptance, or runtime execution.",
+    }
+    dump_json(approval_path, evidence)
+    payload = dict(evidence)
+    payload.update(
+        {
+            "command": "artifact-harness approval",
+            "ok": True,
+            "decision_record": decision_record,
+            "status": state["status"],
+            "status_path": state["status_path"],
+            "manifest": state["manifest"],
+            "packets": state["packets"],
+            "commands": {
+                "approval_json": artifact_harness_approval_command(config, target, state["id"], normalized_gate, normalized_decision, normalized_approver, note=note.strip(), emit_json=True),
+                "runtime_check_json": artifact_harness_lifecycle_command(config, "runtime-check", target, state["id"], emit_json=True),
+                "runtime_invoke_json": artifact_harness_runtime_invoke_command(config, target, state["id"], emit_json=True),
+                "status_json": artifact_harness_lifecycle_command(config, "status", target, state["id"], emit_json=True),
+            },
+            "refused": False,
+            "reason": None,
+        }
+    )
+    return 0, payload, []
+
+
+def render_artifact_harness_approval_markdown(payload: dict[str, Any]) -> str:
+    if payload.get("refused"):
+        return f"# Artifact Harness Approval Evidence\n\n- Refused: `true`\n- Reason: `{payload.get('reason')}`\n"
+    latest = payload.get("latest_decisions", {})
+    lines = [
+        "# Artifact Harness Approval Evidence",
+        "",
+        f"- Packet ID: `{payload['id']}`",
+        f"- Evidence path: `{payload['approval_evidence_path']}`",
+        f"- Updated at: `{payload['updated_at']}`",
+        "",
+        "## Latest Decisions",
+        "",
+    ]
+    for gate_id, decision in latest.items():
+        if isinstance(decision, dict):
+            lines.append(f"- `{gate_id}`: `{decision.get('decision')}` by `{decision.get('approver')}`")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def do_artifact_harness_approval(
+    config: HubConfig,
+    target_arg: str,
+    packet_id: str | None,
+    gate_id: str | None,
+    decision: str | None,
+    approver: str | None,
+    note: str,
+    emit_json: bool = False,
+) -> int:
+    code, payload, errors = build_artifact_harness_approval_evidence(config, target_arg, packet_id, gate_id, decision, approver, note)
+    for line in errors:
+        print(line, file=sys.stderr)
+    if emit_json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    elif code == 0:
+        print(render_artifact_harness_approval_markdown(payload), end="")
+    return code
+
+
+def artifact_harness_runtime_invocation_refusal_payload(
+    config: HubConfig,
+    state: dict[str, Any],
+    reason: str,
+    *,
+    adapter: str | None = None,
+    surface: str | None = None,
+    dry_run: bool = False,
+    readiness: dict[str, Any] | None = None,
+    approval_evidence: dict[str, Any] | None = None,
+    blocking_findings: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    payload = dict(state)
+    target = Path(payload["target_path"]) if payload.get("target_path") else None
+    run_dir = Path(payload["run_dir"]) if payload.get("run_dir") else None
+    packet_id = str(payload.get("id") or "") if payload.get("id") else ""
+    readiness_inputs = readiness.get("evidence_inputs", {}) if isinstance(readiness, dict) else {}
+    approved, denied = artifact_harness_approval_decision_lists(approval_evidence)
+    payload.update(
+        {
+            "command": "artifact-harness runtime-invoke",
+            "schema_version": ARTIFACT_HARNESS_COMMAND_SCHEMA_VERSION,
+            "id": packet_id or payload.get("id"),
+            "adapter": adapter,
+            "execution_surface": surface,
+            "dry_run": dry_run,
+            "would_execute": False,
+            "runtime_invocation_allowed": False,
+            "execution_performed": False,
+            "source_capability_access_packet": readiness_inputs.get("capability_access_packet"),
+            "source_team_operating_packet": readiness_inputs.get("team_operating_packet"),
+            "source_runtime_mapping": readiness_inputs.get("runtime_mapping"),
+            "runtime_readiness_report_path": str(run_dir / "runtime_readiness_report.json") if run_dir else payload.get("runtime_readiness_report_path"),
+            "approval_evidence_path": str(run_dir / ARTIFACT_HARNESS_APPROVAL_EVIDENCE_FILENAME) if run_dir else payload.get("approval_evidence_path"),
+            "runtime_invocation_report_path": str(run_dir / ARTIFACT_HARNESS_RUNTIME_INVOCATION_REPORT_FILENAME) if run_dir else payload.get("runtime_invocation_report_path"),
+            "approval_gates_required": bool(readiness.get("approval_gates_required")) if isinstance(readiness, dict) else False,
+            "required_execution_surface": readiness.get("required_execution_surface") if isinstance(readiness, dict) else None,
+            "runtime_invocation_ready": bool(readiness.get("runtime_invocation_ready")) if isinstance(readiness, dict) else False,
+            "execution_authorized": False,
+            "approved_gates": [record.get("gate_id") for record in approved],
+            "denied_gates": [record.get("gate_id") for record in denied],
+            "exposed_capabilities": [],
+            "withheld_capabilities": [],
+            "blocking_findings": blocking_findings if blocking_findings is not None else (readiness.get("blocking_findings", []) if isinstance(readiness, dict) else []),
+            "commands": {
+                "runtime_check_json": artifact_harness_lifecycle_command(config, "runtime-check", target, packet_id, emit_json=True)
+                if target is not None and packet_id
+                else None,
+                "approval_json": artifact_harness_approval_command(config, target, packet_id, emit_json=True)
+                if target is not None and packet_id
+                else None,
+            },
+            "governance_boundary": "Runtime invocation guard is execution-boundary evidence only. It does not approve capabilities, accept artifacts, invoke adapters, spawn agents, or make runtime adapters governance owners.",
+            "refused": True,
+            "reason": reason,
+        }
+    )
+    return payload
+
+
+def artifact_harness_required_runtime_gates(readiness: dict[str, Any]) -> list[str]:
+    if readiness.get("approval_gates_required"):
+        return [ARTIFACT_HARNESS_RUNTIME_APPROVAL_GATE_ID]
+    return []
+
+
+def artifact_harness_requested_surface_matches_required(readiness: dict[str, Any], surface: str) -> bool:
+    required_surface = readiness.get("required_execution_surface")
+    if required_surface == "typescript_api_runTasks_with_approval_callbacks":
+        return surface == "typescript-runTasks"
+    if required_surface == "cli_or_api_without_approval_gates":
+        return surface in {"typescript-runTasks", "cli"}
+    return False
+
+
+def artifact_harness_load_or_build_readiness_for_invoke(
+    config: HubConfig,
+    target_arg: str,
+    packet_id: str | None,
+    state: dict[str, Any],
+) -> tuple[int, dict[str, Any], list[str], str]:
+    readiness_path = Path(state["run_dir"]) / "runtime_readiness_report.json"
+    if readiness_path.exists():
+        try:
+            readiness = load_json_file_strict(readiness_path, {}, "artifact harness runtime readiness report")
+            return 0, readiness, [], "loaded_existing"
+        except HubRuntimeError as exc:
+            return 1, {}, [str(exc)], "invalid_existing"
+    code, readiness, errors = build_artifact_harness_runtime_readiness_report(config, target_arg, packet_id)
+    return code, readiness, errors, "computed"
+
+
+def build_artifact_harness_runtime_invocation_report(
+    config: HubConfig,
+    target_arg: str,
+    packet_id: str | None,
+    adapter: str | None,
+    surface: str | None,
+    dry_run: bool,
+) -> tuple[int, dict[str, Any], list[str]]:
+    code, state, errors, _manifest, _status_payload = load_artifact_harness_lifecycle_state(config, "runtime-invoke", target_arg, packet_id)
+    if code != 0:
+        return code, artifact_harness_runtime_invocation_refusal_payload(config, state, state.get("reason") or "runtime_invocation_refused", adapter=adapter, surface=surface, dry_run=dry_run), errors
+
+    target = Path(state["target_path"])
+    run_dir = Path(state["run_dir"])
+    approval_path = run_dir / ARTIFACT_HARNESS_APPROVAL_EVIDENCE_FILENAME
+    invocation_path = run_dir / ARTIFACT_HARNESS_RUNTIME_INVOCATION_REPORT_FILENAME
+    runtime_path = Path(state["packets"].get("runtime_mapping", run_dir / "open_multi_agent_runtasks_mapping.md"))
+    cap_path = Path(state["packets"].get("capability_access_packet", run_dir / "capability_access_packet.md"))
+    try:
+        ensure_targets_under_root(
+            target,
+            {
+                "approval_evidence_path": approval_path,
+                "runtime_invocation_report_path": invocation_path,
+                "runtime_mapping": runtime_path,
+                "capability_access_packet": cap_path,
+            },
+        )
+    except HubRuntimeError as exc:
+        payload = artifact_harness_runtime_invocation_refusal_payload(config, state, "runtime_invocation_path_outside_target_workspace", adapter=adapter, surface=surface, dry_run=dry_run)
+        return 1, payload, [str(exc)]
+
+    readiness_code, readiness, readiness_errors, readiness_source = artifact_harness_load_or_build_readiness_for_invoke(config, target_arg, packet_id, state)
+    if readiness_code != 0:
+        reason = readiness.get("reason") if isinstance(readiness, dict) and readiness.get("reason") else "runtime_readiness_refused"
+        payload = artifact_harness_runtime_invocation_refusal_payload(config, state, str(reason), adapter=adapter, surface=surface, dry_run=dry_run, readiness=readiness)
+        if reason != "manifest_packet_path_outside_target_workspace":
+            dump_json(invocation_path, payload)
+        return 1, payload, readiness_errors
+
+    normalized_adapter = (adapter or "").strip()
+    normalized_surface = (surface or "").strip()
+    approval_evidence: dict[str, Any] = {}
+    try:
+        approval_evidence = artifact_harness_load_approval_evidence(approval_path)
+    except HubRuntimeError as exc:
+        payload = artifact_harness_runtime_invocation_refusal_payload(config, state, "invalid_approval_evidence_json", adapter=normalized_adapter, surface=normalized_surface, dry_run=dry_run, readiness=readiness)
+        dump_json(invocation_path, payload)
+        return 1, payload, [str(exc)]
+
+    latest_decisions = artifact_harness_latest_approval_decisions(approval_evidence)
+    required_gates = artifact_harness_required_runtime_gates(readiness)
+    approved_gates: list[str] = []
+    denied_gates: list[str] = []
+    missing_gates: list[str] = []
+    for gate in required_gates:
+        latest = latest_decisions.get(gate)
+        latest_value = artifact_harness_normalize_decision(str(latest.get("decision") if isinstance(latest, dict) else ""))
+        if latest_value == "approved":
+            approved_gates.append(gate)
+        elif latest_value == "denied":
+            denied_gates.append(gate)
+        else:
+            missing_gates.append(gate)
+
+    runtime_text = runtime_path.read_text(encoding="utf-8", errors="replace") if runtime_path.exists() else ""
+    cap_text = cap_path.read_text(encoding="utf-8", errors="replace") if cap_path.exists() else ""
+    exposed_capabilities, withheld_capabilities = artifact_harness_extract_runtime_capabilities(runtime_text, cap_text)
+
+    blocking_findings = list(readiness.get("blocking_findings", []) if isinstance(readiness.get("blocking_findings"), list) else [])
+    reason: str | None = None
+    if normalized_adapter not in ARTIFACT_HARNESS_SUPPORTED_RUNTIME_ADAPTERS:
+        reason = "unsupported_runtime_adapter"
+    elif normalized_surface not in ARTIFACT_HARNESS_SUPPORTED_EXECUTION_SURFACES:
+        reason = "unsupported_execution_surface"
+    elif not dry_run:
+        reason = "dry_run_required"
+    elif blocking_findings:
+        reason = "runtime_readiness_blocking_findings"
+    elif readiness.get("approval_gates_required") and normalized_surface == "cli":
+        reason = "approval_gated_cli_forbidden"
+    elif denied_gates:
+        reason = "approval_denied"
+    elif missing_gates:
+        reason = "missing_required_approval_evidence"
+    elif not artifact_harness_requested_surface_matches_required(readiness, normalized_surface):
+        reason = "execution_surface_mismatch"
+
+    generated_at = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    allowed = reason is None
+    report = {
+        "schema_version": ARTIFACT_HARNESS_COMMAND_SCHEMA_VERSION,
+        "report_type": "artifact_harness_runtime_invocation_guard",
+        "generated_at": generated_at,
+        "command": "artifact-harness runtime-invoke",
+        "id": state["id"],
+        "target_path": state["target_path"],
+        "run_dir": state["run_dir"],
+        "manifest": state["manifest"],
+        "status": state["status"],
+        "adapter": normalized_adapter,
+        "execution_surface": normalized_surface,
+        "dry_run": dry_run,
+        "would_execute": bool(allowed and dry_run and normalized_surface == "typescript-runTasks"),
+        "runtime_invocation_allowed": allowed,
+        "execution_performed": False,
+        "source_capability_access_packet": readiness.get("evidence_inputs", {}).get("capability_access_packet") if isinstance(readiness.get("evidence_inputs"), dict) else None,
+        "source_team_operating_packet": readiness.get("evidence_inputs", {}).get("team_operating_packet") if isinstance(readiness.get("evidence_inputs"), dict) else None,
+        "source_runtime_mapping": readiness.get("evidence_inputs", {}).get("runtime_mapping") if isinstance(readiness.get("evidence_inputs"), dict) else None,
+        "runtime_readiness_report_path": readiness.get("runtime_readiness_report_path") or str(run_dir / "runtime_readiness_report.json"),
+        "runtime_readiness_source": readiness_source,
+        "approval_evidence_path": str(approval_path),
+        "runtime_invocation_report_path": str(invocation_path),
+        "approval_gates_required": bool(readiness.get("approval_gates_required")),
+        "required_runtime_gates": required_gates,
+        "required_execution_surface": readiness.get("required_execution_surface"),
+        "approved_gates": approved_gates,
+        "denied_gates": denied_gates,
+        "missing_gates": missing_gates,
+        "exposed_capabilities": exposed_capabilities,
+        "withheld_capabilities": withheld_capabilities,
+        "blocking_findings": blocking_findings,
+        "readiness": {
+            "runtime_invocation_ready": bool(readiness.get("runtime_invocation_ready")),
+            "execution_authorized": bool(readiness.get("execution_authorized")),
+            "checks": readiness.get("checks", {}),
+        },
+        "commands": {
+            "runtime_check_json": artifact_harness_lifecycle_command(config, "runtime-check", target, state["id"], emit_json=True),
+            "approval_json": artifact_harness_approval_command(config, target, state["id"], emit_json=True),
+            "runtime_invoke_json": artifact_harness_runtime_invoke_command(config, target, state["id"], adapter=normalized_adapter or "open-multi-agent", surface=normalized_surface or "typescript-runTasks", dry_run=True, emit_json=True),
+        },
+        "governance_boundary": "Runtime invocation guard is a dry-run execution-boundary check only. It does not approve capabilities, accept artifacts, invoke runtime adapters, spawn agents, run tasks, or make runtime adapters governance owners.",
+        "refused": not allowed,
+        "reason": reason,
+    }
+    dump_json(invocation_path, report)
+    return (0 if allowed else 1), report, []
+
+
+def render_artifact_harness_runtime_invocation_markdown(payload: dict[str, Any]) -> str:
+    lines = [
+        "# Artifact Harness Runtime Invocation Guard",
+        "",
+        f"- Packet ID: `{payload.get('id')}`",
+        f"- Refused: `{'true' if payload.get('refused') else 'false'}`",
+        f"- Reason: `{payload.get('reason')}`",
+        f"- Adapter: `{payload.get('adapter')}`",
+        f"- Surface: `{payload.get('execution_surface')}`",
+        f"- Dry run: `{'true' if payload.get('dry_run') else 'false'}`",
+        f"- Execution performed: `{'true' if payload.get('execution_performed') else 'false'}`",
+        f"- Report path: `{payload.get('runtime_invocation_report_path')}`",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def do_artifact_harness_runtime_invoke(
+    config: HubConfig,
+    target_arg: str,
+    packet_id: str | None,
+    adapter: str | None,
+    surface: str | None,
+    dry_run: bool,
+    emit_json: bool = False,
+) -> int:
+    code, payload, errors = build_artifact_harness_runtime_invocation_report(config, target_arg, packet_id, adapter, surface, dry_run)
+    for line in errors:
+        print(line, file=sys.stderr)
+    if emit_json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    elif code == 0 or payload:
+        print(render_artifact_harness_runtime_invocation_markdown(payload), end="")
+    return code
+
+
+def artifact_harness_schema_contract() -> dict[str, Any]:
+    return {
+        "schema_version": ARTIFACT_HARNESS_SCHEMA_VERSION,
+        "command_json_schema_version": ARTIFACT_HARNESS_COMMAND_SCHEMA_VERSION,
+        "artifacts": {
+            "registry": ARTIFACT_HARNESS_SCHEMA_VERSION,
+            "manifest": ARTIFACT_HARNESS_SCHEMA_VERSION,
+            "lifecycle_status": ARTIFACT_HARNESS_SCHEMA_VERSION,
+            "replay_evidence": ARTIFACT_HARNESS_SCHEMA_VERSION,
+            "provenance_ledger": ARTIFACT_HARNESS_SCHEMA_VERSION,
+            "runtime_readiness_report": ARTIFACT_HARNESS_SCHEMA_VERSION,
+            "approval_evidence": ARTIFACT_HARNESS_SCHEMA_VERSION,
+            "runtime_invocation_report": ARTIFACT_HARNESS_SCHEMA_VERSION,
+            "repair_plan": ARTIFACT_HARNESS_SCHEMA_VERSION,
+            "artifact_harness_command_json": ARTIFACT_HARNESS_COMMAND_SCHEMA_VERSION,
+            "packet_route_command_json": ARTIFACT_HARNESS_COMMAND_SCHEMA_VERSION,
+        },
+        "required_packet_files": list(ARTIFACT_HARNESS_REQUIRED_PACKET_KEYS),
+        "required_json_files": ["packet_manifest.json", "packet_status.json"],
+        "optional_generated_reports": list(ARTIFACT_HARNESS_OPTIONAL_REPORT_KEYS),
+        "schema_metadata_file": ARTIFACT_HARNESS_SCHEMA_METADATA_FILENAME,
+        "policy": "policy/ARTIFACT_HARNESS_SCHEMA_V0.md",
+    }
+
+
+def artifact_harness_schema_metadata_payload(packet_id: str, target: Path, run_dir: Path, generated_at: str) -> dict[str, Any]:
+    return {
+        "schema_version": ARTIFACT_HARNESS_SCHEMA_VERSION,
+        "metadata_type": "artifact_harness_schema_metadata",
+        "generated_at": generated_at,
+        "id": packet_id,
+        "target_path": str(target),
+        "run_dir": str(run_dir),
+        "contract": artifact_harness_schema_contract(),
+        "governance_boundary": "Schema metadata is compatibility evidence only; it does not approve capabilities, accept artifacts, execute runtimes, choose staffing, or transfer ownership.",
+    }
+
+
+def artifact_harness_json_schema_version(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip())
+    return None
+
+
+def artifact_harness_checked_file(key: str, path: Path, *, required: bool, schema_version: int | None = None) -> dict[str, Any]:
+    return {
+        "key": key,
+        "path": str(path),
+        "exists": path.exists(),
+        "required": required,
+        "schema_version": schema_version,
+    }
+
+
+def artifact_harness_missing_field(file_key: str, field: str) -> dict[str, str]:
+    return {"file": file_key, "field": field}
+
+
+def artifact_harness_schema_finding(code: str, severity: str, message: str, source_path: Path | str) -> dict[str, str]:
+    return {
+        "code": code,
+        "severity": severity,
+        "message": message,
+        "source_path": str(source_path),
+    }
+
+
+def artifact_harness_schema_commands(config: HubConfig, target: Path, packet_id: str) -> dict[str, str]:
+    return {
+        "schema_check_json": artifact_harness_lifecycle_command(config, "schema-check", target, packet_id, emit_json=True),
+        "migrate_json": artifact_harness_lifecycle_command(config, "migrate", target, packet_id, emit_json=True),
+        "resume_json": artifact_harness_lifecycle_command(config, "resume", target, packet_id, emit_json=True),
+        "replay_json": artifact_harness_lifecycle_command(config, "replay", target, packet_id, emit_json=True),
+        "provenance_json": artifact_harness_lifecycle_command(config, "provenance", target, packet_id, emit_json=True),
+        "runtime_check_json": artifact_harness_lifecycle_command(config, "runtime-check", target, packet_id, emit_json=True),
+        "approval_json": artifact_harness_approval_command(config, target, packet_id, emit_json=True),
+        "runtime_invoke_json": artifact_harness_runtime_invoke_command(config, target, packet_id, adapter="open-multi-agent", surface="typescript-runTasks", dry_run=True, emit_json=True),
+        "repair_plan_json": artifact_harness_repair_plan_command(config, target, packet_id, emit_json=True),
+    }
+
+
+def artifact_harness_schema_refusal_payload(
+    config: HubConfig,
+    action: str,
+    state: dict[str, Any],
+    reason: str | None = None,
+) -> dict[str, Any]:
+    packet_id = state.get("id")
+    target_path = state.get("target_path")
+    run_dir = state.get("run_dir")
+    target = Path(target_path) if isinstance(target_path, str) and target_path else None
+    commands = artifact_harness_schema_commands(config, target, str(packet_id)) if target is not None and packet_id else {}
+    payload = dict(state)
+    payload.update(
+        {
+            "command": f"artifact-harness {action}",
+            "schema_version": ARTIFACT_HARNESS_COMMAND_SCHEMA_VERSION,
+            "ok": False,
+            "schema_contract": artifact_harness_schema_contract(),
+            "current_schema_version": state.get("current_schema_version"),
+            "supported_schema_version": ARTIFACT_HARNESS_SCHEMA_VERSION,
+            "compatible": False,
+            "migration_required": False,
+            "schema_metadata_path": str(Path(run_dir) / ARTIFACT_HARNESS_SCHEMA_METADATA_FILENAME) if run_dir else state.get("schema_metadata_path"),
+            "checked_files": state.get("checked_files", []),
+            "missing_files": state.get("missing_files", []),
+            "missing_required_fields": state.get("missing_required_fields", []),
+            "warnings": state.get("warnings", []),
+            "blocking_findings": state.get("blocking_findings", []),
+            "changed_files": [],
+            "commands": commands,
+            "refused": True,
+            "reason": reason or state.get("reason"),
+            "governance_boundary": "Schema-check and migration are compatibility tools only. They do not approve capabilities, accept artifacts, execute runtimes, choose staffing, or transfer ownership.",
+        }
+    )
+    return payload
+
+
+def build_artifact_harness_schema_report(
+    config: HubConfig,
+    target_arg: str,
+    packet_id: str | None,
+    action: str = "schema-check",
+) -> tuple[int, dict[str, Any], list[str], dict[str, Any] | None]:
+    code, state, errors, manifest, status_payload = load_artifact_harness_lifecycle_state(config, action, target_arg, packet_id)
+    if code != 0:
+        return code, artifact_harness_schema_refusal_payload(config, action, state), errors, None
+
+    manifest = manifest or {}
+    status_payload = status_payload or {}
+    target = Path(state["target_path"])
+    run_dir = Path(state["run_dir"])
+    registry_path = Path(state["registry_path"])
+    manifest_path = Path(state["manifest"])
+    status_path = Path(state["status_path"])
+    schema_metadata_path = Path(state.get("schema_metadata_path") or (run_dir / ARTIFACT_HARNESS_SCHEMA_METADATA_FILENAME))
+    replay_path = run_dir / "artifact_replay_evidence.json"
+    provenance_path = run_dir / "packet_provenance_ledger.json"
+    runtime_report_path = run_dir / "runtime_readiness_report.json"
+    approval_evidence_path = run_dir / ARTIFACT_HARNESS_APPROVAL_EVIDENCE_FILENAME
+    runtime_invocation_report_path = run_dir / ARTIFACT_HARNESS_RUNTIME_INVOCATION_REPORT_FILENAME
+    repair_plan_path = run_dir / ARTIFACT_HARNESS_REPAIR_PLAN_FILENAME
+
+    try:
+        ensure_targets_under_root(
+            target,
+            {
+                "schema_metadata_path": schema_metadata_path,
+                "replay_evidence_path": replay_path,
+                "provenance_ledger_path": provenance_path,
+                "runtime_readiness_report_path": runtime_report_path,
+                "approval_evidence_path": approval_evidence_path,
+                "runtime_invocation_report_path": runtime_invocation_report_path,
+                "repair_plan_path": repair_plan_path,
+            },
+        )
+    except HubRuntimeError as exc:
+        refused = artifact_harness_schema_refusal_payload(config, action, state, "schema_metadata_path_outside_target_workspace")
+        return 1, refused, [str(exc)], None
+
+    try:
+        registry = load_artifact_harness_registry(config, registry_path)
+    except HubRuntimeError as exc:
+        refused = artifact_harness_schema_refusal_payload(config, action, state, "invalid_registry_json")
+        return 1, refused, [str(exc)], None
+
+    schema_metadata: dict[str, Any] = {}
+    if schema_metadata_path.exists():
+        try:
+            schema_metadata = load_json_file_strict(schema_metadata_path, {}, "artifact harness schema metadata")
+        except HubRuntimeError as exc:
+            refused = artifact_harness_schema_refusal_payload(config, action, state, "invalid_schema_metadata_json")
+            return 1, refused, [str(exc)], None
+
+    optional_report_paths = {
+        "replay_evidence": replay_path,
+        "provenance_ledger": provenance_path,
+        "runtime_readiness_report": runtime_report_path,
+        "approval_evidence": approval_evidence_path,
+        "runtime_invocation_report": runtime_invocation_report_path,
+        "repair_plan": repair_plan_path,
+    }
+    optional_report_versions: dict[str, int | None] = {}
+    optional_report_warnings: list[dict[str, str]] = []
+    for key, path in optional_report_paths.items():
+        optional_report_versions[key] = None
+        if not path.exists():
+            continue
+        try:
+            optional_payload = load_json_file_strict(path, {}, f"artifact harness {key}")
+            optional_report_versions[key] = artifact_harness_json_schema_version(optional_payload.get("schema_version"))
+        except HubRuntimeError as exc:
+            optional_report_warnings.append(
+                {
+                    "code": "invalid_optional_generated_report_json",
+                    "file": key,
+                    "path": str(path),
+                    "message": str(exc),
+                }
+            )
+
+    packet_paths = {
+        key: Path(state["packets"].get(key, run_dir / filename))
+        for key, filename in {
+            "artifact_harness_spec": "artifact_harness_spec.md",
+            "hr_staffing_packet": "hr_staffing_packet.md",
+            "team_operating_packet": "team_operating_packet.md",
+            "capability_access_packet": "capability_access_packet.md",
+            "runtime_mapping": "open_multi_agent_runtasks_mapping.md",
+        }.items()
+    }
+    manifest_version = artifact_harness_json_schema_version(manifest.get("schema_version"))
+    status_version = artifact_harness_json_schema_version(status_payload.get("schema_version"))
+    registry_version = artifact_harness_json_schema_version(registry.get("schema_version"))
+    metadata_version = artifact_harness_json_schema_version(schema_metadata.get("schema_version"))
+    current_schema_version = metadata_version or manifest_version
+    checked_files = [
+        artifact_harness_checked_file(key, path, required=True)
+        for key, path in packet_paths.items()
+    ]
+    checked_files.extend(
+        [
+            artifact_harness_checked_file("manifest", manifest_path, required=True, schema_version=manifest_version),
+            artifact_harness_checked_file("lifecycle_status", status_path, required=True, schema_version=status_version),
+            artifact_harness_checked_file("registry", registry_path, required=True, schema_version=registry_version),
+            artifact_harness_checked_file("schema_metadata", schema_metadata_path, required=False, schema_version=metadata_version),
+            artifact_harness_checked_file("replay_evidence", replay_path, required=False, schema_version=optional_report_versions["replay_evidence"]),
+            artifact_harness_checked_file("provenance_ledger", provenance_path, required=False, schema_version=optional_report_versions["provenance_ledger"]),
+            artifact_harness_checked_file("runtime_readiness_report", runtime_report_path, required=False, schema_version=optional_report_versions["runtime_readiness_report"]),
+            artifact_harness_checked_file("approval_evidence", approval_evidence_path, required=False, schema_version=optional_report_versions["approval_evidence"]),
+            artifact_harness_checked_file("runtime_invocation_report", runtime_invocation_report_path, required=False, schema_version=optional_report_versions["runtime_invocation_report"]),
+            artifact_harness_checked_file("repair_plan", repair_plan_path, required=False, schema_version=optional_report_versions["repair_plan"]),
+        ]
+    )
+    missing_files = [item for item in checked_files if item["required"] and not item["exists"]]
+    missing_required_fields: list[dict[str, str]] = []
+    for field in ("schema_version", "id", "generated_at", "mission", "target_path", "workflow", "packets", "lifecycle", "boundaries"):
+        if field not in manifest:
+            missing_required_fields.append(artifact_harness_missing_field("manifest", field))
+    for field in ("schema_version", "id", "status", "updated_at", "updated_by", "history", "governance_boundary", "allowed_statuses"):
+        if field not in status_payload:
+            missing_required_fields.append(artifact_harness_missing_field("lifecycle_status", field))
+    if "schema_version" not in registry:
+        missing_required_fields.append(artifact_harness_missing_field("registry", "schema_version"))
+    if "entries" not in registry:
+        missing_required_fields.append(artifact_harness_missing_field("registry", "entries"))
+
+    registry_entries = registry.get("entries", [])
+    registry_entry = next(
+        (entry for entry in registry_entries if isinstance(entry, dict) and entry.get("id") == state["id"]),
+        None,
+    )
+    if not isinstance(registry_entry, dict):
+        missing_required_fields.append(artifact_harness_missing_field("registry", f"entries[id={state['id']}]"))
+    else:
+        for field in ("id", "run_dir", "packets", "status", "status_path"):
+            if field not in registry_entry:
+                missing_required_fields.append(artifact_harness_missing_field("registry_entry", field))
+
+    warnings: list[dict[str, str]] = list(optional_report_warnings)
+    for key, path in optional_report_paths.items():
+        if not path.exists():
+            warnings.append(
+                {
+                    "code": "missing_optional_generated_report",
+                    "file": key,
+                    "path": str(path),
+                    "message": f"Optional generated report is absent: {key}.",
+                }
+            )
+
+    blocking_findings: list[dict[str, str]] = []
+    for item in missing_files:
+        blocking_findings.append(
+            artifact_harness_schema_finding(
+                "missing_required_file",
+                "P1",
+                f"Required Artifact Harness file is missing: {item['key']}.",
+                item["path"],
+            )
+        )
+    if not isinstance(manifest.get("packets"), dict):
+        blocking_findings.append(artifact_harness_schema_finding("manifest_packets_invalid", "P1", "Manifest packets field must be an object.", manifest_path))
+    for label, version, path in (
+        ("manifest", manifest_version, manifest_path),
+        ("lifecycle_status", status_version, status_path),
+        ("registry", registry_version, registry_path),
+        ("schema_metadata", metadata_version, schema_metadata_path),
+        ("replay_evidence", optional_report_versions["replay_evidence"], replay_path),
+        ("provenance_ledger", optional_report_versions["provenance_ledger"], provenance_path),
+        ("runtime_readiness_report", optional_report_versions["runtime_readiness_report"], runtime_report_path),
+        ("approval_evidence", optional_report_versions["approval_evidence"], approval_evidence_path),
+        ("runtime_invocation_report", optional_report_versions["runtime_invocation_report"], runtime_invocation_report_path),
+        ("repair_plan", optional_report_versions["repair_plan"], repair_plan_path),
+    ):
+        if version is not None and version > ARTIFACT_HARNESS_SCHEMA_VERSION:
+            blocking_findings.append(
+                artifact_harness_schema_finding(
+                    "unsupported_schema_version",
+                    "P1",
+                    f"{label} schema_version={version} is newer than supported schema_version={ARTIFACT_HARNESS_SCHEMA_VERSION}.",
+                    path,
+                )
+            )
+    if manifest.get("id") not in (None, state["id"]):
+        blocking_findings.append(artifact_harness_schema_finding("manifest_id_mismatch", "P1", "Manifest id does not match the requested packet id.", manifest_path))
+    if status_payload.get("id") not in (None, state["id"]):
+        blocking_findings.append(artifact_harness_schema_finding("status_id_mismatch", "P1", "Lifecycle status id does not match the requested packet id.", status_path))
+
+    migration_required = False
+    if not schema_metadata_path.exists() or metadata_version != ARTIFACT_HARNESS_SCHEMA_VERSION:
+        migration_required = True
+    if manifest_version != ARTIFACT_HARNESS_SCHEMA_VERSION or "schema_contract" not in manifest:
+        migration_required = True
+    if registry_version != ARTIFACT_HARNESS_SCHEMA_VERSION:
+        migration_required = True
+    if isinstance(registry_entry, dict) and (
+        registry_entry.get("schema_version") != ARTIFACT_HARNESS_SCHEMA_VERSION
+        or "schema_metadata_path" not in registry_entry
+    ):
+        migration_required = True
+
+    compatible = not blocking_findings and not any(item["exists"] is False for item in missing_files)
+    generated_at = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    report = {
+        "command": f"artifact-harness {action}",
+        "schema_version": ARTIFACT_HARNESS_COMMAND_SCHEMA_VERSION,
+        "ok": compatible,
+        "schema_contract": artifact_harness_schema_contract(),
+        "generated_at": generated_at,
+        "id": state["id"],
+        "target_path": state["target_path"],
+        "run_dir": state["run_dir"],
+        "manifest": state["manifest"],
+        "registry_path": state["registry_path"],
+        "status": state["status"],
+        "status_path": state["status_path"],
+        "schema_metadata_path": str(schema_metadata_path),
+        "current_schema_version": current_schema_version,
+        "supported_schema_version": ARTIFACT_HARNESS_SCHEMA_VERSION,
+        "compatible": compatible,
+        "migration_required": migration_required,
+        "checked_files": checked_files,
+        "missing_files": missing_files,
+        "missing_required_fields": missing_required_fields,
+        "warnings": warnings,
+        "blocking_findings": blocking_findings,
+        "migration_safe": compatible and not blocking_findings,
+        "changed_files": [],
+        "commands": artifact_harness_schema_commands(config, target, state["id"]),
+        "governance_boundary": "Schema-check and migration are compatibility tools only. They do not approve capabilities, accept artifacts, execute runtimes, choose staffing, or transfer ownership.",
+        "refused": False,
+        "reason": None,
+    }
+    context = {
+        "state": state,
+        "manifest": manifest,
+        "status_payload": status_payload,
+        "registry": registry,
+        "registry_entry": registry_entry,
+        "schema_metadata": schema_metadata,
+        "schema_metadata_path": schema_metadata_path,
+        "manifest_path": manifest_path,
+        "registry_path": registry_path,
+        "target": target,
+        "run_dir": run_dir,
+    }
+    return 0, report, [], context
+
+
+def render_artifact_harness_schema_markdown(payload: dict[str, Any]) -> str:
+    if payload.get("refused"):
+        return f"# Artifact Harness Schema\n\n- Refused: `true`\n- Reason: `{payload.get('reason')}`\n"
+    lines = [
+        "# Artifact Harness Schema",
+        "",
+        f"- Packet ID: `{payload['id']}`",
+        f"- Command: `{payload['command']}`",
+        f"- Compatible: `{'true' if payload['compatible'] else 'false'}`",
+        f"- Migration required: `{'true' if payload['migration_required'] else 'false'}`",
+        f"- Current schema version: `{payload.get('current_schema_version')}`",
+        f"- Supported schema version: `{payload['supported_schema_version']}`",
+        f"- Schema metadata: `{payload['schema_metadata_path']}`",
+        "",
+        "## Blocking Findings",
+        "",
+    ]
+    findings = payload.get("blocking_findings", [])
+    if findings:
+        for finding in findings:
+            lines.append(f"- `{finding.get('code')}`: {finding.get('message')}")
+    else:
+        lines.append("- none")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def do_artifact_harness_schema_check(config: HubConfig, target_arg: str, packet_id: str | None, emit_json: bool = False) -> int:
+    code, payload, errors, _context = build_artifact_harness_schema_report(config, target_arg, packet_id, "schema-check")
+    for line in errors:
+        print(line, file=sys.stderr)
+    if emit_json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    elif code == 0:
+        print(render_artifact_harness_schema_markdown(payload), end="")
+    return code
+
+
+def do_artifact_harness_migrate(config: HubConfig, target_arg: str, packet_id: str | None, emit_json: bool = False) -> int:
+    code, payload, errors, context = build_artifact_harness_schema_report(config, target_arg, packet_id, "migrate")
+    for line in errors:
+        print(line, file=sys.stderr)
+    if code != 0:
+        if emit_json:
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return code
+    if not payload.get("migration_safe"):
+        payload["ok"] = False
+        payload["refused"] = True
+        payload["reason"] = "schema_migration_blocked"
+        print("Artifact Harness migration refused because required files or fields are missing.", file=sys.stderr)
+        if emit_json:
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 1
+
+    assert context is not None
+    target = context["target"]
+    run_dir = context["run_dir"]
+    manifest_path = context["manifest_path"]
+    registry_path = context["registry_path"]
+    schema_metadata_path = context["schema_metadata_path"]
+    manifest = dict(context["manifest"])
+    registry = dict(context["registry"])
+    generated_at = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    schema_metadata = artifact_harness_schema_metadata_payload(str(payload["id"]), target, run_dir, generated_at)
+    schema_metadata_rel = relative_path_from(target, schema_metadata_path)
+    changed_files: list[str] = []
+
+    desired_schema_contract = {
+        "schema_version": ARTIFACT_HARNESS_SCHEMA_VERSION,
+        "schema_metadata_path": schema_metadata_rel,
+        "contract_policy": "policy/ARTIFACT_HARNESS_SCHEMA_V0.md",
+        "command_json_schema_version": ARTIFACT_HARNESS_COMMAND_SCHEMA_VERSION,
+    }
+    manifest_changed = False
+    if manifest.get("schema_version") != ARTIFACT_HARNESS_SCHEMA_VERSION:
+        manifest["schema_version"] = ARTIFACT_HARNESS_SCHEMA_VERSION
+        manifest_changed = True
+    if manifest.get("schema_contract") != desired_schema_contract:
+        manifest["schema_contract"] = desired_schema_contract
+        manifest_changed = True
+    if manifest_changed:
+        dump_json(manifest_path, manifest)
+        changed_files.append(str(manifest_path))
+
+    existing_metadata = context.get("schema_metadata") if isinstance(context.get("schema_metadata"), dict) else {}
+    stable_existing_metadata = dict(existing_metadata)
+    stable_existing_metadata.pop("generated_at", None)
+    stable_desired_metadata = dict(schema_metadata)
+    stable_desired_metadata.pop("generated_at", None)
+    if stable_existing_metadata != stable_desired_metadata:
+        dump_json(schema_metadata_path, schema_metadata)
+        changed_files.append(str(schema_metadata_path))
+
+    entries = []
+    registry_changed = False
+    found = False
+    for entry in registry.get("entries", []):
+        if isinstance(entry, dict) and entry.get("id") == payload["id"]:
+            found = True
+            updated_entry = dict(entry)
+            updates = {
+                "schema_version": ARTIFACT_HARNESS_SCHEMA_VERSION,
+                "schema_metadata_path": schema_metadata_rel,
+                "manifest_schema_version": ARTIFACT_HARNESS_SCHEMA_VERSION,
+            }
+            for key, value in updates.items():
+                if updated_entry.get(key) != value:
+                    updated_entry[key] = value
+                    registry_changed = True
+            entry = updated_entry
+        entries.append(entry)
+    if not found:
+        payload["ok"] = False
+        payload["refused"] = True
+        payload["reason"] = "schema_migration_blocked"
+        payload["blocking_findings"].append(
+            artifact_harness_schema_finding(
+                "missing_registry_entry",
+                "P1",
+                "Registry does not contain an entry for this packet id; migration is ambiguous.",
+                registry_path,
+            )
+        )
+        print("Artifact Harness migration refused because the registry entry is missing.", file=sys.stderr)
+        if emit_json:
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 1
+    if registry.get("schema_version") != ARTIFACT_HARNESS_SCHEMA_VERSION:
+        registry["schema_version"] = ARTIFACT_HARNESS_SCHEMA_VERSION
+        registry_changed = True
+    if registry_changed:
+        registry["entries"] = entries
+        registry["generated_at"] = registry.get("generated_at") or generated_at
+        save_artifact_harness_registry(config, registry, registry_path, target)
+        changed_files.append(str(registry_path))
+
+    # Re-check after migration so the emitted JSON reflects post-migration state.
+    _post_code, post_payload, _post_errors, _post_context = build_artifact_harness_schema_report(config, target_arg, packet_id, "migrate")
+    post_payload["ok"] = _post_code == 0 and bool(post_payload.get("compatible"))
+    post_payload["changed_files"] = changed_files
+    post_payload["migration_required"] = False if post_payload["ok"] else post_payload.get("migration_required", True)
+    post_payload["refused"] = False
+    post_payload["reason"] = None
+    if emit_json:
+        print(json.dumps(post_payload, ensure_ascii=False, indent=2))
+    else:
+        print(render_artifact_harness_schema_markdown(post_payload), end="")
+    return 0 if post_payload["ok"] else 1
+
+
+def artifact_harness_repair_item(
+    code: str,
+    severity: str,
+    source: str,
+    message: str,
+    recommended_action: str,
+    *,
+    source_path: str | Path | None = None,
+    owner_boundary: str | None = None,
+    commands: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    item: dict[str, Any] = {
+        "code": code,
+        "severity": severity,
+        "source": source,
+        "message": message,
+        "recommended_action": recommended_action,
+        "owner_boundary": owner_boundary or "Repair planning is advisory and does not transfer packet ownership.",
+    }
+    if source_path is not None:
+        item["source_path"] = str(source_path)
+    if commands:
+        item["commands"] = commands
+    return item
+
+
+def artifact_harness_repair_sort_key(item: dict[str, Any]) -> tuple[int, str]:
+    severity_order = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
+    return severity_order.get(str(item.get("severity")), 9), str(item.get("code", ""))
+
+
+def artifact_harness_repair_commands(config: HubConfig, target: Path, packet_id: str) -> dict[str, str]:
+    return {
+        "repair_plan_json": artifact_harness_repair_plan_command(config, target, packet_id, emit_json=True),
+        "status_json": artifact_harness_lifecycle_command(config, "status", target, packet_id, emit_json=True),
+        "resume_json": artifact_harness_lifecycle_command(config, "resume", target, packet_id, emit_json=True),
+        "schema_check_json": artifact_harness_lifecycle_command(config, "schema-check", target, packet_id, emit_json=True),
+        "migrate_json": artifact_harness_lifecycle_command(config, "migrate", target, packet_id, emit_json=True),
+        "replay_json": artifact_harness_lifecycle_command(config, "replay", target, packet_id, emit_json=True),
+        "provenance_json": artifact_harness_lifecycle_command(config, "provenance", target, packet_id, emit_json=True),
+        "runtime_check_json": artifact_harness_lifecycle_command(config, "runtime-check", target, packet_id, emit_json=True),
+        "approval_json": artifact_harness_approval_command(config, target, packet_id, emit_json=True),
+        "runtime_invoke_json": artifact_harness_runtime_invoke_command(config, target, packet_id, adapter="open-multi-agent", surface="typescript-runTasks", dry_run=True, emit_json=True),
+        "mark_filled_json": artifact_harness_lifecycle_command(config, "mark", target, packet_id, status="filled", note="packet fields filled", emit_json=True),
+        "mark_blocked_json": artifact_harness_lifecycle_command(config, "mark", target, packet_id, status="blocked", note="describe blocker", emit_json=True),
+    }
+
+
+def artifact_harness_repair_refusal_payload(
+    config: HubConfig,
+    state: dict[str, Any],
+    reason: str,
+) -> dict[str, Any]:
+    packet_id = state.get("id")
+    target_path = state.get("target_path")
+    run_dir = state.get("run_dir")
+    target = Path(target_path) if isinstance(target_path, str) and target_path else None
+    commands = artifact_harness_repair_commands(config, target, str(packet_id)) if target is not None and packet_id else {}
+    payload = dict(state)
+    payload.update(
+        {
+            "command": "artifact-harness repair-plan",
+            "schema_version": ARTIFACT_HARNESS_COMMAND_SCHEMA_VERSION,
+            "report_type": "artifact_harness_repair_plan",
+            "repair_plan_path": str(Path(run_dir) / ARTIFACT_HARNESS_REPAIR_PLAN_FILENAME) if run_dir else state.get("repair_plan_path"),
+            "needs_repair": True,
+            "ready_to_continue": False,
+            "repair_items": [],
+            "summary": {},
+            "recommended_next_action": "Resolve the refusal before repair planning can inspect the packet run.",
+            "commands": commands,
+            "governance_boundary": "Repair plans are advisory evidence only. They do not rewrite packet Markdown, approve capabilities, accept artifacts, execute runtimes, or transfer ownership.",
+            "refused": True,
+            "reason": reason,
+        }
+    )
+    return payload
+
+
+def artifact_harness_load_optional_report(path: Path, label: str) -> tuple[dict[str, Any] | None, str | None]:
+    if not path.exists():
+        return None, None
+    try:
+        return load_json_file_strict(path, {}, label), None
+    except HubRuntimeError as exc:
+        return None, str(exc)
+
+
+def build_artifact_harness_repair_plan(
+    config: HubConfig,
+    target_arg: str,
+    packet_id: str | None,
+) -> tuple[int, dict[str, Any], list[str]]:
+    code, state, errors, manifest, status_payload = load_artifact_harness_lifecycle_state(config, "repair-plan", target_arg, packet_id)
+    if code != 0:
+        return code, artifact_harness_repair_refusal_payload(config, state, state.get("reason") or "repair_plan_refused"), errors
+
+    manifest = manifest or {}
+    status_payload = status_payload or {}
+    target = Path(state["target_path"])
+    run_dir = Path(state["run_dir"])
+    repair_path = run_dir / ARTIFACT_HARNESS_REPAIR_PLAN_FILENAME
+    replay_path = run_dir / "artifact_replay_evidence.json"
+    provenance_path = run_dir / "packet_provenance_ledger.json"
+    runtime_report_path = run_dir / "runtime_readiness_report.json"
+    approval_path = run_dir / ARTIFACT_HARNESS_APPROVAL_EVIDENCE_FILENAME
+    invocation_path = run_dir / ARTIFACT_HARNESS_RUNTIME_INVOCATION_REPORT_FILENAME
+    try:
+        ensure_targets_under_root(
+            target,
+            {
+                "repair_plan_path": repair_path,
+                "replay_evidence_path": replay_path,
+                "provenance_ledger_path": provenance_path,
+                "runtime_readiness_report_path": runtime_report_path,
+                "approval_evidence_path": approval_path,
+                "runtime_invocation_report_path": invocation_path,
+            },
+        )
+    except HubRuntimeError as exc:
+        refused = artifact_harness_repair_refusal_payload(config, state, "repair_plan_path_outside_target_workspace")
+        return 1, refused, [str(exc)]
+
+    commands = artifact_harness_repair_commands(config, target, state["id"])
+    packet_paths = {
+        key: Path(state["packets"].get(key, run_dir / filename))
+        for key, filename in {
+            "artifact_harness_spec": "artifact_harness_spec.md",
+            "hr_staffing_packet": "hr_staffing_packet.md",
+            "team_operating_packet": "team_operating_packet.md",
+            "capability_access_packet": "capability_access_packet.md",
+            "runtime_mapping": "open_multi_agent_runtasks_mapping.md",
+        }.items()
+    }
+    packet_completion = {key: artifact_harness_packet_completion_heuristics(path) for key, path in packet_paths.items()}
+    repair_items: list[dict[str, Any]] = []
+
+    status = str(state.get("status") or "")
+    if status == "blocked":
+        repair_items.append(
+            artifact_harness_repair_item(
+                "lifecycle_blocked",
+                "P1",
+                "packet_status",
+                f"Packet lifecycle is blocked: {state.get('status_note') or status_payload.get('note') or 'no blocker note recorded'}.",
+                "Resolve the blocker in the owning packet, then mark the run filled/reviewed only after the packet evidence is updated.",
+                source_path=state.get("status_path"),
+                owner_boundary="Lifecycle status is continuity metadata only; repair must happen in the owning packet or artifact.",
+                commands={"status_json": commands["status_json"], "mark_filled_json": commands["mark_filled_json"]},
+            )
+        )
+    elif status in {"superseded", "archived"}:
+        repair_items.append(
+            artifact_harness_repair_item(
+                "inactive_lifecycle_status",
+                "P2",
+                "packet_status",
+                f"Packet lifecycle is `{status}`; do not treat this run as the active work item without an explicit decision.",
+                "Inspect the replacement/current run or create a new packet id instead of repairing this one in place.",
+                source_path=state.get("status_path"),
+                owner_boundary="Archived or superseded runs are continuity evidence, not active execution targets.",
+                commands={"status_json": commands["status_json"], "resume_json": commands["resume_json"]},
+            )
+        )
+
+    for key, item in packet_completion.items():
+        path = item.get("path")
+        if not item.get("exists"):
+            repair_items.append(
+                artifact_harness_repair_item(
+                    "missing_packet_file",
+                    "P1",
+                    key,
+                    f"Required packet is missing: {key}.",
+                    "Recover the missing packet from source control or create a new packet run; do not let downstream packets stand in for the missing owner.",
+                    source_path=path,
+                    owner_boundary=f"{key} must be repaired at its own packet boundary.",
+                    commands={"schema_check_json": commands["schema_check_json"], "resume_json": commands["resume_json"]},
+                )
+            )
+        elif int(item.get("heuristic_open_items", 0) or 0) > 0:
+            repair_items.append(
+                artifact_harness_repair_item(
+                    "packet_open_items_detected",
+                    "P2",
+                    key,
+                    f"`{key}` still has {item.get('heuristic_open_items')} heuristic open item(s).",
+                    "Fill or explicitly resolve the open fields in this packet before advancing lifecycle or runtime checks.",
+                    source_path=path,
+                    owner_boundary=f"{key} owns its own unresolved fields; repair-plan does not fill them.",
+                    commands={"resume_json": commands["resume_json"], "replay_json": commands["replay_json"]},
+                )
+            )
+
+    schema_code, schema_report, schema_errors, _schema_context = build_artifact_harness_schema_report(config, target_arg, state["id"], "schema-check")
+    if schema_code != 0:
+        repair_items.append(
+            artifact_harness_repair_item(
+                "schema_check_refused",
+                "P1",
+                "schema_check",
+                f"Schema-check refused: {schema_report.get('reason') or 'unknown reason'}.",
+                "Resolve the schema/path refusal before using this packet run as continuity evidence.",
+                source_path=schema_report.get("manifest") or state.get("manifest"),
+                owner_boundary="Schema repair may update JSON compatibility surfaces only; it must not rewrite packet Markdown.",
+                commands={"schema_check_json": commands["schema_check_json"]},
+            )
+        )
+    else:
+        for finding in schema_report.get("blocking_findings", []):
+            repair_items.append(
+                artifact_harness_repair_item(
+                    str(finding.get("code") or "schema_blocking_finding"),
+                    str(finding.get("severity") or "P1"),
+                    "schema_check",
+                    str(finding.get("message") or "Schema-check reported a blocking finding."),
+                    "Resolve schema blocking findings before migration or downstream execution.",
+                    source_path=finding.get("source_path") or schema_report.get("manifest"),
+                    owner_boundary="Schema-check is compatibility evidence only and does not repair packet content.",
+                    commands={"schema_check_json": commands["schema_check_json"], "migrate_json": commands["migrate_json"]},
+                )
+            )
+        if schema_report.get("migration_required") and not schema_report.get("blocking_findings"):
+            repair_items.append(
+                artifact_harness_repair_item(
+                    "schema_migration_required",
+                    "P2",
+                    "schema_check",
+                    "Packet JSON compatibility metadata is missing or older than the current schema.",
+                    "Run migrate to update only safe JSON compatibility surfaces.",
+                    source_path=schema_report.get("schema_metadata_path"),
+                    owner_boundary="Migration must not rewrite filled packet Markdown or change governance ownership.",
+                    commands={"migrate_json": commands["migrate_json"], "schema_check_json": commands["schema_check_json"]},
+                )
+            )
+        if schema_report.get("missing_required_fields"):
+            repair_items.append(
+                artifact_harness_repair_item(
+                    "schema_required_fields_missing",
+                    "P2",
+                    "schema_check",
+                    f"Schema-check reported missing required JSON fields: {len(schema_report.get('missing_required_fields', []))}.",
+                    "Inspect schema-check output and migrate only if migration is safe.",
+                    source_path=schema_report.get("manifest"),
+                    owner_boundary="Missing JSON fields are compatibility concerns, not approval or artifact acceptance.",
+                    commands={"schema_check_json": commands["schema_check_json"], "migrate_json": commands["migrate_json"]},
+                )
+            )
+
+    approval_payload, approval_error = artifact_harness_load_optional_report(approval_path, "artifact harness approval evidence")
+    denied_gate_records: list[dict[str, Any]] = []
+    approved_gate_records: list[dict[str, Any]] = []
+    if approval_error:
+        repair_items.append(
+            artifact_harness_repair_item(
+                "invalid_approval_evidence_json",
+                "P1",
+                "approval_evidence",
+                "Approval evidence exists but is not readable JSON.",
+                "Repair or recreate approval evidence before runtime invocation; do not infer approval from lifecycle status.",
+                source_path=approval_path,
+                owner_boundary="Approval evidence records explicit gate decisions only and does not replace CAP ownership.",
+                commands={"approval_json": commands["approval_json"]},
+            )
+        )
+    elif approval_payload is not None:
+        approved_gate_records, denied_gate_records = artifact_harness_approval_decision_lists(approval_payload)
+        for record in denied_gate_records:
+            gate_id = record.get("gate_id")
+            repair_items.append(
+                artifact_harness_repair_item(
+                    "approval_gate_denied",
+                    "P1",
+                    "approval_evidence",
+                    f"Latest approval decision denies required gate `{gate_id}`.",
+                    "Revise the packet/CAP/runtime boundary or get an explicit new approval decision; do not override denial by lifecycle status.",
+                    source_path=approval_path,
+                    owner_boundary="CAP owns approval gates; repair-plan cannot approve or override them.",
+                    commands={"approval_json": artifact_harness_approval_command(config, target, state["id"], gate_id=str(gate_id or ARTIFACT_HARNESS_RUNTIME_APPROVAL_GATE_ID), emit_json=True)},
+                )
+            )
+
+    runtime_payload, runtime_error = artifact_harness_load_optional_report(runtime_report_path, "artifact harness runtime readiness report")
+    if runtime_error:
+        repair_items.append(
+            artifact_harness_repair_item(
+                "invalid_runtime_readiness_report_json",
+                "P1",
+                "runtime_readiness_report",
+                "Runtime readiness report exists but is not readable JSON.",
+                "Re-run runtime-check after repairing packet paths and CAP/runtime mapping.",
+                source_path=runtime_report_path,
+                owner_boundary="Runtime readiness is preflight evidence only; it does not execute adapters.",
+                commands={"runtime_check_json": commands["runtime_check_json"]},
+            )
+        )
+    elif runtime_payload is None:
+        repair_items.append(
+            artifact_harness_repair_item(
+                "runtime_readiness_not_checked",
+                "P3",
+                "runtime_readiness_report",
+                "No runtime readiness report exists yet.",
+                "Run runtime-check before any runtime invocation planning.",
+                source_path=runtime_report_path,
+                owner_boundary="Runtime adapters remain execution layers and must not become governance owners.",
+                commands={"runtime_check_json": commands["runtime_check_json"]},
+            )
+        )
+    else:
+        runtime_blockers = runtime_payload.get("blocking_findings", [])
+        if isinstance(runtime_blockers, list):
+            for finding in runtime_blockers:
+                if not isinstance(finding, dict):
+                    continue
+                repair_items.append(
+                    artifact_harness_repair_item(
+                        str(finding.get("code") or "runtime_readiness_blocker"),
+                        str(finding.get("severity") or "P1"),
+                        "runtime_readiness_report",
+                        str(finding.get("message") or "Runtime readiness has a blocking finding."),
+                        "Repair CAP/runtime mapping traceability or execution surface before runtime invocation.",
+                        source_path=finding.get("source_path") or runtime_report_path,
+                        owner_boundary="Runtime mapping is execution wiring only and must remain traceable to CAP and TOP.",
+                        commands={"runtime_check_json": commands["runtime_check_json"], "resume_json": commands["resume_json"]},
+                    )
+                )
+        if runtime_payload.get("approval_gates_required") and approval_payload is None:
+            repair_items.append(
+                artifact_harness_repair_item(
+                    "missing_required_approval_evidence",
+                    "P2",
+                    "approval_evidence",
+                    "Runtime readiness requires approval gates, but no approval evidence exists.",
+                    "Record explicit approval or denial for the required gate before runtime-invoke dry-run.",
+                    source_path=approval_path,
+                    owner_boundary="Approval evidence is explicit gate evidence only; it does not accept artifacts.",
+                    commands={"approval_json": commands["approval_json"]},
+                )
+            )
+
+    invocation_payload, invocation_error = artifact_harness_load_optional_report(invocation_path, "artifact harness runtime invocation report")
+    if invocation_error:
+        repair_items.append(
+            artifact_harness_repair_item(
+                "invalid_runtime_invocation_report_json",
+                "P1",
+                "runtime_invocation_report",
+                "Runtime invocation report exists but is not readable JSON.",
+                "Re-run runtime-invoke dry-run only after readiness and approvals are repaired.",
+                source_path=invocation_path,
+                owner_boundary="Runtime invocation reports are dry-run guard evidence only.",
+                commands={"runtime_invoke_json": commands["runtime_invoke_json"]},
+            )
+        )
+    elif invocation_payload is not None and invocation_payload.get("refused"):
+        repair_items.append(
+            artifact_harness_repair_item(
+                "runtime_invocation_refused",
+                "P2",
+                "runtime_invocation_report",
+                f"Latest runtime invocation guard refused: {invocation_payload.get('reason') or 'unknown reason'}.",
+                "Follow the refusal reason, then re-run runtime-check and runtime-invoke dry-run.",
+                source_path=invocation_path,
+                owner_boundary="Invocation guard evidence does not execute runtime adapters or approve capabilities.",
+                commands={"runtime_check_json": commands["runtime_check_json"], "runtime_invoke_json": commands["runtime_invoke_json"]},
+            )
+        )
+
+    repair_items = sorted(repair_items, key=artifact_harness_repair_sort_key)
+    severity_counts = Counter(str(item.get("severity")) for item in repair_items)
+    needs_repair = bool(repair_items)
+    ready_to_continue = not any(str(item.get("severity")) in {"P0", "P1", "P2"} for item in repair_items)
+    recommended_next_action = (
+        str(repair_items[0].get("recommended_action"))
+        if repair_items
+        else "No obvious repair action was detected; continue with review or verification based on lifecycle status."
+    )
+    generated_at = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    plan = {
+        "command": "artifact-harness repair-plan",
+        "schema_version": ARTIFACT_HARNESS_COMMAND_SCHEMA_VERSION,
+        "report_type": "artifact_harness_repair_plan",
+        "generated_at": generated_at,
+        "id": state["id"],
+        "mission": manifest.get("mission"),
+        "target_path": state["target_path"],
+        "run_dir": state["run_dir"],
+        "manifest": state["manifest"],
+        "registry_path": state["registry_path"],
+        "status": state["status"],
+        "status_note": state.get("status_note") or status_payload.get("note"),
+        "repair_plan_path": str(repair_path),
+        "needs_repair": needs_repair,
+        "ready_to_continue": ready_to_continue,
+        "recommended_next_action": recommended_next_action,
+        "summary": {
+            "repair_item_count": len(repair_items),
+            "severity_counts": dict(severity_counts),
+            "missing_packet_count": sum(1 for item in packet_completion.values() if not item.get("exists")),
+            "heuristic_open_items_total": sum(int(item.get("heuristic_open_items", 0) or 0) for item in packet_completion.values()),
+            "denied_gate_count": len(denied_gate_records),
+            "approved_gate_count": len(approved_gate_records),
+            "runtime_readiness_report_present": runtime_payload is not None,
+            "approval_evidence_present": approval_payload is not None,
+            "runtime_invocation_report_present": invocation_payload is not None,
+        },
+        "packet_completion": packet_completion,
+        "repair_items": repair_items,
+        "commands": commands,
+        "governance_boundary": "Repair plans are advisory evidence only. They do not rewrite packet Markdown, approve capabilities, accept artifacts, execute runtimes, choose staffing, or transfer ownership between Artifact Harness, HR, Team Architect, CAP, and runtime adapters.",
+        "refused": False,
+        "reason": None,
+    }
+    dump_json(repair_path, plan)
+    return 0, plan, []
+
+
+def render_artifact_harness_repair_plan_markdown(payload: dict[str, Any]) -> str:
+    if payload.get("refused"):
+        return f"# Artifact Harness Repair Plan\n\n- Refused: `true`\n- Reason: `{payload.get('reason')}`\n"
+    lines = [
+        "# Artifact Harness Repair Plan",
+        "",
+        f"- Packet ID: `{payload.get('id')}`",
+        f"- Status: `{payload.get('status')}`",
+        f"- Needs repair: `{'true' if payload.get('needs_repair') else 'false'}`",
+        f"- Ready to continue: `{'true' if payload.get('ready_to_continue') else 'false'}`",
+        f"- Repair plan: `{payload.get('repair_plan_path')}`",
+        f"- Recommended next action: {payload.get('recommended_next_action')}",
+        "",
+        "## Repair Items",
+        "",
+    ]
+    repair_items = payload.get("repair_items", [])
+    if repair_items:
+        for item in repair_items:
+            lines.append(f"- `{item.get('severity')}` `{item.get('code')}`: {item.get('recommended_action')}")
+    else:
+        lines.append("- none")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def do_artifact_harness_repair_plan(config: HubConfig, target_arg: str, packet_id: str | None, emit_json: bool = False) -> int:
+    code, payload, errors = build_artifact_harness_repair_plan(config, target_arg, packet_id)
+    for line in errors:
+        print(line, file=sys.stderr)
+    if emit_json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    elif code == 0 or payload:
+        print(render_artifact_harness_repair_plan_markdown(payload), end="")
+    return code
+
+
+def build_artifact_harness_packet_chain(
+    config: HubConfig,
+    mission: str,
+    target_arg: str,
+    explicit_id: str | None,
+    expected_artifact: str | None,
+    force: bool = False,
+) -> tuple[int, dict[str, Any], list[str]]:
+    mission = mission.strip()
+    if not mission:
+        return 1, {"created": False, "refused": True, "reason": "empty_mission"}, ["Artifact Harness mission must not be empty."]
+    target = Path(target_arg).expanduser().resolve()
+    if not target.exists():
+        return 1, {"created": False, "refused": True, "reason": "missing_target", "target_path": str(target)}, [f"Target path does not exist: {target}"]
+    if not target.is_dir():
+        return 1, {"created": False, "refused": True, "reason": "target_not_directory", "target_path": str(target)}, [f"Target path must be a directory: {target}"]
+
+    packet_id = stable_packet_id("artifact", mission, target, explicit_id)
+    packet_root = artifact_harness_packet_root(config, target)
+    run_dir, registry_path, packet_paths = artifact_harness_run_paths(config, target, packet_id)
+    try:
+        ensure_targets_under_root(target, {"run_dir": run_dir, "registry_path": registry_path, **packet_paths})
+    except HubRuntimeError as exc:
+        payload = artifact_harness_refusal_payload(
+            packet_id,
+            mission,
+            target,
+            run_dir,
+            packet_paths,
+            registry_path,
+            "packet_root_outside_target_workspace",
+        )
+        return 1, payload, [str(exc)]
+    paths = {
+        "run_dir": relative_path_from(target, run_dir),
+        "artifact_harness_spec": relative_path_from(target, packet_paths["artifact_harness_spec"]),
+        "hr_staffing_packet": relative_path_from(target, packet_paths["hr_staffing_packet"]),
+        "team_operating_packet": relative_path_from(target, packet_paths["team_operating_packet"]),
+        "capability_access_packet": relative_path_from(target, packet_paths["capability_access_packet"]),
+        "runtime_mapping": relative_path_from(target, packet_paths["runtime_mapping"]),
+        "manifest": relative_path_from(target, packet_paths["manifest"]),
+        "status": relative_path_from(target, packet_paths["status"]),
+        "schema_metadata": relative_path_from(target, packet_paths["schema_metadata"]),
+    }
+    absolute_paths = {**packet_paths, "run_dir": run_dir}
+    conflicts = existing_artifact_harness_run_conflicts(run_dir, absolute_paths)
+    if conflicts and not force:
+        payload = artifact_harness_refusal_payload(packet_id, mission, target, run_dir, packet_paths, registry_path, "existing_packet_run")
+        errors = [
+            f"Artifact Harness packet run already exists: {run_dir}",
+            "Refusing to overwrite existing packet scaffolds without explicit --force/--overwrite.",
+            "Use `--id <new-id>` for a separate run, or re-run with `--force` only when overwriting is intentional.",
+            "Existing targets:",
+            *[f"- {conflict}" for conflict in conflicts[:8]],
+        ]
+        return 1, payload, errors
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    generated_at = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    artifact_label = (expected_artifact or "").strip()
+    packet_payloads = {
+        "artifact_harness_spec": render_artifact_harness_spec_packet(mission, target, artifact_label, paths),
+        "hr_staffing_packet": render_hr_staffing_packet_scaffold(mission, paths),
+        "team_operating_packet": render_team_operating_packet_scaffold(mission, paths),
+        "capability_access_packet": render_capability_access_packet_scaffold(mission, paths),
+        "runtime_mapping": render_runtime_mapping_scaffold(mission, paths),
+    }
+    for key, content in packet_payloads.items():
+        packet_paths[key].write_text(content, encoding="utf-8")
+
+    manifest = {
+        "schema_version": 1,
+        "id": packet_id,
+        "generated_at": generated_at,
+        "mission": mission,
+        "target_path": str(target),
+        "expected_artifact": artifact_label or None,
+        "workflow": [
+            "user mission",
+            "Artifact Harness SPEC",
+            "HR staffing",
+            "Team Operating Packet",
+            "Capability Access Packet",
+            "runtime mapping",
+            "verification/review",
+        ],
+        "packets": {key: paths[key] for key in ("artifact_harness_spec", "hr_staffing_packet", "team_operating_packet", "capability_access_packet", "runtime_mapping")},
+        "lifecycle": {
+            "status": "draft",
+            "status_path": paths["status"],
+            "status_updated_at": generated_at,
+            "status_note": "Initial scaffold created; status is continuity metadata only.",
+        },
+        "boundaries": {
+            "artifact_harness_spec": "rule / contract / acceptance / boundary only",
+            "hr_staffing_packet": "staffing / role design only",
+            "team_architect": "collaboration pattern / shared artifacts / task graph / convergence / CAP",
+            "capability_access_packet": "skill / plugin / tool authorization, approval gates, runtime allowlist",
+            "runtime_mapping": "execution mapping only",
+        },
+        "schema_contract": {
+            "schema_version": ARTIFACT_HARNESS_SCHEMA_VERSION,
+            "schema_metadata_path": paths["schema_metadata"],
+            "contract_policy": "policy/ARTIFACT_HARNESS_SCHEMA_V0.md",
+            "command_json_schema_version": ARTIFACT_HARNESS_COMMAND_SCHEMA_VERSION,
+        },
+    }
+    dump_json(packet_paths["manifest"], manifest)
+    status_payload = artifact_harness_lifecycle_payload(
+        packet_id,
+        "draft",
+        generated_at,
+        "Initial scaffold created; status is continuity metadata only.",
+        "system_hub artifact-harness",
+    )
+    dump_json(packet_paths["status"], status_payload)
+    schema_metadata = artifact_harness_schema_metadata_payload(packet_id, target, run_dir, generated_at)
+    dump_json(packet_paths["schema_metadata"], schema_metadata)
+
+    registry = load_artifact_harness_registry(config, registry_path)
+    entries = [entry for entry in registry.get("entries", []) if isinstance(entry, dict) and entry.get("id") != packet_id]
+    registry_entry = {
+        "id": packet_id,
+        "generated_at": generated_at,
+        "mission": mission,
+        "target_path": str(target),
+        "run_dir": paths["run_dir"],
+        "packets": {**manifest["packets"], "manifest": paths["manifest"]},
+        "status": "draft",
+        "status_note": status_payload["note"],
+        "status_path": paths["status"],
+        "status_updated_at": generated_at,
+        "schema_version": ARTIFACT_HARNESS_SCHEMA_VERSION,
+        "schema_metadata_path": paths["schema_metadata"],
+        "manifest_schema_version": ARTIFACT_HARNESS_SCHEMA_VERSION,
+    }
+    entries.append(registry_entry)
+    registry["generated_at"] = generated_at
+    registry["entries"] = entries[-50:]
+    save_artifact_harness_registry(config, registry, registry_path, target)
+
+    payload = {
+        "id": packet_id,
+        "generated_at": generated_at,
+        "mission": mission,
+        "target_path": str(target),
+        "packet_root": str(packet_root),
+        "run_dir": str(run_dir),
+        "packets": {key: str(packet_paths[key]) for key in ("artifact_harness_spec", "hr_staffing_packet", "team_operating_packet", "capability_access_packet", "runtime_mapping")},
+        "registry_path": str(registry_path),
+        "manifest": str(packet_paths["manifest"]),
+        "status": "draft",
+        "status_path": str(packet_paths["status"]),
+        "schema_version": ARTIFACT_HARNESS_COMMAND_SCHEMA_VERSION,
+        "schema_metadata_path": str(packet_paths["schema_metadata"]),
+        "created": True,
+        "refused": False,
+        "reason": None,
+    }
+    payload["packets"]["manifest"] = str(packet_paths["manifest"])
+    return 0, payload, []
+
+
+def do_artifact_harness(
+    config: HubConfig,
+    mission: str,
+    target_arg: str,
+    explicit_id: str | None,
+    expected_artifact: str | None,
+    force: bool = False,
+    emit_json: bool = False,
+) -> int:
+    code, payload, errors = build_artifact_harness_packet_chain(config, mission, target_arg, explicit_id, expected_artifact, force)
+    for line in errors:
+        print(line, file=sys.stderr)
+    if emit_json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    elif code == 0:
+        print(render_artifact_harness_summary(payload), end="")
+    return code
+
+
+def match_artifact_harness_keywords(utterance: str, keywords: list[str]) -> list[str]:
+    matches: list[str] = []
+    for keyword in keywords:
+        normalized = " ".join(keyword.strip().split())
+        if not normalized:
+            continue
+        phrase_pattern = r"\s+".join(re.escape(part) for part in normalized.split())
+        pattern = re.compile(rf"(?<![A-Za-z0-9_]){phrase_pattern}(?![A-Za-z0-9_])", re.IGNORECASE)
+        if pattern.search(utterance):
+            matches.append(keyword)
+    return matches
+
+
+def packet_route_natural_artifact_details(utterance: str) -> dict[str, Any]:
+    production_cues = match_artifact_harness_keywords(utterance, list(PACKET_ROUTE_NATURAL_PRODUCTION_CUES))
+    quality_cues = match_artifact_harness_keywords(utterance, list(PACKET_ROUTE_NATURAL_QUALITY_CUES))
+    process_cues = match_artifact_harness_keywords(utterance, list(PACKET_ROUTE_NATURAL_PROCESS_CUES))
+    deliverables = match_artifact_harness_keywords(utterance, list(PACKET_ROUTE_NATURAL_DELIVERABLE_TERMS))
+    underspecified_refs = match_artifact_harness_keywords(utterance, list(PACKET_ROUTE_UNDERSPECIFIED_ARTIFACT_REFERENCES))
+    generic_deliverables = {"artifact", "deliverable", "output", "成果", "產出"}
+    generic_process_cues = {"artifact", "deliverable", "output", "成果", "產出"}
+    specific_deliverables = [item for item in deliverables if " ".join(item.lower().split()) not in generic_deliverables]
+    specific_process_cues = [item for item in process_cues if " ".join(item.lower().split()) not in generic_process_cues]
+    action_cues = production_cues + quality_cues + specific_process_cues
+    create_ready = bool(specific_deliverables and action_cues)
+    vague_artifact_hint = bool((underspecified_refs or deliverables) and not create_ready)
+    detected = create_ready or vague_artifact_hint
+    matched_terms: list[str] = []
+    for group in (production_cues, quality_cues, process_cues, deliverables, underspecified_refs):
+        for item in group:
+            if item not in matched_terms:
+                matched_terms.append(item)
+    confidence = "none"
+    if create_ready:
+        confidence = "high" if production_cues and deliverables else "medium"
+    elif vague_artifact_hint:
+        confidence = "low"
+    clarifying_questions = []
+    if vague_artifact_hint:
+        clarifying_questions = [
+            "What artifact should be produced or improved?",
+            "What would make the result review-ready or acceptable?",
+        ]
+    reason = None
+    if create_ready:
+        reason = "natural artifact-production intent detected from deliverable and action/quality cues"
+    elif vague_artifact_hint:
+        reason = "artifact reference is present but the deliverable or success criteria are underspecified"
+    return {
+        "detected": detected,
+        "create_ready": create_ready,
+        "needs_clarification": vague_artifact_hint,
+        "confidence": confidence,
+        "production_cues": production_cues,
+        "quality_cues": quality_cues,
+        "process_cues": process_cues,
+        "deliverables": deliverables,
+        "underspecified_refs": underspecified_refs,
+        "matched_terms": matched_terms,
+        "clarifying_questions": clarifying_questions,
+        "reason": reason,
+    }
+
+
+def artifact_harness_command(
+    config: HubConfig,
+    entrypoint: str,
+    utterance: str,
+    target: Path,
+    expected_artifact: str | None = None,
+    force: bool = False,
+    explicit_id: str | None = None,
+) -> str:
+    try:
+        entrypoint_parts = shlex.split(entrypoint)
+    except ValueError:
+        entrypoint_parts = [entrypoint]
+    if not entrypoint_parts:
+        entrypoint_parts = ["artifact-harness"]
+    first = entrypoint_parts[0]
+    if first.startswith("/"):
+        command_parts = entrypoint_parts
+    elif first in {"./scripts/brain.sh", "scripts/brain.sh"}:
+        command_parts = [str(config.scripts_dir / "brain.sh"), *entrypoint_parts[1:]]
+    elif first.startswith("./"):
+        command_parts = [str((config.workspace_root / first[2:]).resolve()), *entrypoint_parts[1:]]
+    elif first.startswith("scripts/"):
+        command_parts = [str((config.workspace_root / first).resolve()), *entrypoint_parts[1:]]
+    else:
+        command_parts = [str(config.scripts_dir / "brain.sh"), *entrypoint_parts]
+    command_parts.extend([utterance, "--path", str(target)])
+    if explicit_id and explicit_id.strip():
+        command_parts.extend(["--id", explicit_id.strip()])
+    artifact = (expected_artifact or "").strip()
+    if artifact:
+        command_parts.extend(["--artifact", artifact])
+    if force:
+        command_parts.append("--force")
+    return " ".join(shlex.quote(part) for part in command_parts)
+
+
+def packet_route_stage_for_family(family_id: str) -> str:
+    return {
+        "artifact_harness_workflow": "Artifact Harness SPEC",
+        "team_architect_packet": "Team Operating Packet",
+        "capability_access_packet": "Capability Access Packet",
+        "runtime_mapping": "runtime mapping",
+    }.get(family_id, family_id)
+
+
+def packet_route_handoff_for_front_doors(front_doors: list[str]) -> str | None:
+    if "human_resources" in front_doors:
+        return "HR staffing"
+    if "team_architect_packet" in front_doors:
+        return "Team Operating Packet"
+    if "capability_access_packet" in front_doors:
+        return "Capability Access Packet"
+    if "runtime_mapping" in front_doors:
+        return "runtime mapping"
+    return None
+
+
+def packet_route_artifact_intent(utterance: str, front_doors: list[str], natural_details: dict[str, Any] | None = None) -> bool:
+    text = " ".join(utterance.lower().split())
+    markers = (
+        "artifact",
+        "requirement form",
+        "packet form",
+        "harness spec",
+        "artifact harness",
+        "methods appendix",
+        "form fill",
+        "artifact mission",
+    )
+    if any(marker in text for marker in markers):
+        return True
+    if natural_details is None:
+        natural_details = packet_route_natural_artifact_details(utterance)
+    if natural_details.get("create_ready"):
+        return True
+    return False
+
+
+def packet_route_candidate_routes(config: HubConfig, utterance: str) -> tuple[list[dict[str, Any]], list[str], list[str]]:
+    routing = load_routing_section(config)
+    registry = load_team_alias_registry(config, routing)
+    candidate_routes: list[dict[str, Any]] = []
+    recognized_front_doors: list[str] = []
+    matched_keywords: list[str] = []
+    downstream_keyword_norms: set[str] = set()
+    for family in registry.get("keyword_families", []):
+        if not isinstance(family, dict) or family.get("id") == "artifact_harness_workflow":
+            continue
+        for keyword in family.get("keywords", []):
+            if isinstance(keyword, str):
+                downstream_keyword_norms.add(" ".join(keyword.lower().split()))
+
+    for alias_entry in registry.get("aliases", []):
+        if not isinstance(alias_entry, dict):
+            continue
+        alias_id = str(alias_entry.get("id", "")).strip()
+        aliases = [item for item in alias_entry.get("aliases", []) if isinstance(item, str)]
+        matches = match_artifact_harness_keywords(utterance, aliases)
+        if not alias_id or not matches:
+            continue
+        recognized_front_doors.append(alias_id)
+        matched_keywords.extend(matches)
+        candidate_routes.append(
+            {
+                "route": alias_id,
+                "matched_source": "alias",
+                "matched_id": alias_id,
+                "matched_keywords": matches,
+                "workflow_stage": "HR staffing" if alias_id == "human_resources" else alias_id,
+                "directly_executable": False,
+                "create_allowed": False,
+                "reason": "registered team surface; route output is advisory and does not create packet artifacts",
+            }
+        )
+
+    raw_config_keywords = routing.get("artifact_harness_keywords", [])
+    if isinstance(raw_config_keywords, list):
+        config_matches = [
+            keyword
+            for keyword in match_artifact_harness_keywords(utterance, [item for item in raw_config_keywords if isinstance(item, str)])
+            if " ".join(keyword.lower().split()) not in downstream_keyword_norms
+        ]
+        if config_matches:
+            recognized_front_doors.append("artifact_harness_workflow")
+            matched_keywords.extend(config_matches)
+            candidate_routes.append(
+                {
+                    "route": "artifact_harness_workflow",
+                    "matched_source": "config_keywords",
+                    "matched_id": "artifact_harness_keywords",
+                    "matched_keywords": config_matches,
+                    "workflow_stage": "Artifact Harness SPEC",
+                    "directly_executable": True,
+                    "create_allowed": True,
+                    "reason": "config-level Artifact Harness keyword addition",
+                }
+            )
+
+    for family in registry.get("keyword_families", []):
+        if not isinstance(family, dict):
+            continue
+        family_id = str(family.get("id", "")).strip()
+        keywords = [item for item in family.get("keywords", []) if isinstance(item, str)]
+        matches = match_artifact_harness_keywords(utterance, keywords)
+        if not family_id or not matches:
+            continue
+        recognized_front_doors.append(family_id)
+        matched_keywords.extend(matches)
+        candidate_routes.append(
+            {
+                "route": family_id,
+                "matched_source": "keyword_family",
+                "matched_id": family_id,
+                "matched_keywords": matches,
+                "workflow_stage": packet_route_stage_for_family(family_id),
+                "directly_executable": family_id == "artifact_harness_workflow",
+                "create_allowed": family_id == "artifact_harness_workflow",
+                "reason": "registered keyword family",
+            }
+        )
+
+    natural_details = packet_route_natural_artifact_details(utterance)
+    if natural_details.get("detected") and not candidate_routes:
+        recognized_front_doors.append("artifact_harness_workflow")
+        matched_keywords.extend(natural_details.get("matched_terms", []))
+        candidate_routes.append(
+            {
+                "route": "artifact_harness_workflow",
+                "matched_source": "natural_artifact_intent",
+                "matched_id": "natural_artifact_mission",
+                "matched_keywords": natural_details.get("matched_terms", []),
+                "workflow_stage": "Artifact Harness SPEC",
+                "directly_executable": bool(natural_details.get("create_ready")),
+                "create_allowed": bool(natural_details.get("create_ready")),
+                "needs_clarification": bool(natural_details.get("needs_clarification")),
+                "confidence": natural_details.get("confidence"),
+                "reason": natural_details.get("reason"),
+            }
+        )
+
+    seen_front_doors: set[str] = set()
+    deduped_front_doors: list[str] = []
+    for front_door in recognized_front_doors:
+        if front_door in seen_front_doors:
+            continue
+        seen_front_doors.add(front_door)
+        deduped_front_doors.append(front_door)
+
+    seen_keywords: set[str] = set()
+    deduped_keywords: list[str] = []
+    for keyword in matched_keywords:
+        normalized = " ".join(keyword.lower().split())
+        if normalized in seen_keywords:
+            continue
+        seen_keywords.add(normalized)
+        deduped_keywords.append(keyword)
+
+    return candidate_routes, deduped_front_doors, deduped_keywords
+
+
+def render_packet_route_markdown(route: dict[str, Any]) -> str:
+    matched = bool(route["matched"])
+    lines = [
+        "# Packet Route",
+        "",
+        f"- Utterance: {route['utterance']}",
+        f"- Target path: `{route['target_path']}`",
+        f"- Matched: `{'true' if matched else 'false'}`",
+        f"- Route: `{route['route']}`",
+        f"- Recommended route: `{route.get('recommended_route')}`",
+        f"- Create requested: `{'true' if route['create'] else 'false'}`",
+        f"- Force requested: `{'true' if route['force'] else 'false'}`",
+        f"- Create allowed: `{'true' if route.get('create_allowed') else 'false'}`",
+        f"- Chain start: `{route.get('chain_start')}`",
+        "",
+        "## Next Step",
+        "",
+        f"- {route.get('next_step_label')}: {route.get('user_message')}",
+        f"- Action: {route.get('visible_next_action')}",
+        f"- Intent: `{route.get('user_intent')}`",
+        f"- Confidence: `{route.get('confidence')}`",
+        f"- Needs clarification: `{'true' if route.get('needs_clarification') else 'false'}`",
+        "",
+    ]
+    if route.get("clarifying_questions"):
+        lines.extend(["## Clarifying Questions", ""])
+        lines.extend(f"- {question}" for question in route["clarifying_questions"])
+        lines.append("")
+    lines.extend(
+        [
+            "## Recognized Front Doors",
+            "",
+        ]
+    )
+    if route.get("recognized_front_doors"):
+        lines.extend(f"- `{front_door}`" for front_door in route["recognized_front_doors"])
+    else:
+        lines.append("- none")
+    lines.extend(["", "## Matched Keywords", ""])
+    if route["matched_keywords"]:
+        lines.extend(f"- `{keyword}`" for keyword in route["matched_keywords"])
+    else:
+        lines.append("- none")
+    lines.extend(
+        [
+            "",
+            "## Candidate Routes",
+            "",
+        ]
+    )
+    if route.get("candidate_routes"):
+        for candidate in route["candidate_routes"]:
+            lines.append(f"- `{candidate['route']}` -> `{candidate.get('workflow_stage')}`: {candidate.get('reason')}")
+    else:
+        lines.append("- none")
+    lines.extend(
+        [
+            "",
+            "## Boundaries",
+            "",
+            "- Routing is advisory unless `--create` writes an Artifact Harness packet chain.",
+            "- Route output does not approve capabilities, execute runtime adapters, accept artifacts, or move ownership across HR, Team Architect, CAP, and runtime adapter boundaries.",
+            "",
+            "## Next Actions",
+            "",
+        ]
+    )
+    if matched and route.get("recommended_command"):
+        lines.append(f"- `{route['recommended_command']}`")
+        if route.get("recommended_route") == "artifact_harness_workflow" and route.get("create_allowed") and not route["create"]:
+            lines.append("- Re-run this command with `--create` to write the task forms.")
+    elif matched:
+        lines.append("- No direct command is emitted for this front door; inspect the candidate route and hand off through the registered team surface.")
+    else:
+        lines.append("- No registered front door matched; continue with ordinary intake, skill routing, or an explicit artifact-harness command.")
+    if route.get("refused"):
+        lines.append(f"- Refused: `{route.get('reason')}`")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def packet_route_existing_run_command(config: HubConfig, route_id: str, target: Path, packet_id: str) -> tuple[str, str | None]:
+    if route_id == "runtime_mapping":
+        return "runtime-check", artifact_harness_lifecycle_command(config, "runtime-check", target, packet_id, emit_json=True)
+    return "resume", artifact_harness_lifecycle_command(config, "resume", target, packet_id, emit_json=True)
+
+
+def do_packet_route(
+    config: HubConfig,
+    utterance: str,
+    target_arg: str,
+    explicit_id: str | None,
+    create: bool,
+    expected_artifact: str | None,
+    force: bool = False,
+    emit_json: bool = False,
+) -> int:
+    utterance = utterance.strip()
+    if not utterance:
+        print("Packet route utterance must not be empty.", file=sys.stderr)
+        if emit_json:
+            print(json.dumps({"utterance": utterance, "target_path": None, "matched": False, "route": "none", "recognized_front_doors": [], "matched_keywords": [], "candidate_routes": [], "recommended_route": "none", "recommended_command": None, "command": None, "create": create, "force": force, "refused": True, "reason": "empty_utterance"}, ensure_ascii=False, indent=2))
+        return 1
+    target = Path(target_arg).expanduser().resolve()
+    if not target.exists():
+        print(f"Target path does not exist: {target}", file=sys.stderr)
+        if emit_json:
+            print(json.dumps({"utterance": utterance, "target_path": str(target), "matched": False, "route": "none", "recognized_front_doors": [], "matched_keywords": [], "candidate_routes": [], "recommended_route": "none", "recommended_command": None, "command": None, "create": create, "force": force, "refused": True, "reason": "missing_target"}, ensure_ascii=False, indent=2))
+        return 1
+    if not target.is_dir():
+        print(f"Target path must be a directory: {target}", file=sys.stderr)
+        if emit_json:
+            print(json.dumps({"utterance": utterance, "target_path": str(target), "matched": False, "route": "none", "recognized_front_doors": [], "matched_keywords": [], "candidate_routes": [], "recommended_route": "none", "recommended_command": None, "command": None, "create": create, "force": force, "refused": True, "reason": "target_not_directory"}, ensure_ascii=False, indent=2))
+        return 1
+
+    entrypoint = artifact_harness_entrypoint(config)
+    candidate_routes, recognized_front_doors, matched_keywords = packet_route_candidate_routes(config, utterance)
+    matched = bool(candidate_routes)
+    natural_details = packet_route_natural_artifact_details(utterance)
+    artifact_intent = packet_route_artifact_intent(utterance, recognized_front_doors, natural_details)
+    downstream_front_doors = [front_door for front_door in recognized_front_doors if front_door in {"team_architect_packet", "capability_access_packet", "runtime_mapping"}]
+    packet_id = explicit_id.strip() if isinstance(explicit_id, str) and explicit_id.strip() else None
+    recommended_route = "none"
+    recommended_command: str | None = None
+    command_action: str | None = None
+    create_allowed = False
+    chain_start: str | None = None
+    handoff_target: str | None = None
+    reason: str | None = None
+    existing_run_found = False
+    natural_only_match = matched and all(candidate.get("matched_source") == "natural_artifact_intent" for candidate in candidate_routes)
+    needs_clarification = bool(natural_details.get("needs_clarification") and natural_only_match)
+    clarifying_questions = list(natural_details.get("clarifying_questions", []))
+    user_intent = "ordinary"
+    confidence = natural_details.get("confidence") if natural_details.get("detected") else "none"
+
+    if matched:
+        if packet_id and downstream_front_doors:
+            code, state, _errors, _manifest, _status = load_artifact_harness_lifecycle_state(config, "resume", str(target), packet_id)
+            existing_run_found = code == 0
+            if existing_run_found:
+                route_id = downstream_front_doors[0]
+                recommended_route = route_id
+                command_action, recommended_command = packet_route_existing_run_command(config, route_id, target, packet_id)
+                create_allowed = False
+                chain_start = "existing packet run"
+                handoff_target = packet_route_stage_for_family(route_id)
+                reason = "existing packet run found; route to safe inspection command without creating downstream-only packets"
+            else:
+                recommended_route = "artifact_harness_workflow"
+                recommended_command = artifact_harness_command(config, entrypoint, utterance, target, expected_artifact, force, packet_id)
+                create_allowed = False
+                chain_start = "Artifact Harness SPEC"
+                handoff_target = packet_route_handoff_for_front_doors(downstream_front_doors)
+                reason = "packet id was supplied but no existing run was found; do not bypass missing upstream packets"
+        elif artifact_intent:
+            recommended_route = "artifact_harness_workflow"
+            recommended_command = None if needs_clarification else artifact_harness_command(config, entrypoint, utterance, target, expected_artifact, force, packet_id)
+            create_allowed = not needs_clarification
+            chain_start = "Artifact Harness SPEC"
+            handoff_target = packet_route_handoff_for_front_doors(recognized_front_doors)
+            reason = "artifact-production intent uses the SPEC-first Artifact Harness workflow" if create_allowed else "artifact request needs clarification before packet creation"
+        elif "human_resources" in recognized_front_doors:
+            recommended_route = "human_resources"
+            recommended_command = None
+            create_allowed = False
+            chain_start = None
+            handoff_target = "HR staffing"
+            reason = "HR-only staffing or role-design request; do not create Artifact Harness packets"
+        elif downstream_front_doors:
+            recommended_route = "artifact_harness_workflow"
+            recommended_command = None
+            create_allowed = False
+            chain_start = "Artifact Harness SPEC"
+            handoff_target = packet_route_handoff_for_front_doors(downstream_front_doors)
+            reason = "downstream packet request needs an artifact mission or --id for an existing run before creation"
+        elif natural_details.get("needs_clarification") and "artifact_harness_workflow" in recognized_front_doors:
+            recommended_route = "artifact_harness_workflow"
+            recommended_command = None
+            create_allowed = False
+            chain_start = "Artifact Harness SPEC"
+            handoff_target = None
+            reason = "artifact reference is too underspecified to create a packet chain"
+        else:
+            recommended_route = candidate_routes[0]["route"]
+            reason = "registered front door matched"
+
+    if recommended_route == "artifact_harness_workflow" and (artifact_intent or natural_details.get("detected")):
+        user_intent = "artifact_production" if not needs_clarification else "artifact_hint"
+        if confidence == "none":
+            confidence = "medium"
+    elif recommended_route == "human_resources":
+        user_intent = "hr_staffing"
+        confidence = "high"
+    elif recommended_route in {"team_architect_packet", "capability_access_packet", "runtime_mapping"} or downstream_front_doors:
+        user_intent = "downstream_packet_reference"
+        confidence = "medium"
+    elif not matched:
+        user_intent = "ordinary"
+        confidence = "none"
+
+    if needs_clarification:
+        next_step_label = "Clarify artifact task"
+        user_message = "This sounds like an artifact task, but it is too underspecified to create packets yet."
+        visible_next_action = "State the deliverable and what would make it review-ready or acceptable."
+    elif recommended_route == "artifact_harness_workflow" and create_allowed:
+        next_step_label = "Start task forms"
+        user_message = "This looks like a concrete artifact task. I can set up the quality, staffing, capability, and runtime-boundary forms in this workspace."
+        visible_next_action = "Run the recommended command with `--create` to write the forms."
+    elif recommended_route == "human_resources":
+        next_step_label = "Use HR staffing surface"
+        user_message = "This looks like a staffing or role-design question, not a full artifact-production packet run."
+        visible_next_action = "Use the HR team surface directly; do not create Artifact Harness packets."
+    elif downstream_front_doors:
+        next_step_label = "Inspect or start upstream packet chain"
+        user_message = "This names a downstream packet surface. Use an existing packet id for inspection, or start from the artifact task first."
+        visible_next_action = "Provide `--id <packet-id>` for an existing run, or restate the artifact mission."
+    elif matched:
+        next_step_label = "Inspect matched front door"
+        user_message = "A registered front door matched, but no packet-chain creation path is available from this phrase."
+        visible_next_action = "Inspect the candidate route before creating anything."
+    else:
+        next_step_label = "Ordinary intake"
+        user_message = "No registered artifact or team front door matched this phrase."
+        visible_next_action = "Continue normally, or use an explicit Artifact Harness command if this is an artifact-production task."
+
+    route = {
+        "utterance": utterance,
+        "target_path": str(target),
+        "matched": matched,
+        "route": recommended_route,
+        "recognized_front_doors": recognized_front_doors,
+        "matched_keywords": matched_keywords,
+        "candidate_routes": candidate_routes,
+        "recommended_route": recommended_route,
+        "recommended_command": recommended_command,
+        "command": recommended_command,
+        "command_action": command_action,
+        "packet_id": packet_id,
+        "existing_run_found": existing_run_found,
+        "chain_start": chain_start,
+        "handoff_target": handoff_target,
+        "create_allowed": create_allowed,
+        "user_intent": user_intent,
+        "confidence": confidence,
+        "needs_clarification": needs_clarification,
+        "clarifying_questions": clarifying_questions,
+        "natural_triggers": {
+            "production_cues": natural_details.get("production_cues", []),
+            "quality_cues": natural_details.get("quality_cues", []),
+            "process_cues": natural_details.get("process_cues", []),
+            "deliverables": natural_details.get("deliverables", []),
+            "underspecified_refs": natural_details.get("underspecified_refs", []),
+        },
+        "next_step_label": next_step_label,
+        "user_message": user_message,
+        "visible_next_action": visible_next_action,
+        "create": create,
+        "force": force,
+        "refused": False,
+        "reason": reason,
+        "boundaries": {
+            "routing": "advisory unless --create writes an Artifact Harness packet chain",
+            "human_resources": "staffing and role design only",
+            "team_architect": "collaboration pattern, shared artifacts, task graph, convergence, and CAP generation",
+            "capability_access_packet": "skill/plugin/tool authorization, approval gates, and runtime allowlist only",
+            "runtime_mapping": "execution mapping only; no runtime execution or governance ownership",
+        },
+    }
+    code = 0
+    if create and (not matched or recommended_route != "artifact_harness_workflow" or not create_allowed):
+        code = 1
+        route["refused"] = True
+        route["reason"] = "needs_clarification" if route.get("needs_clarification") else ("create_not_allowed_for_recommended_route" if matched else "no_registered_front_door")
+        if route.get("needs_clarification"):
+            print("Packet route refused --create because the artifact request needs clarification before packet creation.", file=sys.stderr)
+        else:
+            print("Packet route refused --create because the recommended route is not an Artifact Harness packet-chain creation path.", file=sys.stderr)
+    elif matched and create:
+        code, artifact_payload, errors = build_artifact_harness_packet_chain(config, utterance, str(target), packet_id, expected_artifact, force)
+        route["artifact_harness"] = artifact_payload
+        for line in errors:
+            print(line, file=sys.stderr)
+        if code != 0:
+            route["refused"] = True
+            route["reason"] = artifact_payload.get("reason")
+    if emit_json:
+        print(json.dumps(route, ensure_ascii=False, indent=2))
+    else:
+        print(render_packet_route_markdown(route), end="")
+        if matched and create and code == 0 and route.get("artifact_harness"):
+            print()
+            print(render_artifact_harness_summary(route["artifact_harness"]), end="")
+    return code
 
 
 def normalize_path_string(value: str | Path | None) -> str | None:
@@ -5754,6 +10211,34 @@ def main() -> int:
             return do_status(config)
         if args.command == "bootstrap":
             return do_bootstrap(config, args.path, args.write_agent, args.thread_id, args.cwd)
+        if args.command == "artifact-harness":
+            if args.mission == "replay":
+                return do_artifact_harness_replay(config, args.path, args.id, args.json)
+            if args.mission == "provenance":
+                return do_artifact_harness_provenance(config, args.path, args.id, args.json)
+            if args.mission == "runtime-check":
+                return do_artifact_harness_runtime_check(config, args.path, args.id, args.json)
+            if args.mission == "approval":
+                return do_artifact_harness_approval(config, args.path, args.id, args.gate, args.decision, args.approver, args.note, args.json)
+            if args.mission == "runtime-invoke":
+                return do_artifact_harness_runtime_invoke(config, args.path, args.id, args.adapter, args.surface, args.dry_run, args.json)
+            if args.mission == "schema-check":
+                return do_artifact_harness_schema_check(config, args.path, args.id, args.json)
+            if args.mission == "migrate":
+                return do_artifact_harness_migrate(config, args.path, args.id, args.json)
+            if args.mission == "repair-plan":
+                return do_artifact_harness_repair_plan(config, args.path, args.id, args.json)
+            if args.mission in {"status", "resume", "mark"}:
+                return do_artifact_harness_lifecycle(config, args.mission, args.path, args.id, args.status, args.note, args.json)
+            if not args.mission:
+                payload = {"created": False, "refused": True, "reason": "missing_mission"}
+                print("Artifact Harness requires a mission or action: status, resume, mark, replay, provenance, runtime-check, approval, runtime-invoke, schema-check, migrate, repair-plan.", file=sys.stderr)
+                if args.json:
+                    print(json.dumps(payload, ensure_ascii=False, indent=2))
+                return 1
+            return do_artifact_harness(config, args.mission, args.path, args.id, args.artifact, args.force, args.json)
+        if args.command == "packet-route":
+            return do_packet_route(config, args.utterance, args.path, args.id, args.create, args.artifact, args.force, args.json)
         if args.command == "overlay":
             return do_overlay(config, args.path)
         if args.command == "closeout":
