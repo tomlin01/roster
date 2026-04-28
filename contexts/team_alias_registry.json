@@ -9,6 +9,85 @@
   ],
   "aliases": [
     {
+      "id": "roster",
+      "aliases": [
+        "Roster",
+        "@roster"
+      ],
+      "entity_type": "artifact_coordination_surface",
+      "status": "active_local_alias",
+      "canonical_surface": "policy/ARTIFACT_HARNESS_WORKFLOW_V0.md",
+      "compatibility_entrypoints": [
+        "scripts/brain.sh packet-route",
+        "scripts/brain.sh artifact-harness"
+      ],
+      "invocation_surface_status": {
+        "roster_text_alias": "active_local_alias",
+        "at_roster_mention": "product_target_unverified_as_installed_codex_mention",
+        "skill": "installable_via_roster_install",
+        "plugin": "not_registered_by_this_registry",
+        "app_mention": "not_registered_by_this_registry",
+        "slash_command": "not_verified"
+      },
+      "target_route": "artifact_harness_workflow",
+      "workflow_stage": "Artifact Harness SPEC",
+      "primary_invocation_examples": [
+        "Roster, 幫我把這個 slide 任務安排好。",
+        "Roster, set up the team and task boundary for this artifact."
+      ],
+      "future_invocation_targets": [
+        "@roster"
+      ],
+      "skill_install_command": "scripts/brain.sh roster-install --codex-home <codex-home>",
+      "resolution_policy": {
+        "prefer_artifact_harness_workflow": true,
+        "start_spec_first": true,
+        "allow_packet_route_create": true
+      },
+      "authorities": [
+        "artifact_mission_intake",
+        "spec_first_packet_chain_scaffold",
+        "team_task_boundary_setup"
+      ],
+      "approval_boundaries": [
+        "HR remains staffing and role design only",
+        "CAP remains capability authorization and approval gates only",
+        "runtime adapters remain execution layers only"
+      ]
+    },
+    {
+      "id": "project_manager_alias",
+      "aliases": [
+        "PM"
+      ],
+      "entity_type": "natural_language_alias",
+      "status": "active_local_alias",
+      "canonical_surface": "policy/ARTIFACT_HARNESS_WORKFLOW_V0.md",
+      "compatibility_entrypoints": [
+        "scripts/brain.sh packet-route"
+      ],
+      "target_route": "artifact_harness_workflow",
+      "workflow_stage": "Artifact Harness SPEC",
+      "requires_leading_invocation": true,
+      "requires_artifact_context": true,
+      "primary_invocation_examples": [
+        "PM, organize this artifact task."
+      ],
+      "resolution_policy": {
+        "prefer_artifact_harness_workflow": true,
+        "start_spec_first": true,
+        "allow_packet_route_create": true
+      },
+      "authorities": [
+        "artifact_mission_intake",
+        "team_task_boundary_setup"
+      ],
+      "approval_boundaries": [
+        "PM is a user-facing route alias only",
+        "PM does not own staffing, tool authorization, runtime execution, or artifact acceptance"
+      ]
+    },
+    {
       "id": "human_resources",
       "aliases": [
         "HR",

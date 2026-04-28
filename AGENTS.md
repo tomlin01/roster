@@ -48,10 +48,13 @@
   - `./scripts/brain.sh packet-route "<utterance>" --path <workspace-folder> --create`
   - `./scripts/brain.sh packet-route "<utterance>" --path <workspace-folder> --json`
   - `./scripts/brain.sh packet-route "<utterance>" --path <workspace-folder> --id <packet-id> --json`
+- Roster skill install / health check:
+  - `./scripts/brain.sh roster-install --codex-home <codex-home> --json`
+  - `./scripts/brain.sh roster-health --codex-home <codex-home> --path <workspace-folder> --json`
 - `--path <workspace-folder>` is the target workspace and packet output root; packet runs go under `<workspace-folder>/contexts/artifact_harness_runs/` with a sibling `<workspace-folder>/contexts/artifact_harness_registry.json`.
 - `packet-route` uses deterministic repo keywords and must be called by Codex or the user; do not imply automatic interception of every free-form GUI/CLI phrase.
 - `packet-route` also supports conservative natural artifact-mission intake. It may route ordinary phrases like `make a review-ready methods appendix` when deterministic deliverable plus action/quality cues are present, but vague hints such as `help with this artifact` must ask for clarification before creating packets.
-- `packet-route` distinguishes registered front doors such as `HR`, `Team Architect`, `CAP`, runtime mapping, and requirement-form language. Artifact-production requests remain SPEC-first even when a downstream front door is named; HR-only staffing requests stay HR-only and must not create Artifact Harness packet runs.
+- `packet-route` distinguishes registered front doors such as `Roster`, literal `@roster` text, artifact-context `PM`, `HR`, `Team Architect`, `CAP`, runtime mapping, and requirement-form language. `Roster`, literal `@roster` text, and unambiguous artifact-task `PM` route to the Artifact Harness workflow when the route helper is called. Do not imply `@roster` is a verified installed Codex mention. Artifact-production requests remain SPEC-first even when a downstream front door is named; HR-only staffing requests stay HR-only and must not create Artifact Harness packet runs.
 - Smoke packet verification should run in a temporary workspace or clean up `smoke-artifact-harness` registry/run output before repo closeout.
 
 ## Stability Map
@@ -88,6 +91,7 @@
 
 ## Named Team Alias Policy
 - Stable local team surfaces may define short natural-language aliases.
+- `Roster` is the current user-facing Artifact Harness workflow alias. Literal `@roster` text is a route-helper alias and future mention target, not a verified installed Codex mention. `PM` is accepted only as an unambiguous artifact-task alias.
 - Prefer a registered named team alias over an explicit skill call for daily chat invocation.
 - Use explicit skills only as fallback adapters for automation, portability, or forced routing.
 - Current alias routing policy lives in [`policy/NAMED_TEAM_ALIAS_ROUTING_V0.md`](./policy/NAMED_TEAM_ALIAS_ROUTING_V0.md).

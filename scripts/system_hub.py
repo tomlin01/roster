@@ -90,6 +90,25 @@ ARTIFACT_HARNESS_REPAIR_PLAN_FILENAME = "repair_plan.json"
 ARTIFACT_HARNESS_RUNTIME_APPROVAL_GATE_ID = "runtime_execution"
 ARTIFACT_HARNESS_SUPPORTED_RUNTIME_ADAPTERS = ("open-multi-agent",)
 ARTIFACT_HARNESS_SUPPORTED_EXECUTION_SURFACES = ("typescript-runTasks", "cli")
+ROSTER_PRODUCT_TARGET = "@roster"
+ROSTER_VERIFIED_INVOCATION_MECHANISM = "scripts/brain.sh packet-route"
+ROSTER_SKILL_NAME = "roster"
+ROSTER_SKILL_SOURCE_DIR = ROOT / "skills" / ROSTER_SKILL_NAME
+ROSTER_CURRENT_USER_INVOCATION = "Roster, <task>"
+ROSTER_HEALTH_DEFAULT_ID = "roster-health-smoke"
+ROSTER_HEALTH_VISIBILITY_UTTERANCE = "@roster"
+ROSTER_HEALTH_PACKET_UTTERANCE = "@roster make a review-ready Roster health-check report artifact"
+ROSTER_PROVIDER_AUTH_ENV_DEFAULTS = {
+    "openai": "OPENAI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "gemini": "GEMINI_API_KEY",
+    "google": "GOOGLE_API_KEY",
+    "deepseek": "DEEPSEEK_API_KEY",
+    "grok": "XAI_API_KEY",
+    "xai": "XAI_API_KEY",
+    "minimax": "MINIMAX_API_KEY",
+    "qiniu": "QINIU_ACCESS_KEY",
+}
 PACKET_ROUTE_NATURAL_PRODUCTION_CUES = (
     "make",
     "create",
@@ -222,6 +241,8 @@ DEFAULT_BRAIN_COMMANDS = (
     "intake",
     "artifact-harness",
     "packet-route",
+    "roster-install",
+    "roster-health",
     "overlay",
     "closeout",
     "skill-route",
@@ -566,6 +587,20 @@ def parse_args() -> argparse.Namespace:
     packet_route.add_argument("--artifact", default=None, help="Optional expected artifact path or label passed through to artifact-harness.")
     packet_route.add_argument("--force", "--overwrite", action="store_true", dest="force", help="Explicitly overwrite an existing routed packet run when used with --create.")
     packet_route.add_argument("--json", action="store_true", help="Emit a machine-readable JSON route instead of Markdown.")
+    roster_install = sub.add_parser("roster-install", help="Install or check the repo-owned Roster skill into a Codex skills root.")
+    roster_install.add_argument("--codex-home", default=None, help="Codex home whose `skills/` directory should receive the roster skill. Defaults to CODEX_HOME or ~/.codex.")
+    roster_install.add_argument("--skills-root", default=None, help="Explicit skills root to install into. Overrides --codex-home.")
+    roster_install.add_argument("--force", "--overwrite", action="store_true", dest="force", help="Overwrite an existing installed roster skill.")
+    roster_install.add_argument("--json", action="store_true", help="Emit a machine-readable JSON install result instead of Markdown.")
+    roster_health = sub.add_parser("roster-health", help="Check the repo-native Roster invocation, packet output, and local provider wiring.")
+    roster_health.add_argument("--path", default=".", help="Target workspace folder for the health-check packet output. Defaults to the current directory.")
+    roster_health.add_argument("--id", default=None, help="Optional health-check packet id. Defaults to a generated roster-health-smoke id.")
+    roster_health.add_argument("--provider", default=None, help="Optional LLM/provider name to validate from local environment state.")
+    roster_health.add_argument("--auth-env", default=None, help="Optional environment variable name that should contain provider credentials.")
+    roster_health.add_argument("--codex-home", default=None, help="Optional Codex home whose `skills/roster` install should be verified.")
+    roster_health.add_argument("--skills-root", default=None, help="Optional explicit skills root whose `roster` skill install should be verified.")
+    roster_health.add_argument("--keep-artifacts", action="store_true", help="Keep the health-check packet output instead of cleaning it up after verification.")
+    roster_health.add_argument("--json", action="store_true", help="Emit a machine-readable JSON health report instead of Markdown.")
     overlay = sub.add_parser("overlay", help="Generate a runtime overlay brief for a working folder.")
     overlay.add_argument("path", nargs="?", default=".", help="Folder to inspect. Defaults to the current directory.")
     closeout = sub.add_parser("closeout", help="Record task closeout notes and generate candidate skill proposals.")
@@ -8877,6 +8912,66 @@ def packet_route_artifact_intent(utterance: str, front_doors: list[str], natural
     return False
 
 
+def packet_route_alias_is_leading_invocation(utterance: str, alias: str) -> bool:
+    normalized = " ".join(alias.strip().split())
+    if not normalized:
+        return False
+    phrase_pattern = r"\s+".join(re.escape(part) for part in normalized.split())
+    pattern = re.compile(rf"^\s*{phrase_pattern}(?=$|[\s,;:.!?-])", re.IGNORECASE)
+    return bool(pattern.search(utterance))
+
+
+def packet_route_alias_has_artifact_context(utterance: str, natural_details: dict[str, Any]) -> bool:
+    if natural_details.get("detected"):
+        return True
+    text = " ".join(utterance.lower().split())
+    context_markers = (
+        "artifact",
+        "deliverable",
+        "requirement form",
+        "packet form",
+        "harness spec",
+        "artifact harness",
+        "slide",
+        "slides",
+        "slide deck",
+        "deck",
+        "presentation",
+        "appendix",
+        "report",
+        "manuscript",
+        "paper",
+        "figure",
+        "table",
+        "投影片",
+        "簡報",
+        "附錄",
+        "報告",
+        "圖表",
+        "表格",
+        "成果",
+        "產出",
+    )
+    return any(marker in text for marker in context_markers)
+
+
+def packet_route_alias_matches(utterance: str, alias_entry: dict[str, Any], natural_details: dict[str, Any]) -> list[str]:
+    aliases = [item for item in alias_entry.get("aliases", []) if isinstance(item, str)]
+    matches = match_artifact_harness_keywords(utterance, aliases)
+    if alias_entry.get("requires_leading_invocation"):
+        matches = [alias for alias in matches if packet_route_alias_is_leading_invocation(utterance, alias)]
+    if alias_entry.get("requires_artifact_context") and not packet_route_alias_has_artifact_context(utterance, natural_details):
+        return []
+    return matches
+
+
+def packet_route_alias_target(alias_entry: dict[str, Any], alias_id: str) -> str:
+    target_route = alias_entry.get("target_route")
+    if isinstance(target_route, str) and target_route.strip():
+        return target_route.strip()
+    return alias_id
+
+
 def packet_route_candidate_routes(config: HubConfig, utterance: str) -> tuple[list[dict[str, Any]], list[str], list[str]]:
     routing = load_routing_section(config)
     registry = load_team_alias_registry(config, routing)
@@ -8884,6 +8979,7 @@ def packet_route_candidate_routes(config: HubConfig, utterance: str) -> tuple[li
     recognized_front_doors: list[str] = []
     matched_keywords: list[str] = []
     downstream_keyword_norms: set[str] = set()
+    natural_details = packet_route_natural_artifact_details(utterance)
     for family in registry.get("keyword_families", []):
         if not isinstance(family, dict) or family.get("id") == "artifact_harness_workflow":
             continue
@@ -8895,22 +8991,31 @@ def packet_route_candidate_routes(config: HubConfig, utterance: str) -> tuple[li
         if not isinstance(alias_entry, dict):
             continue
         alias_id = str(alias_entry.get("id", "")).strip()
-        aliases = [item for item in alias_entry.get("aliases", []) if isinstance(item, str)]
-        matches = match_artifact_harness_keywords(utterance, aliases)
+        matches = packet_route_alias_matches(utterance, alias_entry, natural_details)
         if not alias_id or not matches:
             continue
+        target_route = packet_route_alias_target(alias_entry, alias_id)
+        workflow_stage = alias_entry.get("workflow_stage")
+        if not isinstance(workflow_stage, str) or not workflow_stage.strip():
+            workflow_stage = "HR staffing" if alias_id == "human_resources" else packet_route_stage_for_family(target_route)
+        directly_executable = target_route == "artifact_harness_workflow"
+        if target_route == "artifact_harness_workflow":
+            reason = "registered alias to Artifact Harness workflow; artifact-production requests remain SPEC-first"
+        else:
+            reason = "registered team surface; route output is advisory and does not create packet artifacts"
         recognized_front_doors.append(alias_id)
         matched_keywords.extend(matches)
         candidate_routes.append(
             {
-                "route": alias_id,
+                "route": target_route,
                 "matched_source": "alias",
                 "matched_id": alias_id,
+                "alias_id": alias_id,
                 "matched_keywords": matches,
-                "workflow_stage": "HR staffing" if alias_id == "human_resources" else alias_id,
-                "directly_executable": False,
-                "create_allowed": False,
-                "reason": "registered team surface; route output is advisory and does not create packet artifacts",
+                "workflow_stage": workflow_stage,
+                "directly_executable": directly_executable,
+                "create_allowed": directly_executable,
+                "reason": reason,
             }
         )
 
@@ -8960,7 +9065,6 @@ def packet_route_candidate_routes(config: HubConfig, utterance: str) -> tuple[li
             }
         )
 
-    natural_details = packet_route_natural_artifact_details(utterance)
     if natural_details.get("detected") and not candidate_routes:
         recognized_front_doors.append("artifact_harness_workflow")
         matched_keywords.extend(natural_details.get("matched_terms", []))
@@ -9131,7 +9235,7 @@ def do_packet_route(
     existing_run_found = False
     natural_only_match = matched and all(candidate.get("matched_source") == "natural_artifact_intent" for candidate in candidate_routes)
     needs_clarification = bool(natural_details.get("needs_clarification") and natural_only_match)
-    clarifying_questions = list(natural_details.get("clarifying_questions", []))
+    clarifying_questions = list(natural_details.get("clarifying_questions", [])) if needs_clarification else []
     user_intent = "ordinary"
     confidence = natural_details.get("confidence") if natural_details.get("detected") else "none"
 
@@ -9292,6 +9396,562 @@ def do_packet_route(
         if matched and create and code == 0 and route.get("artifact_harness"):
             print()
             print(render_artifact_harness_summary(route["artifact_harness"]), end="")
+    return code
+
+
+def roster_skills_root(codex_home_arg: str | None = None, skills_root_arg: str | None = None) -> Path:
+    if isinstance(skills_root_arg, str) and skills_root_arg.strip():
+        return Path(skills_root_arg).expanduser().resolve()
+    codex_home = (codex_home_arg or os.getenv("CODEX_HOME") or "~/.codex").strip()
+    return Path(codex_home).expanduser().resolve() / "skills"
+
+
+def roster_skill_path(codex_home_arg: str | None = None, skills_root_arg: str | None = None) -> Path:
+    return roster_skills_root(codex_home_arg, skills_root_arg) / ROSTER_SKILL_NAME
+
+
+def roster_skill_manifest_path(skill_path: Path) -> Path:
+    return skill_path / "references" / "install_manifest.json"
+
+
+def build_roster_install_manifest(config: HubConfig, skill_path: Path) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "installed_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "skill_name": ROSTER_SKILL_NAME,
+        "skill_path": str(skill_path),
+        "kit_root": str(config.workspace_root),
+        "brain_command": str(config.scripts_dir / "brain.sh"),
+        "current_user_invocation": ROSTER_CURRENT_USER_INVOCATION,
+        "future_product_target": ROSTER_PRODUCT_TARGET,
+        "verified_invocation_mechanism": "codex_skill_plus_repo_adapter",
+        "repo_adapter": ROSTER_VERIFIED_INVOCATION_MECHANISM,
+        "at_roster_status": "product_target_unverified_as_installed_codex_mention",
+        "no_persistent_server_required": True,
+    }
+
+
+def roster_skill_install_check(codex_home_arg: str | None = None, skills_root_arg: str | None = None, *, requested: bool = False) -> dict[str, Any]:
+    skills_root = roster_skills_root(codex_home_arg, skills_root_arg)
+    skill_path = skills_root / ROSTER_SKILL_NAME
+    skill_md = skill_path / "SKILL.md"
+    manifest_path = roster_skill_manifest_path(skill_path)
+    skill_exists = skill_path.is_dir()
+    skill_md_exists = skill_md.is_file()
+    manifest_exists = manifest_path.is_file()
+    status = "installed" if skill_exists and skill_md_exists else ("missing" if requested else "not_checked")
+    reason = None
+    if requested and not skill_exists:
+        reason = "skill_not_installed"
+    elif requested and not skill_md_exists:
+        reason = "skill_md_missing"
+    manifest: dict[str, Any] | None = None
+    if manifest_exists:
+        try:
+            parsed = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if isinstance(parsed, dict):
+                manifest = parsed
+        except json.JSONDecodeError:
+            reason = "install_manifest_invalid_json"
+            if status == "installed":
+                status = "installed_manifest_invalid"
+    return {
+        "status": status,
+        "requested": requested,
+        "skill_name": ROSTER_SKILL_NAME,
+        "skills_root": str(skills_root),
+        "skill_path": str(skill_path),
+        "skill_md": str(skill_md),
+        "skill_exists": skill_exists,
+        "skill_md_exists": skill_md_exists,
+        "install_manifest_path": str(manifest_path),
+        "install_manifest_exists": manifest_exists,
+        "install_manifest": manifest,
+        "current_user_invocation": ROSTER_CURRENT_USER_INVOCATION,
+        "future_product_target": ROSTER_PRODUCT_TARGET,
+        "reason": reason,
+    }
+
+
+def build_roster_install_result(config: HubConfig, codex_home_arg: str | None = None, skills_root_arg: str | None = None, force: bool = False) -> tuple[int, dict[str, Any], list[str]]:
+    skills_root = roster_skills_root(codex_home_arg, skills_root_arg)
+    skill_path = skills_root / ROSTER_SKILL_NAME
+    payload_base = {
+        "schema_version": 1,
+        "report_type": "roster_skill_install",
+        "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "skill_name": ROSTER_SKILL_NAME,
+        "kit_root": str(config.workspace_root),
+        "source_skill_path": str(ROSTER_SKILL_SOURCE_DIR),
+        "skills_root": str(skills_root),
+        "skill_path": str(skill_path),
+        "current_user_invocation": ROSTER_CURRENT_USER_INVOCATION,
+        "future_product_target": ROSTER_PRODUCT_TARGET,
+        "verified_invocation_mechanism": "codex_skill_plus_repo_adapter",
+        "next_human_command": "Start a new Codex thread and type `Roster, <your artifact task>`.",
+        "at_roster_status": "product_target_unverified_as_installed_codex_mention",
+        "server_required": False,
+        "daemon_required": False,
+        "database_required": False,
+        "separate_ui_required": False,
+    }
+    if not ROSTER_SKILL_SOURCE_DIR.is_dir() or not (ROSTER_SKILL_SOURCE_DIR / "SKILL.md").is_file():
+        return 1, {**payload_base, "installed": False, "refused": True, "reason": "missing_roster_skill_source"}, [f"Roster skill source is missing: {ROSTER_SKILL_SOURCE_DIR}"]
+    if skill_path.exists() and not force:
+        return 1, {
+            **payload_base,
+            "installed": False,
+            "refused": True,
+            "reason": "existing_roster_skill",
+            "installed_skill": roster_skill_install_check(codex_home_arg, skills_root_arg, requested=True),
+        }, [f"Roster skill already exists: {skill_path}; use --force to overwrite."]
+    skills_root.mkdir(parents=True, exist_ok=True)
+    if skill_path.exists():
+        if skill_path.is_dir():
+            shutil.rmtree(skill_path)
+        else:
+            skill_path.unlink()
+    shutil.copytree(ROSTER_SKILL_SOURCE_DIR, skill_path)
+    manifest_path = roster_skill_manifest_path(skill_path)
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(json.dumps(build_roster_install_manifest(config, skill_path), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return 0, {
+        **payload_base,
+        "installed": True,
+        "refused": False,
+        "reason": None,
+        "installed_skill": roster_skill_install_check(codex_home_arg, skills_root_arg, requested=True),
+    }, []
+
+
+def render_roster_install_markdown(payload: dict[str, Any]) -> str:
+    lines = [
+        "# Roster Skill Install",
+        "",
+        f"- Installed: `{payload.get('installed')}`",
+        f"- Refused: `{payload.get('refused')}`",
+        f"- Skill path: `{payload.get('skill_path')}`",
+        f"- Current invocation: `{payload.get('current_user_invocation')}`",
+        f"- Future target: `{payload.get('future_product_target')}`",
+        "",
+        "## Next",
+        "",
+        str(payload.get("next_human_command") or "Start a new Codex thread and type `Roster, <task>`."),
+        "",
+        "`@roster` is not verified as an installed Codex mention.",
+        "",
+    ]
+    if payload.get("reason"):
+        lines.extend(["## Reason", "", f"- `{payload.get('reason')}`", ""])
+    return "\n".join(lines)
+
+
+def do_roster_install(config: HubConfig, codex_home: str | None, skills_root: str | None, force: bool = False, emit_json: bool = False) -> int:
+    code, payload, errors = build_roster_install_result(config, codex_home, skills_root, force)
+    for line in errors:
+        print(line, file=sys.stderr)
+    if emit_json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print(render_roster_install_markdown(payload), end="")
+    return code
+
+
+def roster_provider_auth_env(provider: str | None, auth_env: str | None) -> str | None:
+    if isinstance(auth_env, str) and auth_env.strip():
+        return auth_env.strip()
+    if not isinstance(provider, str) or not provider.strip():
+        return None
+    normalized = re.sub(r"[^a-z0-9]+", "-", provider.strip().lower()).strip("-")
+    return ROSTER_PROVIDER_AUTH_ENV_DEFAULTS.get(normalized)
+
+
+def build_roster_provider_check(provider_arg: str | None, auth_env_arg: str | None) -> dict[str, Any]:
+    provider = (provider_arg or os.getenv("ROSTER_LLM_PROVIDER") or "").strip()
+    auth_env = roster_provider_auth_env(provider, auth_env_arg)
+    if not provider:
+        return {
+            "status": "missing_provider",
+            "diagnostic_code": "missing_provider",
+            "provider": None,
+            "auth_env_var": auth_env,
+            "auth_env_present": False,
+            "remote_call_attempted": False,
+            "verification_method": "local_configuration_only",
+            "message": "Set --provider or ROSTER_LLM_PROVIDER, then provide local credentials for that provider.",
+            "secret_material": "not_read_or_reported",
+        }
+    if not auth_env:
+        return {
+            "status": "missing_auth",
+            "diagnostic_code": "missing_auth_env_mapping",
+            "provider": provider,
+            "auth_env_var": None,
+            "auth_env_present": False,
+            "remote_call_attempted": False,
+            "verification_method": "local_configuration_only",
+            "message": "Provider was specified, but no auth environment variable is known; pass --auth-env for this machine.",
+            "secret_material": "not_read_or_reported",
+        }
+    auth_present = bool(os.getenv(auth_env))
+    if not auth_present:
+        return {
+            "status": "missing_auth",
+            "diagnostic_code": "missing_auth",
+            "provider": provider,
+            "auth_env_var": auth_env,
+            "auth_env_present": False,
+            "remote_call_attempted": False,
+            "verification_method": "local_configuration_only",
+            "message": f"Set {auth_env} in the local environment or use Codex login/provider auth before relying on LLM-dependent paths.",
+            "secret_material": "not_read_or_reported",
+        }
+    return {
+        "status": "configured",
+        "diagnostic_code": "auth_env_present_remote_call_not_attempted",
+        "provider": provider,
+        "auth_env_var": auth_env,
+        "auth_env_present": True,
+        "remote_call_attempted": False,
+        "verification_method": "local_environment_presence",
+        "message": "Provider credential variable is present locally; the health check does not print secrets or make a remote model call.",
+        "secret_material": "not_read_or_reported",
+    }
+
+
+def roster_health_route_command(config: HubConfig, utterance: str, target: Path, *, create: bool = False, packet_id: str | None = None) -> list[str]:
+    command = [
+        "bash",
+        str(config.scripts_dir / "brain.sh"),
+        "--config",
+        str(config.config_path),
+        "packet-route",
+        utterance,
+        "--path",
+        str(target),
+        "--json",
+    ]
+    if create:
+        command.append("--create")
+    if packet_id:
+        command.extend(["--id", packet_id])
+    return command
+
+
+def run_roster_health_route(config: HubConfig, utterance: str, target: Path, *, create: bool = False, packet_id: str | None = None) -> dict[str, Any]:
+    command = roster_health_route_command(config, utterance, target, create=create, packet_id=packet_id)
+    proc = subprocess.run(
+        command,
+        cwd=config.workspace_root,
+        text=True,
+        capture_output=True,
+        check=False,
+        env=os.environ.copy(),
+    )
+    payload: dict[str, Any] | None = None
+    parse_error = None
+    if proc.stdout.strip():
+        try:
+            parsed = json.loads(proc.stdout)
+            if isinstance(parsed, dict):
+                payload = parsed
+            else:
+                parse_error = "stdout_json_not_object"
+        except json.JSONDecodeError as exc:
+            parse_error = f"invalid_json_stdout: {exc}"
+    else:
+        parse_error = "empty_stdout"
+    return {
+        "command": " ".join(shlex.quote(part) for part in command),
+        "returncode": proc.returncode,
+        "payload": payload,
+        "stdout_parse_error": parse_error,
+        "stderr": proc.stderr.strip(),
+    }
+
+
+def path_is_under(root: Path, path_value: str | None) -> bool:
+    if not path_value:
+        return False
+    try:
+        Path(path_value).expanduser().resolve().relative_to(root.resolve())
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def roster_packet_output_check(target: Path, route_result: dict[str, Any]) -> dict[str, Any]:
+    payload = route_result.get("payload") if isinstance(route_result.get("payload"), dict) else {}
+    artifact_payload = payload.get("artifact_harness") if isinstance(payload.get("artifact_harness"), dict) else {}
+    packets = artifact_payload.get("packets") if isinstance(artifact_payload.get("packets"), dict) else {}
+    paths_to_check = [
+        artifact_payload.get("run_dir"),
+        artifact_payload.get("registry_path"),
+        artifact_payload.get("manifest"),
+        artifact_payload.get("status_path"),
+        *packets.values(),
+    ]
+    under_target = all(path_is_under(target, str(path)) for path in paths_to_check if path)
+    expected_paths_exist = all(Path(str(path)).exists() for path in paths_to_check if path)
+    created = bool(artifact_payload.get("created") is True and artifact_payload.get("refused") is False)
+    status = "success" if route_result.get("returncode") == 0 and created and under_target and expected_paths_exist else "failed"
+    reason = None
+    if status != "success":
+        reason = artifact_payload.get("reason") or payload.get("reason") or route_result.get("stdout_parse_error") or "packet_output_check_failed"
+    return {
+        "status": status,
+        "packet_id": artifact_payload.get("id"),
+        "target_path": str(target),
+        "run_dir": artifact_payload.get("run_dir"),
+        "registry_path": artifact_payload.get("registry_path"),
+        "manifest": artifact_payload.get("manifest"),
+        "created": created,
+        "under_target_workspace": under_target,
+        "expected_paths_exist": expected_paths_exist,
+        "reason": reason,
+    }
+
+
+def restore_roster_health_registry(registry_path: Path, registry_before: str | None) -> dict[str, Any]:
+    if registry_before is None:
+        if registry_path.exists():
+            registry_path.unlink()
+        return {"registry_restored": True, "registry_removed": True}
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
+    registry_path.write_text(registry_before, encoding="utf-8")
+    return {"registry_restored": True, "registry_removed": False}
+
+
+def remove_empty_dirs_up_to(path: Path, stop: Path) -> list[str]:
+    removed: list[str] = []
+    current = path.resolve()
+    stop_resolved = stop.resolve()
+    while current != stop_resolved:
+        try:
+            current.relative_to(stop_resolved)
+        except ValueError:
+            break
+        try:
+            current.rmdir()
+            removed.append(str(current))
+        except OSError:
+            break
+        current = current.parent
+    return removed
+
+
+def cleanup_roster_packet_output(target: Path, packet_output: dict[str, Any], registry_before: str | None) -> dict[str, Any]:
+    cleanup = {
+        "attempted": True,
+        "status": "skipped",
+        "run_dir_removed": False,
+        "registry_restored": False,
+        "registry_removed": False,
+        "empty_dirs_removed": [],
+        "reason": None,
+    }
+    run_dir_value = packet_output.get("run_dir")
+    registry_value = packet_output.get("registry_path")
+    if not path_is_under(target, str(run_dir_value)) or not path_is_under(target, str(registry_value)):
+        cleanup["status"] = "skipped"
+        cleanup["reason"] = "output_paths_not_under_target_workspace"
+        return cleanup
+
+    run_dir = Path(str(run_dir_value)).expanduser().resolve()
+    registry_path = Path(str(registry_value)).expanduser().resolve()
+    if run_dir.exists():
+        shutil.rmtree(run_dir)
+        cleanup["run_dir_removed"] = True
+    registry_cleanup = restore_roster_health_registry(registry_path, registry_before)
+    cleanup.update(registry_cleanup)
+    removed_dirs: list[str] = []
+    removed_dirs.extend(remove_empty_dirs_up_to(run_dir.parent, target))
+    removed_dirs.extend(remove_empty_dirs_up_to(registry_path.parent, target))
+    cleanup["empty_dirs_removed"] = removed_dirs
+    cleanup["status"] = "success"
+    return cleanup
+
+
+def build_roster_health_report(
+    config: HubConfig,
+    target_arg: str,
+    packet_id_arg: str | None,
+    provider: str | None,
+    auth_env: str | None,
+    keep_artifacts: bool = False,
+    codex_home: str | None = None,
+    skills_root: str | None = None,
+) -> tuple[int, dict[str, Any], list[str]]:
+    target = Path(target_arg).expanduser().resolve()
+    packet_id = (packet_id_arg or "").strip() or new_record_id(ROSTER_HEALTH_DEFAULT_ID)
+    generated_at = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    if not target.exists():
+        payload = {
+            "schema_version": 1,
+            "report_type": "roster_install_register_health",
+            "generated_at": generated_at,
+            "target_path": str(target),
+            "overall_status": "failed",
+            "refused": True,
+            "reason": "missing_target",
+        }
+        return 1, payload, [f"Target path does not exist: {target}"]
+    if not target.is_dir():
+        payload = {
+            "schema_version": 1,
+            "report_type": "roster_install_register_health",
+            "generated_at": generated_at,
+            "target_path": str(target),
+            "overall_status": "failed",
+            "refused": True,
+            "reason": "target_not_directory",
+        }
+        return 1, payload, [f"Target path must be a directory: {target}"]
+
+    visibility_result = run_roster_health_route(config, ROSTER_HEALTH_VISIBILITY_UTTERANCE, target)
+    visibility_payload = visibility_result.get("payload") if isinstance(visibility_result.get("payload"), dict) else {}
+    visible = (
+        visibility_result.get("returncode") == 0
+        and visibility_payload.get("matched") is True
+        and "roster" in visibility_payload.get("recognized_front_doors", [])
+    )
+    visibility_status = "visible" if visible else "unavailable"
+    registry_path = artifact_harness_registry_path_for_target(config, target)
+    registry_before = registry_path.read_text(encoding="utf-8") if path_is_under(target, str(registry_path)) and registry_path.exists() else None
+    packet_result = run_roster_health_route(config, ROSTER_HEALTH_PACKET_UTTERANCE, target, create=True, packet_id=packet_id) if visible else {}
+    packet_output = roster_packet_output_check(target, packet_result) if visible else {
+        "status": "skipped",
+        "packet_id": packet_id,
+        "target_path": str(target),
+        "run_dir": None,
+        "registry_path": None,
+        "created": False,
+        "under_target_workspace": False,
+        "expected_paths_exist": False,
+        "reason": "invocation_surface_unavailable",
+    }
+    if visible and packet_output.get("status") == "success" and not keep_artifacts:
+        packet_output["cleanup"] = cleanup_roster_packet_output(target, packet_output, registry_before)
+    elif visible and packet_output.get("status") == "success":
+        packet_output["cleanup"] = {"attempted": False, "status": "kept", "reason": "keep_artifacts_requested"}
+    provider_check = build_roster_provider_check(provider, auth_env)
+    installed_skill = roster_skill_install_check(codex_home, skills_root, requested=bool(codex_home or skills_root))
+    dependency_check = {
+        "persistent_server_required": False,
+        "daemon_required": False,
+        "database_required": False,
+        "separate_ui_required": False,
+        "external_control_plane_required": False,
+        "verified_repo_native_adapter": ROSTER_VERIFIED_INVOCATION_MECHANISM,
+    }
+    blocking = []
+    if not visible:
+        blocking.append("invocation_surface_unavailable")
+    if packet_output.get("status") != "success":
+        blocking.append("packet_output_failed")
+    if installed_skill.get("requested") and installed_skill.get("status") != "installed":
+        blocking.append("roster_skill_not_installed")
+    if blocking:
+        overall_status = "failed"
+    elif provider_check.get("status") in {"missing_provider", "missing_auth"}:
+        overall_status = "degraded"
+    else:
+        overall_status = "healthy"
+    payload = {
+        "schema_version": 1,
+        "report_type": "roster_install_register_health",
+        "generated_at": generated_at,
+        "kit_root": str(config.workspace_root),
+        "target_path": str(target),
+        "overall_status": overall_status,
+        "refused": False,
+        "reason": None,
+        "product_target": ROSTER_PRODUCT_TARGET,
+        "verified_invocation_mechanism": {
+            "status": visibility_status,
+            "mechanism_type": "repo_cli_adapter",
+            "name": ROSTER_VERIFIED_INVOCATION_MECHANISM,
+            "command": visibility_result.get("command"),
+            "matched": bool(visibility_payload.get("matched")),
+            "recognized_front_doors": visibility_payload.get("recognized_front_doors", []),
+            "matched_keywords": visibility_payload.get("matched_keywords", []),
+            "current_codex_surface": {
+                "mention_at_roster": "product_target_unverified_as_installed_codex_mention",
+                "skill": installed_skill.get("status"),
+                "plugin": "not_registered_by_this_repo_health_check",
+                "app_mention": "not_registered_by_this_repo_health_check",
+                "slash_command": "not_verified",
+            },
+            "unavailable_reason": None if visible else (visibility_payload.get("reason") or visibility_result.get("stdout_parse_error") or visibility_result.get("stderr") or "route_not_visible"),
+        },
+        "installed_skill": installed_skill,
+        "packet_output": packet_output,
+        "llm_provider": provider_check,
+        "runtime_dependency_check": dependency_check,
+        "portable_setup": [
+            "repo files: scripts/brain.sh, scripts/system_hub.py, policy/system_hub.toml, contexts/team_alias_registry.json, skills/roster, templates/",
+            "install adapter: scripts/brain.sh roster-install --codex-home <codex-home>",
+            "verified adapter: scripts/brain.sh packet-route, then artifact-harness packet output under --path",
+        ],
+        "machine_local_state": [
+            "Codex login/session state",
+            "provider API keys or local auth environment variables",
+            "personal memory, caches, and machine-local overlays",
+        ],
+        "blocking_findings": blocking,
+        "route_checks": {
+            "visibility": visibility_result,
+            "packet_create": packet_result if visible else None,
+        },
+    }
+    return command_exit_code(overall_status), payload, []
+
+
+def render_roster_health_markdown(payload: dict[str, Any]) -> str:
+    lines = [
+        "# Roster Health Check",
+        "",
+        f"- Overall status: `{payload.get('overall_status')}`",
+        f"- Product target: `{payload.get('product_target')}`",
+        f"- Verified mechanism: `{payload.get('verified_invocation_mechanism', {}).get('name')}`",
+        f"- Invocation surface: `{payload.get('verified_invocation_mechanism', {}).get('status')}`",
+        f"- Installed skill: `{payload.get('installed_skill', {}).get('status')}`",
+        f"- Target path: `{payload.get('target_path')}`",
+        f"- Packet output: `{payload.get('packet_output', {}).get('status')}`",
+        f"- LLM/provider: `{payload.get('llm_provider', {}).get('status')}`",
+        "",
+        "## Boundaries",
+        "",
+        "- `@roster` remains the product target; this check does not prove an installed Codex mention.",
+        "- No persistent server, daemon, database, separate UI, or external control plane is required.",
+        "- Provider secrets are checked only for presence and are not printed.",
+        "",
+    ]
+    if payload.get("blocking_findings"):
+        lines.extend(["## Blocking Findings", ""])
+        lines.extend(f"- `{finding}`" for finding in payload["blocking_findings"])
+        lines.append("")
+    return "\n".join(lines)
+
+
+def do_roster_health(
+    config: HubConfig,
+    target_arg: str,
+    packet_id: str | None,
+    provider: str | None,
+    auth_env: str | None,
+    codex_home: str | None,
+    skills_root: str | None,
+    keep_artifacts: bool = False,
+    emit_json: bool = False,
+) -> int:
+    code, payload, errors = build_roster_health_report(config, target_arg, packet_id, provider, auth_env, keep_artifacts, codex_home, skills_root)
+    for line in errors:
+        print(line, file=sys.stderr)
+    if emit_json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print(render_roster_health_markdown(payload), end="")
     return code
 
 
@@ -10239,6 +10899,10 @@ def main() -> int:
             return do_artifact_harness(config, args.mission, args.path, args.id, args.artifact, args.force, args.json)
         if args.command == "packet-route":
             return do_packet_route(config, args.utterance, args.path, args.id, args.create, args.artifact, args.force, args.json)
+        if args.command == "roster-install":
+            return do_roster_install(config, args.codex_home, args.skills_root, args.force, args.json)
+        if args.command == "roster-health":
+            return do_roster_health(config, args.path, args.id, args.provider, args.auth_env, args.codex_home, args.skills_root, args.keep_artifacts, args.json)
         if args.command == "overlay":
             return do_overlay(config, args.path)
         if args.command == "closeout":

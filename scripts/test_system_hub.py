@@ -230,6 +230,24 @@ def team_alias_registry_payload() -> str:
             "version": "test",
             "aliases": [
                 {
+                    "id": "roster",
+                    "aliases": ["Roster", "@roster"],
+                    "entity_type": "artifact_coordination_surface",
+                    "status": "active_local_alias",
+                    "target_route": "artifact_harness_workflow",
+                    "workflow_stage": "Artifact Harness SPEC",
+                },
+                {
+                    "id": "project_manager_alias",
+                    "aliases": ["PM"],
+                    "entity_type": "natural_language_alias",
+                    "status": "active_local_alias",
+                    "target_route": "artifact_harness_workflow",
+                    "workflow_stage": "Artifact Harness SPEC",
+                    "requires_leading_invocation": True,
+                    "requires_artifact_context": True,
+                },
+                {
                     "id": "human_resources",
                     "aliases": ["HR", "Human Resources", "ask HR", "route to HR"],
                     "entity_type": "team_surface",
@@ -513,6 +531,9 @@ def make_workspace(
     test_runtime = ROOT / "scripts" / "test_system_hub.py"
     if test_runtime.exists():
         shutil.copy2(test_runtime, scripts_dir / "test_system_hub.py")
+    roster_skill_source = ROOT / "skills" / "roster"
+    if roster_skill_source.exists():
+        shutil.copytree(roster_skill_source, ws / "skills" / "roster")
     (scripts_dir / "brain.sh").chmod(0o755)
     (scripts_dir / "system_hub.py").chmod(0o755)
 
@@ -983,6 +1004,8 @@ def test_capabilities_reports_new_commands_and_active_skills() -> None:
         result = run_brain(ws, "capabilities")
         assert_true(result.returncode == 0, f"capabilities expected 0, got {result.returncode}")
         assert_true("`intake`" in result.stdout, "capabilities should list intake command")
+        assert_true("`roster-install`" in result.stdout, "capabilities should list roster-install command")
+        assert_true("`roster-health`" in result.stdout, "capabilities should list roster-health command")
         assert_true("`capabilities`" in result.stdout, "capabilities should list capabilities command")
         assert_true("## Active Skills" in result.stdout, "capabilities should report active skills")
         assert_true("Continuity entrypoint: `True`" in result.stdout, "capabilities should report continuity entrypoint")
@@ -2365,6 +2388,52 @@ def test_packet_route_natural_artifact_missions_are_create_ready() -> None:
         assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "natural route without --create should not write packets")
 
 
+def test_packet_route_roster_aliases_route_to_artifact_harness() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-roster-aliases-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        cases = [
+            ("@roster 幫我把這個 slide 任務安排好", "roster", "@roster"),
+            ("Roster, set up the team and task boundary for this artifact", "roster", "Roster"),
+            ("PM, organize this artifact task", "project_manager_alias", "PM"),
+        ]
+        for utterance, expected_front_door, expected_keyword in cases:
+            result = run_brain(ws, "packet-route", utterance, "--path", str(folder), "--json")
+            assert_true(result.returncode == 0, f"roster alias route expected 0 for {utterance!r}, got {result.returncode}, stderr={result.stderr}")
+            payload = json.loads(result.stdout)
+            assert_true(payload["matched"] is True, f"roster alias route should match for {utterance!r}")
+            assert_true(expected_front_door in payload["recognized_front_doors"], f"{expected_front_door} should be recorded as a front door")
+            assert_true(payload["recommended_route"] == "artifact_harness_workflow", "Roster aliases should route to Artifact Harness workflow")
+            assert_true(payload["chain_start"] == "Artifact Harness SPEC", "Roster aliases should keep artifact production SPEC-first")
+            assert_true(payload["user_intent"] == "artifact_production", "Roster aliases should expose artifact-production intent")
+            assert_true(payload["create_allowed"] is True, "concrete Roster alias routes should allow packet-chain creation")
+            assert_true(payload["recommended_command"] is not None, "concrete Roster alias routes should expose a create command")
+            assert_true(expected_keyword in payload["matched_keywords"], f"{expected_keyword} should be reported as a matched alias")
+            assert_true(
+                any(candidate.get("matched_id") == expected_front_door and candidate.get("route") == "artifact_harness_workflow" for candidate in payload["candidate_routes"]),
+                "alias candidate should point at the Artifact Harness workflow",
+            )
+            assert_true(payload["boundaries"]["human_resources"] == "staffing and role design only", "Roster aliases must not transfer coordination ownership to HR")
+            assert_true(payload["boundaries"]["capability_access_packet"].startswith("skill/plugin/tool authorization"), "Roster aliases must preserve CAP authorization boundary")
+        assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "route aliases without --create should not write packets")
+
+
+def test_packet_route_pm_alias_requires_artifact_context() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-pm-ambiguous-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "ordinary_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        for utterance in ("what time is the meeting at 5 PM tomorrow", "PM, can you join the meeting at 5 PM?"):
+            result = run_brain(ws, "packet-route", utterance, "--path", str(folder), "--json")
+            assert_true(result.returncode == 0, f"ambiguous PM route expected 0 for {utterance!r}, got {result.returncode}, stderr={result.stderr}")
+            payload = json.loads(result.stdout)
+            assert_true(payload["matched"] is False, f"ambiguous PM text should not match for {utterance!r}")
+            assert_true(payload["recommended_route"] == "none", "ambiguous PM text should remain an ordinary miss")
+            assert_true(payload["refused"] is False, "JSON miss should remain parseable and non-refusal")
+        assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "ambiguous PM miss should not write packets")
+
+
 def test_packet_route_underspecified_artifact_hint_refuses_create() -> None:
     with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-clarify-") as tmp_s:
         ws = make_workspace(Path(tmp_s))
@@ -2444,6 +2513,39 @@ def test_packet_route_requirement_form_create_writes_packet_chain() -> None:
         assert_true("artifact_harness_spec" in registry["entries"][0]["packets"], "created chain should include SPEC packet")
 
 
+def test_packet_route_roster_create_from_temp_cwd_writes_target_workspace() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-roster-create-") as tmp_s:
+        tmp = Path(tmp_s)
+        cwd = tmp / "cwd"
+        target = tmp / "target_workspace"
+        cwd.mkdir(parents=True, exist_ok=True)
+        target.mkdir(parents=True, exist_ok=True)
+        brain = ROOT / "scripts" / "brain.sh"
+        result = subprocess.run(
+            [
+                str(brain),
+                "packet-route",
+                "@roster 幫我把這個 slide 任務安排好",
+                "--path",
+                str(target),
+                "--create",
+                "--json",
+            ],
+            cwd=cwd,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert_true(result.returncode == 0, f"@roster packet-route --create expected 0, got {result.returncode}, stderr={result.stderr}")
+        payload = json.loads(result.stdout)
+        assert_true(payload["matched"] is True, "@roster create route should match")
+        assert_true(payload["recommended_route"] == "artifact_harness_workflow", "@roster create should target Artifact Harness")
+        assert_true(payload["artifact_harness"]["created"] is True, "@roster create should write an Artifact Harness chain")
+        assert_true(Path(payload["artifact_harness"]["registry_path"]).resolve() == (target / "contexts" / "artifact_harness_registry.json").resolve(), "registry should live under the target workspace")
+        assert_true((target / "contexts" / "artifact_harness_registry.json").exists(), "target workspace should receive packet registry")
+        assert_true(not (cwd / "contexts" / "artifact_harness_registry.json").exists(), "calling cwd should not receive packet registry")
+
+
 def test_packet_route_downstream_front_doors_are_spec_first_without_id() -> None:
     with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-downstream-") as tmp_s:
         ws = make_workspace(Path(tmp_s))
@@ -2463,6 +2565,7 @@ def test_packet_route_downstream_front_doors_are_spec_first_without_id() -> None
         assert_true(cap_payload["recognized_front_doors"] == ["capability_access_packet"], "CAP should be distinguished as a front door")
         assert_true(cap_payload["recommended_route"] == "artifact_harness_workflow", "CAP artifact request should start SPEC-first")
         assert_true(cap_payload["handoff_target"] == "Capability Access Packet", "CAP handoff should be recorded")
+        assert_true(cap_payload["boundaries"]["capability_access_packet"].endswith("runtime allowlist only"), "CAP route should remain capability authorization only")
 
         runtime = run_brain(ws, "packet-route", "runtime mapping for this packet", "--path", str(folder), "--json")
         assert_true(runtime.returncode == 0, f"runtime mapping route expected 0, got {runtime.returncode}, stderr={runtime.stderr}")
@@ -2627,6 +2730,171 @@ def test_packet_route_non_artifact_phrase_does_not_route() -> None:
         assert_true("Matched: `false`" in result.stdout, "packet-route should not match non-artifact phrases")
         assert_true("Route: `none`" in result.stdout, "packet-route miss should not name an artifact route")
         assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "packet-route miss should not write artifact harness registry")
+
+
+def test_roster_health_smoke_json_reports_missing_provider_and_target_packet_output() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-roster-health-smoke-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        cwd = Path(tmp_s) / "cwd"
+        target = Path(tmp_s) / "target_workspace"
+        cwd.mkdir(parents=True, exist_ok=True)
+        target.mkdir(parents=True, exist_ok=True)
+        brain = ROOT / "scripts" / "brain.sh"
+        result = subprocess.run(
+            [
+                str(brain),
+                "roster-health",
+                "--path",
+                str(target),
+                "--id",
+                "roster-health-smoke",
+                "--json",
+            ],
+            cwd=cwd,
+            text=True,
+            capture_output=True,
+            check=False,
+            env={
+                **os.environ,
+                "SYSTEM_HUB_CONFIG": str(ws / "policy" / "system_hub.toml"),
+                "ROSTER_LLM_PROVIDER": "",
+                "OPENAI_API_KEY": "",
+            },
+        )
+        assert_true(result.returncode == 2, f"roster-health should return degraded with structured missing-provider diagnostics, got {result.returncode}, stderr={result.stderr}")
+        payload = json.loads(result.stdout)
+        assert_true(payload["report_type"] == "roster_install_register_health", "health JSON should identify report type")
+        assert_true(payload["overall_status"] == "degraded", "missing provider should degrade rather than hide diagnostics")
+        assert_true(payload["verified_invocation_mechanism"]["status"] == "visible", "Roster alias should be visible through packet-route")
+        assert_true(payload["verified_invocation_mechanism"]["name"] == "scripts/brain.sh packet-route", "health should name the verified invocation mechanism")
+        assert_true(payload["verified_invocation_mechanism"]["current_codex_surface"]["mention_at_roster"] == "product_target_unverified_as_installed_codex_mention", "health must not claim installed @roster mention support")
+        assert_true(payload["packet_output"]["status"] == "success", "health should write a packet through the verified route")
+        assert_true(Path(payload["packet_output"]["run_dir"]).resolve() == (target / "contexts" / "artifact_harness_runs" / "roster-health-smoke").resolve(), "health packet run should live under target workspace")
+        assert_true(Path(payload["packet_output"]["registry_path"]).resolve() == (target / "contexts" / "artifact_harness_registry.json").resolve(), "health registry should live under target workspace")
+        assert_true(payload["packet_output"]["under_target_workspace"] is True, "health JSON should verify packet paths are under the target workspace")
+        assert_true(payload["llm_provider"]["status"] == "missing_provider", "provider absence should be structured")
+        assert_true(payload["runtime_dependency_check"]["persistent_server_required"] is False, "health should not require a persistent server")
+        assert_true(payload["runtime_dependency_check"]["daemon_required"] is False, "health should not require a daemon")
+        assert_true(payload["runtime_dependency_check"]["database_required"] is False, "health should not require a database")
+        assert_true(payload["runtime_dependency_check"]["external_control_plane_required"] is False, "health should not require a hidden control plane")
+        assert_true(payload["packet_output"]["cleanup"]["status"] == "success", "default health check should clean up packet output after verification")
+        assert_true(payload["packet_output"]["cleanup"]["run_dir_removed"] is True, "default health check should remove the smoke run directory")
+        assert_true(payload["packet_output"]["cleanup"]["registry_removed"] is True, "default health check should remove a health-created registry")
+        assert_true(not (target / "contexts" / "artifact_harness_registry.json").exists(), "default health check should not leave a target registry")
+        assert_true(not (target / "contexts" / "artifact_harness_runs").exists(), "default health check should not leave target packet runs")
+        assert_true(not (cwd / "contexts" / "artifact_harness_registry.json").exists(), "calling cwd should not receive health packet output")
+
+
+def test_roster_health_provider_missing_auth_and_configured_auth_are_structured_without_secret_leak() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-roster-health-provider-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        missing_auth = run_brain(
+            ws,
+            "roster-health",
+            "--path",
+            str(folder),
+            "--id",
+            "roster-health-provider-missing-auth",
+            "--provider",
+            "openai",
+            "--json",
+            extra_env={"OPENAI_API_KEY": "", "ROSTER_LLM_PROVIDER": ""},
+        )
+        assert_true(missing_auth.returncode == 2, f"roster-health missing-auth diagnostics should be parseable as degraded, got {missing_auth.returncode}, stderr={missing_auth.stderr}")
+        missing_payload = json.loads(missing_auth.stdout)
+        assert_true(missing_payload["overall_status"] == "degraded", "missing auth should degrade health")
+        assert_true(missing_payload["llm_provider"]["status"] == "missing_auth", "missing provider env should be structured as missing_auth")
+        assert_true(missing_payload["llm_provider"]["auth_env_var"] == "OPENAI_API_KEY", "openai default auth env should be named exactly")
+        assert_true(missing_payload["llm_provider"]["secret_material"] == "not_read_or_reported", "missing-auth diagnostics should not read or report secrets")
+        assert_true(missing_payload["packet_output"]["cleanup"]["status"] == "success", "missing-auth health check should still clean smoke output")
+
+        configured = run_brain(
+            ws,
+            "roster-health",
+            "--path",
+            str(folder),
+            "--id",
+            "roster-health-provider-configured",
+            "--provider",
+            "openai",
+            "--json",
+            extra_env={"OPENAI_API_KEY": "placeholder-roster-health-token", "ROSTER_LLM_PROVIDER": ""},
+        )
+        assert_true(configured.returncode == 0, f"roster-health configured provider should pass local env check, got {configured.returncode}, stderr={configured.stderr}")
+        configured_payload = json.loads(configured.stdout)
+        assert_true(configured_payload["overall_status"] == "healthy", "auth env presence should make the local provider path healthy")
+        assert_true(configured_payload["llm_provider"]["status"] == "configured", "provider env presence should be reported as configured")
+        assert_true(configured_payload["llm_provider"]["auth_env_present"] is True, "health should expose env presence as boolean")
+        assert_true(configured_payload["llm_provider"]["remote_call_attempted"] is False, "health should not pretend to make a remote model call")
+        assert_true("placeholder-roster-health-token" not in configured.stdout, "health output must not print provider secrets")
+        assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "roster-health should clean smoke registry after provider checks")
+
+
+def test_roster_health_missing_target_json_refusal_is_parseable() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-roster-health-missing-target-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        missing_target = ws / "missing_target"
+        result = run_brain(ws, "roster-health", "--path", str(missing_target), "--json")
+        assert_true(result.returncode != 0, "roster-health should fail for a missing target")
+        payload = json.loads(result.stdout)
+        assert_true(payload["refused"] is True, "missing target should emit refusal JSON")
+        assert_true(payload["reason"] == "missing_target", "missing target refusal should identify missing_target")
+        assert_true(payload["overall_status"] == "failed", "missing target should fail health")
+
+
+def test_roster_install_temp_codex_home_and_health_detects_skill() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-roster-install-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        codex_home = Path(tmp_s) / "fresh_codex_home"
+        target = Path(tmp_s) / "target_workspace"
+        target.mkdir(parents=True, exist_ok=True)
+
+        install = run_brain(ws, "roster-install", "--codex-home", str(codex_home), "--json")
+        assert_true(install.returncode == 0, f"roster-install should succeed in temp Codex home, got {install.returncode}, stderr={install.stderr}")
+        install_payload = json.loads(install.stdout)
+        skill_path = codex_home / "skills" / "roster"
+        manifest_path = skill_path / "references" / "install_manifest.json"
+        assert_true(install_payload["installed"] is True, "install JSON should report installed=true")
+        assert_true(Path(install_payload["skill_path"]).resolve() == skill_path.resolve(), "install JSON should point to temp Codex home skill")
+        assert_true((skill_path / "SKILL.md").exists(), "roster-install should copy SKILL.md")
+        assert_true(manifest_path.exists(), "roster-install should write install manifest")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert_true(manifest["skill_name"] == "roster", "install manifest should identify roster skill")
+        assert_true(manifest["current_user_invocation"] == "Roster, <task>", "install manifest should name truthful current invocation")
+        assert_true(manifest["at_roster_status"] == "product_target_unverified_as_installed_codex_mention", "install manifest must not claim @roster")
+
+        duplicate = run_brain(ws, "roster-install", "--codex-home", str(codex_home), "--json")
+        duplicate_payload = json.loads(duplicate.stdout)
+        assert_true(duplicate.returncode != 0, "roster-install should refuse existing skill without --force")
+        assert_true(duplicate_payload["reason"] == "existing_roster_skill", "duplicate install should identify existing skill")
+
+        health = run_brain(
+            ws,
+            "roster-health",
+            "--codex-home",
+            str(codex_home),
+            "--path",
+            str(target),
+            "--id",
+            "roster-install-health-smoke",
+            "--provider",
+            "local-test",
+            "--auth-env",
+            "ROSTER_TEST_API_KEY",
+            "--json",
+            extra_env={"ROSTER_TEST_API_KEY": "placeholder-roster-test-token", "ROSTER_LLM_PROVIDER": ""},
+        )
+        assert_true(health.returncode == 0, f"roster-health should pass with installed skill and local provider env, got {health.returncode}, stderr={health.stderr}")
+        health_payload = json.loads(health.stdout)
+        assert_true(health_payload["overall_status"] == "healthy", "installed-skill health should be healthy with local provider env")
+        assert_true(health_payload["installed_skill"]["status"] == "installed", "health should detect installed roster skill")
+        assert_true(health_payload["verified_invocation_mechanism"]["current_codex_surface"]["skill"] == "installed", "health surface should report skill installed")
+        assert_true(health_payload["packet_output"]["cleanup"]["status"] == "success", "health should clean smoke packet output")
+        assert_true("placeholder-roster-test-token" not in health.stdout, "health output must not print provider secrets")
+        assert_true(not (target / "contexts" / "artifact_harness_registry.json").exists(), "health should clean target registry")
+        assert_true(not (target / "contexts" / "artifact_harness_runs").exists(), "health should clean target packet runs")
 
 
 def test_skill_route_gap_triggers_discovery() -> None:
@@ -3653,10 +3921,13 @@ def main() -> int:
         test_repo_does_not_carry_smoke_artifact_harness_outputs,
         test_packet_route_keyword_routes_to_artifact_harness,
         test_packet_route_natural_artifact_missions_are_create_ready,
+        test_packet_route_roster_aliases_route_to_artifact_harness,
+        test_packet_route_pm_alias_requires_artifact_context,
         test_packet_route_underspecified_artifact_hint_refuses_create,
         test_packet_route_front_door_hr_artifact_is_spec_first,
         test_packet_route_front_door_hr_only_does_not_create_packets,
         test_packet_route_requirement_form_create_writes_packet_chain,
+        test_packet_route_roster_create_from_temp_cwd_writes_target_workspace,
         test_packet_route_downstream_front_doors_are_spec_first_without_id,
         test_packet_route_short_alias_does_not_match_inside_words,
         test_packet_route_existing_id_routes_to_safe_existing_packet_command,
@@ -3665,6 +3936,10 @@ def main() -> int:
         test_packet_route_create_writes_artifact_harness_chain,
         test_packet_route_create_refuses_rerun_without_force,
         test_packet_route_non_artifact_phrase_does_not_route,
+        test_roster_health_smoke_json_reports_missing_provider_and_target_packet_output,
+        test_roster_health_provider_missing_auth_and_configured_auth_are_structured_without_secret_leak,
+        test_roster_health_missing_target_json_refusal_is_parseable,
+        test_roster_install_temp_codex_home_and_health_detects_skill,
         test_skill_route_gap_triggers_discovery,
         test_skill_route_uses_closeout_quality_signals,
         test_skill_review_lists_open_proposals,
