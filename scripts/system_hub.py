@@ -178,16 +178,23 @@ ROSTER_QUALITY_DIRECTION_TERMS = (
     "驗收",
 )
 ROSTER_QUALITY_DIRECTION_ACTION_TERMS = (
+    "check",
     "set",
     "setting",
     "settings",
     "define",
     "configure",
     "direction",
+    "review",
+    "inspect",
+    "run",
+    "做",
     "設定",
     "怎麼",
     "如何",
     "要怎麼",
+    "檢查",
+    "檢視",
     "幫我看",
     "看",
     "安排",
@@ -9321,13 +9328,6 @@ def do_packet_route(
                 chain_start = "Artifact Harness SPEC"
                 handoff_target = packet_route_handoff_for_front_doors(downstream_front_doors)
                 reason = "packet id was supplied but no existing run was found; do not bypass missing upstream packets"
-        elif quality_details.get("detected"):
-            recommended_route = "roster_quality_direction"
-            recommended_command = None
-            create_allowed = False
-            chain_start = None
-            handoff_target = None
-            reason = "Roster Quality direction request; answer directly with short-term and long-term self-check guidance"
         elif artifact_intent:
             recommended_route = "artifact_harness_workflow"
             recommended_command = None if needs_clarification else artifact_harness_command(config, entrypoint, utterance, target, expected_artifact, force, packet_id)
@@ -9335,6 +9335,13 @@ def do_packet_route(
             chain_start = "Artifact Harness SPEC"
             handoff_target = packet_route_handoff_for_front_doors(recognized_front_doors)
             reason = "artifact-production intent uses the SPEC-first Artifact Harness workflow" if create_allowed else "artifact request needs clarification before packet creation"
+        elif quality_details.get("detected"):
+            recommended_route = "roster_quality_direction"
+            recommended_command = None
+            create_allowed = False
+            chain_start = None
+            handoff_target = None
+            reason = "Roster Quality direction request; answer directly with short-term and long-term self-check guidance"
         elif "human_resources" in recognized_front_doors:
             recommended_route = "human_resources"
             recommended_command = None

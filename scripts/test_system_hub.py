@@ -2424,19 +2424,45 @@ def test_packet_route_roster_quality_direction_is_plain_self_check() -> None:
         ws = make_workspace(Path(tmp_s))
         folder = ws / "quality_case"
         folder.mkdir(parents=True, exist_ok=True)
-        result = run_brain(ws, "packet-route", "Roster，幫我看 Lecture1 的 Quality 要怎麼設定", "--path", str(folder), "--json")
-        assert_true(result.returncode == 0, f"Roster Quality route expected 0, got {result.returncode}, stderr={result.stderr}")
-        payload = json.loads(result.stdout)
-        assert_true(payload["matched"] is True, "Roster Quality prompt should match the Roster front door")
-        assert_true(payload["recommended_route"] == "roster_quality_direction", "Quality direction should not become a packet-creation route")
-        assert_true(payload["user_intent"] == "quality_direction", "Quality prompt should expose quality_direction intent")
-        assert_true(payload["create_allowed"] is False, "Quality direction should answer directly without creating packets")
-        assert_true(payload["recommended_command"] is None, "Quality direction should not emit an Artifact Harness create command")
-        assert_true(payload["quality_direction"]["detected"] is True, "Quality direction details should be structured")
-        assert_true("Quality" in payload["quality_direction"]["quality_terms"], "Quality term should be recorded")
-        assert_true(payload["quality_direction"]["short_term_focus"], "Quality direction should include short-term self-check focus")
-        assert_true(payload["quality_direction"]["long_term_focus"], "Quality direction should include long-term improvement focus")
+        cases = [
+            ("Roster，幫我看 Lecture1 的 Quality 要怎麼設定", "Quality"),
+            ("Roster，幫我檢查 Lecture1 的品質", "品質"),
+            ("Roster，幫我做自我檢查", "自我檢查"),
+        ]
+        for utterance, expected_quality_term in cases:
+            result = run_brain(ws, "packet-route", utterance, "--path", str(folder), "--json")
+            assert_true(result.returncode == 0, f"Roster Quality route expected 0 for {utterance!r}, got {result.returncode}, stderr={result.stderr}")
+            payload = json.loads(result.stdout)
+            assert_true(payload["matched"] is True, "Roster Quality prompt should match the Roster front door")
+            assert_true(payload["recommended_route"] == "roster_quality_direction", "Quality direction should not become a packet-creation route")
+            assert_true(payload["user_intent"] == "quality_direction", "Quality prompt should expose quality_direction intent")
+            assert_true(payload["create_allowed"] is False, "Quality direction should answer directly without creating packets")
+            assert_true(payload["recommended_command"] is None, "Quality direction should not emit an Artifact Harness create command")
+            assert_true(payload["quality_direction"]["detected"] is True, "Quality direction details should be structured")
+            assert_true(expected_quality_term in payload["quality_direction"]["quality_terms"], "Quality term should be recorded")
+            assert_true(payload["quality_direction"]["short_term_focus"], "Quality direction should include short-term self-check focus")
+            assert_true(payload["quality_direction"]["long_term_focus"], "Quality direction should include long-term improvement focus")
         assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "Quality direction route should not write packet output")
+
+
+def test_packet_route_roster_quality_attached_artifact_is_spec_first() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-roster-quality-artifact-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        utterance = "Roster, create a review-ready methods appendix with Quality settings"
+        result = run_brain(ws, "packet-route", utterance, "--path", str(folder), "--json")
+        assert_true(result.returncode == 0, f"Roster Quality artifact route expected 0, got {result.returncode}, stderr={result.stderr}")
+        payload = json.loads(result.stdout)
+        assert_true(payload["matched"] is True, "Roster Quality artifact prompt should match")
+        assert_true(payload["recommended_route"] == "artifact_harness_workflow", "artifact production with Quality should remain SPEC-first")
+        assert_true(payload["user_intent"] == "artifact_production", "artifact production with Quality should expose artifact-production intent")
+        assert_true(payload["create_allowed"] is True, "artifact production with Quality should allow packet creation")
+        assert_true(payload["chain_start"] == "Artifact Harness SPEC", "artifact production with Quality should start at SPEC")
+        assert_true(payload["quality_direction"]["detected"] is True, "Quality direction should remain attached as advisory context")
+        assert_true("Quality" in payload["quality_direction"]["quality_terms"], "Quality advisory context should record the Quality term")
+        assert_true(payload["recommended_command"] is not None, "artifact production with Quality should emit a create command")
+        assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "route without --create should not write packet output")
 
 
 def test_packet_route_pm_alias_requires_artifact_context() -> None:
@@ -3943,6 +3969,7 @@ def main() -> int:
         test_packet_route_natural_artifact_missions_are_create_ready,
         test_packet_route_roster_aliases_route_to_artifact_harness,
         test_packet_route_roster_quality_direction_is_plain_self_check,
+        test_packet_route_roster_quality_attached_artifact_is_spec_first,
         test_packet_route_pm_alias_requires_artifact_context,
         test_packet_route_underspecified_artifact_hint_refuses_create,
         test_packet_route_front_door_hr_artifact_is_spec_first,

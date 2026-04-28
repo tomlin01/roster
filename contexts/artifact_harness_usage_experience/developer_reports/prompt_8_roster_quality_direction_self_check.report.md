@@ -32,6 +32,25 @@ direct no-packet response path.
   and long-term self-check focus.
 - Added a regression test for the issue prompt.
 
+## PR Review Follow-Up
+
+The follow-up Developer pass tightened the route precedence and self-check
+matcher after review found that Quality direction could intercept concrete
+artifact work.
+
+- `packet-route` now evaluates artifact-production intent before Quality-only
+  direction. A concrete request such as `Roster, create a review-ready methods
+  appendix with Quality settings` routes to `artifact_harness_workflow`, keeps
+  `create_allowed=true`, and leaves `quality_direction` attached as advisory
+  self-check context.
+- Quality-only prompts still answer directly through
+  `roster_quality_direction`.
+- Added common self-check action terms: `check`, `review`, `inspect`, `run`,
+  `做`, `檢查`, and `檢視`.
+- Added regression coverage for the artifact-plus-Quality route and the Chinese
+  self-check prompts `Roster，幫我檢查 Lecture1 的品質` and
+  `Roster，幫我做自我檢查`.
+
 ## Boundary Preservation
 
 - Harness SPEC remains the acceptance source of truth when a packet exists.
@@ -49,6 +68,9 @@ Passed:
 - `python3 scripts/test_system_hub.py`
 - `git diff --check`
 - `./scripts/brain.sh packet-route "Roster，幫我看 Lecture1 的 Quality 要怎麼設定" --path /tmp --json`
+- `./scripts/brain.sh packet-route "Roster, create a review-ready methods appendix with Quality settings" --path /tmp --json`
+- `./scripts/brain.sh packet-route "Roster，幫我檢查 Lecture1 的品質" --path /tmp --json`
+- `./scripts/brain.sh packet-route "Roster，幫我做自我檢查" --path /tmp --json`
 
 Expected refusal passed:
 
