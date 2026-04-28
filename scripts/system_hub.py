@@ -160,6 +160,39 @@ PACKET_ROUTE_NATURAL_QUALITY_CUES = (
     "可用",
     "整理好",
 )
+ROSTER_QUALITY_DIRECTION_TERMS = (
+    "Quality",
+    "quality direction",
+    "quality setting",
+    "quality settings",
+    "self-check",
+    "self check",
+    "selfcheck",
+    "QA",
+    "品質",
+    "品質方向",
+    "品保",
+    "自檢",
+    "自我檢查",
+    "檢核",
+    "驗收",
+)
+ROSTER_QUALITY_DIRECTION_ACTION_TERMS = (
+    "set",
+    "setting",
+    "settings",
+    "define",
+    "configure",
+    "direction",
+    "設定",
+    "怎麼",
+    "如何",
+    "要怎麼",
+    "幫我看",
+    "看",
+    "安排",
+    "規劃",
+)
 PACKET_ROUTE_NATURAL_PROCESS_CUES = (
     "task",
     "workflow",
@@ -8833,6 +8866,35 @@ def packet_route_natural_artifact_details(utterance: str) -> dict[str, Any]:
     }
 
 
+def packet_route_roster_quality_details(utterance: str, front_doors: list[str]) -> dict[str, Any]:
+    def dedupe(items: list[str]) -> list[str]:
+        result: list[str] = []
+        for item in items:
+            if item not in result:
+                result.append(item)
+        return result
+
+    quality_terms = dedupe(match_artifact_harness_keywords(utterance, list(ROSTER_QUALITY_DIRECTION_TERMS)))
+    action_terms = dedupe(match_artifact_harness_keywords(utterance, list(ROSTER_QUALITY_DIRECTION_ACTION_TERMS)))
+    detected = "roster" in front_doors and bool(quality_terms) and bool(action_terms)
+    return {
+        "detected": detected,
+        "quality_terms": quality_terms,
+        "action_terms": action_terms,
+        "short_term_focus": [
+            "current artifact or unit can be delivered",
+            "content, media, and steps are internally consistent",
+            "obvious omissions are caught before handoff",
+        ],
+        "long_term_focus": [
+            "repeated issues become team or template improvements",
+            "recurring checks become a stable review habit",
+            "final output gets one full acceptance pass before delivery",
+        ],
+        "self_check_source": "Harness SPEC acceptance remains the source of truth when a packet exists.",
+    }
+
+
 def artifact_harness_command(
     config: HubConfig,
     entrypoint: str,
@@ -9222,6 +9284,7 @@ def do_packet_route(
     candidate_routes, recognized_front_doors, matched_keywords = packet_route_candidate_routes(config, utterance)
     matched = bool(candidate_routes)
     natural_details = packet_route_natural_artifact_details(utterance)
+    quality_details = packet_route_roster_quality_details(utterance, recognized_front_doors)
     artifact_intent = packet_route_artifact_intent(utterance, recognized_front_doors, natural_details)
     downstream_front_doors = [front_door for front_door in recognized_front_doors if front_door in {"team_architect_packet", "capability_access_packet", "runtime_mapping"}]
     packet_id = explicit_id.strip() if isinstance(explicit_id, str) and explicit_id.strip() else None
@@ -9258,6 +9321,13 @@ def do_packet_route(
                 chain_start = "Artifact Harness SPEC"
                 handoff_target = packet_route_handoff_for_front_doors(downstream_front_doors)
                 reason = "packet id was supplied but no existing run was found; do not bypass missing upstream packets"
+        elif quality_details.get("detected"):
+            recommended_route = "roster_quality_direction"
+            recommended_command = None
+            create_allowed = False
+            chain_start = None
+            handoff_target = None
+            reason = "Roster Quality direction request; answer directly with short-term and long-term self-check guidance"
         elif artifact_intent:
             recommended_route = "artifact_harness_workflow"
             recommended_command = None if needs_clarification else artifact_harness_command(config, entrypoint, utterance, target, expected_artifact, force, packet_id)
@@ -9300,6 +9370,9 @@ def do_packet_route(
     elif recommended_route in {"team_architect_packet", "capability_access_packet", "runtime_mapping"} or downstream_front_doors:
         user_intent = "downstream_packet_reference"
         confidence = "medium"
+    elif recommended_route == "roster_quality_direction":
+        user_intent = "quality_direction"
+        confidence = "high"
     elif not matched:
         user_intent = "ordinary"
         confidence = "none"
@@ -9316,6 +9389,10 @@ def do_packet_route(
         next_step_label = "Use HR staffing surface"
         user_message = "This looks like a staffing or role-design question, not a full artifact-production packet run."
         visible_next_action = "Use the HR team surface directly; do not create Artifact Harness packets."
+    elif recommended_route == "roster_quality_direction":
+        next_step_label = "Set Quality direction"
+        user_message = "This is a Quality direction question. Answer with short-term delivery checks first, then long-term workflow improvements."
+        visible_next_action = "Separate this-task fixes from reusable team, process, or template improvements."
     elif downstream_front_doors:
         next_step_label = "Inspect or start upstream packet chain"
         user_message = "This names a downstream packet surface. Use an existing packet id for inspection, or start from the artifact task first."
@@ -9357,6 +9434,7 @@ def do_packet_route(
             "deliverables": natural_details.get("deliverables", []),
             "underspecified_refs": natural_details.get("underspecified_refs", []),
         },
+        "quality_direction": quality_details,
         "next_step_label": next_step_label,
         "user_message": user_message,
         "visible_next_action": visible_next_action,

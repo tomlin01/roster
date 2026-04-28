@@ -111,6 +111,29 @@ Do not describe current-turn scope as a capability limit. If this turn only
 prepared the roster, say that directly and make clear that future Roster runs can
 assign scene, render, video, QA, or other artifact work to the relevant roles.
 
+## Quality Response Requirement
+
+Quality must read as a built-in Roster behavior, not as another layer the user
+has to operate manually.
+
+For prompts such as:
+
+```text
+Roster，幫我看 Lecture1 的 Quality 要怎麼設定
+```
+
+The README and skill instructions should show a short response that separates:
+
+- short-term checks for whether the current artifact, unit, scene, render,
+  table, draft, or output can be delivered now
+- long-term improvements for recurring team, workflow, checklist, or template
+  issues
+
+If an Artifact Harness SPEC exists, its acceptance checks remain the source of
+truth internally, but the first user-facing Quality answer should not expose
+`HR`, `Team Architect`, `CAP`, runtime adapter, control plane, or packet-chain
+terms.
+
 ## Workspace Selection Requirement
 
 The README must state how Codex chooses the output workspace.

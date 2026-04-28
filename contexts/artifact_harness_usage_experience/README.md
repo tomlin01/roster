@@ -82,6 +82,9 @@ Important human factors:
 - Right-sized scaffolding: small one-step work should not trigger a heavy packet
   chain. The kit should recognize when a lightweight note or direct action is
   enough.
+- Quality as normal coordination: when the user asks how Quality should be set,
+  answer with immediate delivery checks and durable improvement checks before
+  exposing internal packet names.
 - Bilingual tolerance: English aliases and Chinese task phrases should both
   feel native. The user should not need to switch language to activate the
   workflow.

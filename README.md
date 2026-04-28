@@ -55,6 +55,47 @@ You should not need to remember or type `brain.sh`, `packet-route`, or
 `artifact-harness` during ordinary work. The current verified command fallback
 is documented separately below.
 
+## Quality Direction
+
+Quality is built into Roster as direction-setting and self-check behavior. It
+helps Codex decide what to check now, what to improve later, and how to turn the
+accepted task contract into practical review steps.
+
+When a user asks for Quality, Codex should infer the likely quality direction
+from the artifact and task context. If the direction is ambiguous, ask one short
+question about the quality bar before changing files.
+
+For ordinary first-touch Quality replies, keep the answer short and
+human-facing:
+
+```text
+我會把 Quality 分成兩層：
+
+短期先看這次 unit 能不能交付：
+- 內容是否講得清楚
+- slide / scene / video 是否一致
+- 有沒有明顯漏掉的步驟
+
+長期則看這個 Lecture1 team 是否需要固定檢查流程：
+- 每個 unit 完成後都做 playback check
+- 每次修改 scene 後確認 slide 對應
+- 最後輸出前做一次完整驗收
+
+我會先用短期檢查幫你把這次任務穩住，再把重複出現的問題記成長期改善項目。
+```
+
+Quality has two working layers:
+
+- Short-term correction: stabilize the current artifact, unit, scene, render,
+  table, draft, or output so it can be delivered.
+- Long-term improvement: record repeated issues as process, team, checklist, or
+  template improvements for future work.
+
+When an Artifact Harness SPEC exists, its acceptance checks remain the source of
+truth. Quality consumes those checks and turns them into self-check behavior; it
+does not replace the SPEC, authorize tools, choose runtime execution, or own
+final acceptance.
+
 ## Workspace And Output
 
 The active Codex workspace is the default output root.

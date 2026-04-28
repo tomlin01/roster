@@ -70,6 +70,31 @@ If this turn only prepared a roster, say that as current-turn scope. Do not make
 it sound like Roster cannot later assign and execute slide, scene, render,
 video, or QA work.
 
+For Quality setup requests, Codex should answer as a project coordinator first,
+not as a governance explainer:
+
+```text
+我會把 Quality 分成兩層：
+
+短期先看這次 unit 能不能交付：
+- 內容是否講得清楚
+- slide / scene / video 是否一致
+- 有沒有明顯漏掉的步驟
+
+長期則看這個 Lecture1 team 是否需要固定檢查流程：
+- 每個 unit 完成後都做 playback check
+- 每次修改 scene 後確認 slide 對應
+- 最後輸出前做一次完整驗收
+
+我會先用短期檢查幫你把這次任務穩住，再把重複出現的問題記成長期改善項目。
+```
+
+The short-term layer stabilizes the current artifact or unit. The long-term
+layer captures repeated problems as team, process, checklist, or template
+improvements. If an acceptance contract already exists, use it as the source of
+truth for the checks without showing internal packet terminology in the first
+reply.
+
 Codex should answer in plain language first for broader setup tasks too:
 
 ```text

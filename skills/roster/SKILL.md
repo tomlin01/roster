@@ -16,6 +16,8 @@ Use this skill when the user asks for:
 - `Roster, ...` task coordination
 - staffing or role design for an artifact task
 - project/task boundary setup
+- Quality direction, self-check setup, or short-term vs long-term correction
+  planning for an artifact task
 - Team Architect, Capability Access Packet, runtime mapping, or review handoff
 - resuming or inspecting a Roster packet run
 - installing or checking the Roster coordination surface
@@ -32,6 +34,9 @@ a future product target unless a local health check explicitly proves otherwise.
 - Capability Access Packet owns skill, plugin, tool authorization, approval
   gates, and runtime allowlist.
 - Runtime adapters execute only; they do not own governance.
+- Quality consumes Artifact Harness acceptance and turns it into practical
+  self-check behavior. It does not replace the Artifact Harness SPEC, CAP,
+  runtime authorization, tool ownership, or final acceptance.
 
 ## Workflow
 
@@ -41,15 +46,63 @@ a future product target unless a local health check explicitly proves otherwise.
    the useful team shape and next invocation phrase before any formal packet
    names. Mention internal names only when the user asks for review, debug, or
    implementation details.
-3. For artifact tasks, route through the installed kit command from
+3. For Quality requests, infer the quality direction from the artifact and task
+   context when possible. If the quality bar is ambiguous, ask one short
+   question. Separate immediate artifact fixes from durable process, team,
+   checklist, or template improvements.
+4. For artifact tasks, route through the installed kit command from
    `references/install_manifest.json`:
    `<brain_command> packet-route "<utterance>" --path <workspace> --json`.
-4. Create packet files only when the route is create-ready or the user clearly
+5. Create packet files only when the route is create-ready or the user clearly
    asks to set up the task forms.
-5. Keep generated packets under the target workspace:
+6. Keep generated packets under the target workspace:
    `<workspace>/contexts/artifact_harness_runs/<packet-id>/`.
-6. For setup checks, use `scripts/brain.sh roster-health --path <workspace>
+7. For setup checks, use `scripts/brain.sh roster-health --path <workspace>
    --json` and include `--codex-home <dir>` when verifying an installed skill.
+
+## Quality Direction And Self-Check
+
+Quality is a built-in Roster behavior, not a separate governance layer.
+
+Use it to decide:
+
+- what must be checked for this artifact or unit to be deliverable now
+- what repeated issue should become a future workflow, team, checklist, or
+  template improvement
+- how existing acceptance checks should become concrete self-check steps
+
+For ordinary user-facing Quality replies:
+
+- use plain project language
+- keep the first response short
+- split `short-term` and `long-term` checks
+- avoid internal packet, runtime, CAP, or control-plane terms unless the user
+  asks for debug/review/governance detail
+- make clear that Roster can still execute future slide, scene, render, video,
+  document, or data work through the relevant roles
+
+Good Quality first-touch shape:
+
+```text
+我會把 Quality 分成兩層：
+
+短期先看這次 unit 能不能交付：
+- 內容是否講得清楚
+- slide / scene / video 是否一致
+- 有沒有明顯漏掉的步驟
+
+長期則看這個 Lecture1 team 是否需要固定檢查流程：
+- 每個 unit 完成後都做 playback check
+- 每次修改 scene 後確認 slide 對應
+- 最後輸出前做一次完整驗收
+
+我會先用短期檢查幫你把這次任務穩住，再把重複出現的問題記成長期改善項目。
+```
+
+When a packet run already exists, read the Artifact Harness SPEC acceptance
+checks as the source of truth and translate them into practical Quality checks.
+Do not present Quality as replacing the SPEC or as owning tool authorization,
+runtime selection, or final acceptance.
 
 ## First-Touch Reply Contract
 
