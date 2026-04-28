@@ -118,19 +118,15 @@ Use this bounded loop:
 Good visual Quality first-touch shape:
 
 ```text
-我會把這類 visual artifact 預設加一個短 Quality loop：
+我會把這個當成需要看畫面的任務：先產出第一版，擷取畫面或播放片段，檢查文字有沒有被遮住、重點元素是否清楚，再修 1-2 輪。
 
-- 先產出第一版
-- 看畫面裡文字、重點元素和圖層有沒有互相遮住
-- 修掉明顯的可讀性或畫面一致性問題
-- 再重看 1-2 輪，沒有明顯問題才交付
-
-如果需要播放、截圖、OCR 或 render 檢查，我會把那當成工具能力來處理。
+需要截圖、播放、OCR 或 vision review 時，我會把它當成工具能力處理。
 ```
 
-Computer Use, screenshot, playback, render, OCR, and similar inspection tools
-are capabilities governed by the Capability Access Packet. Quality may request
-or plan those checks, but it does not own tool authorization.
+CV inspection, Computer Use, screenshot, playback, render, OCR, and similar
+inspection tools are capabilities governed by the Capability Access Packet.
+Quality may request or plan those checks, but it does not own tool
+authorization.
 
 When a packet run already exists, read the Artifact Harness SPEC acceptance
 checks as the source of truth and translate them into practical Quality checks.

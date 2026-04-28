@@ -89,8 +89,9 @@ Important human factors:
   image, UI, or presentation production, Roster should plan 2-3 bounded
   inspect-and-correct passes before delivery. The loop checks visible output for
   occlusion, overlap, readability, contrast, missing expected content, and
-  slide/render/video mismatch; playback, screenshot, OCR, render, or Computer
-  Use inspection remains tool access governed by CAP.
+  slide/render/video mismatch; CV inspection can request screenshot capture,
+  playback or frame sampling, OCR/readability review, and vision-model review.
+  These remain tool capabilities governed by CAP, not Quality-owned governance.
 - Bilingual tolerance: English aliases and Chinese task phrases should both
   feel native. The user should not need to switch language to activate the
   workflow.

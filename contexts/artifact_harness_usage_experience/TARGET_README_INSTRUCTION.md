@@ -154,9 +154,19 @@ presentations, the loop should:
 
 The first user-facing explanation should stay short and practical. It should
 not say that Roster cannot do slide, scene, render, video, or presentation work.
-If playback, screenshot, OCR, render, Computer Use, or similar inspection is
-needed, describe it as tool access governed by the Capability Access Packet,
-not as something Quality owns.
+It should be acceptable to say:
+
+```text
+我會把這個當成需要看畫面的任務：先產出第一版，擷取畫面或播放片段，檢查文字有沒有被遮住、重點元素是否清楚，再修 1-2 輪。
+
+需要截圖、播放、OCR 或 vision review 時，我會把它當成工具能力處理。
+```
+
+If playback, screenshot, OCR, render, CV inspection, Computer Use, or similar
+inspection is needed, describe it as tool access governed by the Capability
+Access Packet, not as something Quality owns. CV inspection should request
+screenshot capture, playback or frame sampling, OCR/readability review, and
+vision-model review only as bounded capabilities.
 
 ## Workspace Selection Requirement
 

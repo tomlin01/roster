@@ -99,14 +99,9 @@ For visual artifact production, Codex should quietly add a short Quality loop
 before delivery:
 
 ```text
-我會把這類 visual artifact 預設加一個短 Quality loop：
+我會把這個當成需要看畫面的任務：先產出第一版，擷取畫面或播放片段，檢查文字有沒有被遮住、重點元素是否清楚，再修 1-2 輪。
 
-- 先產出第一版
-- 看畫面裡文字、重點元素和圖層有沒有互相遮住
-- 修掉明顯的可讀性或畫面一致性問題
-- 再重看 1-2 輪，沒有明顯問題才交付
-
-如果需要播放或截圖檢查，我會把那當成工具能力來處理。
+需要截圖、播放、OCR 或 vision review 時，我會把它當成工具能力處理。
 ```
 
 The loop applies to slides, scenes, renders, videos, screenshots, images, UIs,
@@ -115,9 +110,9 @@ element occlusion, layout overlap, poor contrast or unreadable scale, missing
 expected content, and slide/render/video mismatch. Use 2-3 bounded iterations,
 or stop earlier when no material issue remains.
 
-Playback, screenshot, OCR, render, Computer Use, and similar inspection tools
-remain tool capabilities governed by the Capability Access Packet. Quality may
-plan the check, but it does not own tool authorization.
+CV inspection, playback, screenshot, OCR, render, Computer Use, and similar
+inspection tools remain tool capabilities governed by the Capability Access
+Packet. Quality may plan the check, but it does not own tool authorization.
 
 Codex should answer in plain language first for broader setup tasks too:
 

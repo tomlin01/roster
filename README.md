@@ -107,6 +107,20 @@ If playback, screenshot, OCR, render, or Computer Use inspection is needed,
 Roster treats that as tool access governed by the Capability Access Packet.
 Quality plans the check; it does not own tool authorization.
 
+In ordinary user-facing language, Roster can phrase the visual/CV loop like
+this:
+
+```text
+我會把這個當成需要看畫面的任務：先產出第一版，擷取畫面或播放片段，檢查文字有沒有被遮住、重點元素是否清楚，再修 1-2 輪。
+
+需要截圖、播放、OCR 或 vision review 時，我會把它當成工具能力處理。
+```
+
+Internally, CV inspection is a capability request for screenshot capture,
+playback or frame sampling, OCR/readability review, and vision-model review.
+CAP authorizes those tools; it does not accept the artifact or make the runtime
+adapter the governance owner.
+
 When an Artifact Harness SPEC exists, its acceptance checks remain the source of
 truth. Quality consumes those checks and turns them into self-check behavior; it
 does not replace the SPEC, authorize tools, choose runtime execution, or own
