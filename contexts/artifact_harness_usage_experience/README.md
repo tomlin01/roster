@@ -85,6 +85,12 @@ Important human factors:
 - Quality as normal coordination: when the user asks how Quality should be set,
   answer with immediate delivery checks and durable improvement checks before
   exposing internal packet names.
+- Visual artifact quality loop: for slide, scene, render, video, screenshot,
+  image, UI, or presentation production, Roster should plan 2-3 bounded
+  inspect-and-correct passes before delivery. The loop checks visible output for
+  occlusion, overlap, readability, contrast, missing expected content, and
+  slide/render/video mismatch; playback, screenshot, OCR, render, or Computer
+  Use inspection remains tool access governed by CAP.
 - Bilingual tolerance: English aliases and Chinese task phrases should both
   feel native. The user should not need to switch language to activate the
   workflow.

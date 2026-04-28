@@ -2465,6 +2465,40 @@ def test_packet_route_roster_quality_attached_artifact_is_spec_first() -> None:
         assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "route without --create should not write packet output")
 
 
+def test_packet_route_roster_visual_quality_loop_attaches_to_production() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-roster-visual-loop-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        utterance = "Roster, create a review-ready Lecture1 slide with Quality loop"
+        result = run_brain(ws, "packet-route", utterance, "--path", str(folder), "--json")
+        assert_true(result.returncode == 0, f"Roster visual quality loop route expected 0, got {result.returncode}, stderr={result.stderr}")
+        payload = json.loads(result.stdout)
+        assert_true(payload["recommended_route"] == "artifact_harness_workflow", "visual artifact production with Quality loop should remain SPEC-first")
+        assert_true(payload["create_allowed"] is True, "visual artifact production should allow packet creation")
+        assert_true(payload["quality_loop"]["detected"] is True, "visual artifact production should attach quality loop guidance")
+        assert_true(payload["quality_loop"]["artifact_mode"] == "visual", "quality loop should identify visual artifact mode")
+        assert_true(payload["quality_loop"]["recommended_iterations"] == "2-3", "quality loop should recommend 2-3 bounded iterations")
+
+
+def test_packet_route_roster_visual_quality_only_uses_quality_direction() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-roster-visual-quality-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "quality_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        utterance = "Roster，幫我檢查 Lecture1 影片畫面品質"
+        result = run_brain(ws, "packet-route", utterance, "--path", str(folder), "--json")
+        assert_true(result.returncode == 0, f"Roster visual quality route expected 0, got {result.returncode}, stderr={result.stderr}")
+        payload = json.loads(result.stdout)
+        assert_true(payload["recommended_route"] == "roster_quality_direction", "visual quality-only prompt should route to Quality direction")
+        assert_true(payload["create_allowed"] is False, "visual quality-only prompt should not create packets")
+        assert_true(payload["quality_loop"]["detected"] is True, "visual quality-only prompt should include quality loop guidance")
+        targets = payload["quality_loop"]["inspection_targets"]
+        assert_true("text occlusion" in targets, "visual quality loop should inspect text occlusion")
+        assert_true("contrast/readability" in targets, "visual quality loop should inspect readability")
+        assert_true("layout overlap" in targets, "visual quality loop should inspect overlap")
+
+
 def test_packet_route_pm_alias_requires_artifact_context() -> None:
     with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-pm-ambiguous-") as tmp_s:
         ws = make_workspace(Path(tmp_s))
@@ -3970,6 +4004,8 @@ def main() -> int:
         test_packet_route_roster_aliases_route_to_artifact_harness,
         test_packet_route_roster_quality_direction_is_plain_self_check,
         test_packet_route_roster_quality_attached_artifact_is_spec_first,
+        test_packet_route_roster_visual_quality_loop_attaches_to_production,
+        test_packet_route_roster_visual_quality_only_uses_quality_direction,
         test_packet_route_pm_alias_requires_artifact_context,
         test_packet_route_underspecified_artifact_hint_refuses_create,
         test_packet_route_front_door_hr_artifact_is_spec_first,

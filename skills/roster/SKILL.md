@@ -99,6 +99,39 @@ Good Quality first-touch shape:
 我會先用短期檢查幫你把這次任務穩住，再把重複出現的問題記成長期改善項目。
 ```
 
+For visual artifact production, attach a short Quality loop before delivery.
+This applies to slide, scene, render, video, screenshot, image, UI, and
+presentation work. It is production behavior inside Roster, not a separate
+permanent agent by default.
+
+Use this bounded loop:
+
+1. Produce the initial artifact.
+2. Inspect the visible output.
+3. Check for hidden text, key element occlusion, layout overlap, unreadable
+   scale, poor contrast, missing expected content, and slide/render/video
+   mismatch.
+4. Apply a focused correction.
+5. Repeat for 2-3 bounded iterations, or stop earlier when no material issue
+   remains.
+
+Good visual Quality first-touch shape:
+
+```text
+我會把這類 visual artifact 預設加一個短 Quality loop：
+
+- 先產出第一版
+- 看畫面裡文字、重點元素和圖層有沒有互相遮住
+- 修掉明顯的可讀性或畫面一致性問題
+- 再重看 1-2 輪，沒有明顯問題才交付
+
+如果需要播放、截圖、OCR 或 render 檢查，我會把那當成工具能力來處理。
+```
+
+Computer Use, screenshot, playback, render, OCR, and similar inspection tools
+are capabilities governed by the Capability Access Packet. Quality may request
+or plan those checks, but it does not own tool authorization.
+
 When a packet run already exists, read the Artifact Harness SPEC acceptance
 checks as the source of truth and translate them into practical Quality checks.
 Do not present Quality as replacing the SPEC or as owning tool authorization,

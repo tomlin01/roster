@@ -95,6 +95,30 @@ improvements. If an acceptance contract already exists, use it as the source of
 truth for the checks without showing internal packet terminology in the first
 reply.
 
+For visual artifact production, Codex should quietly add a short Quality loop
+before delivery:
+
+```text
+我會把這類 visual artifact 預設加一個短 Quality loop：
+
+- 先產出第一版
+- 看畫面裡文字、重點元素和圖層有沒有互相遮住
+- 修掉明顯的可讀性或畫面一致性問題
+- 再重看 1-2 輪，沒有明顯問題才交付
+
+如果需要播放或截圖檢查，我會把那當成工具能力來處理。
+```
+
+The loop applies to slides, scenes, renders, videos, screenshots, images, UIs,
+and presentations. It should inspect visible output for text occlusion, key
+element occlusion, layout overlap, poor contrast or unreadable scale, missing
+expected content, and slide/render/video mismatch. Use 2-3 bounded iterations,
+or stop earlier when no material issue remains.
+
+Playback, screenshot, OCR, render, Computer Use, and similar inspection tools
+remain tool capabilities governed by the Capability Access Packet. Quality may
+plan the check, but it does not own tool authorization.
+
 Codex should answer in plain language first for broader setup tasks too:
 
 ```text

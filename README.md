@@ -91,6 +91,22 @@ Quality has two working layers:
 - Long-term improvement: record repeated issues as process, team, checklist, or
   template improvements for future work.
 
+For visual artifact production, Roster should attach a short Quality loop before
+delivery. This applies to slides, scenes, renders, videos, screenshots, images,
+UIs, and presentations:
+
+1. produce the first artifact
+2. inspect the visible output
+3. catch text or key-element occlusion, layout overlap, unreadable scale, poor
+   contrast, missing expected content, and slide/render/video mismatch
+4. make a focused correction
+5. repeat for 2-3 bounded iterations, or stop earlier when no material issue
+   remains
+
+If playback, screenshot, OCR, render, or Computer Use inspection is needed,
+Roster treats that as tool access governed by the Capability Access Packet.
+Quality plans the check; it does not own tool authorization.
+
 When an Artifact Harness SPEC exists, its acceptance checks remain the source of
 truth. Quality consumes those checks and turns them into self-check behavior; it
 does not replace the SPEC, authorize tools, choose runtime execution, or own

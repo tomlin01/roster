@@ -134,6 +134,30 @@ truth internally, but the first user-facing Quality answer should not expose
 `HR`, `Team Architect`, `CAP`, runtime adapter, control plane, or packet-chain
 terms.
 
+## Visual Quality Loop Requirement
+
+Visual artifact production should include a short built-in Quality loop before
+delivery. The README and skill instructions should describe it as Roster
+production behavior, not as a separate permanent agent by default.
+
+For slides, scenes, renders, videos, screenshots, images, UIs, and
+presentations, the loop should:
+
+1. produce the initial artifact
+2. inspect the visible output
+3. detect text occlusion, key element occlusion, layout overlap, poor contrast
+   or unreadable scale, missing expected content, and slide/render/video
+   mismatch
+4. apply a focused correction
+5. repeat for 2-3 bounded iterations, or stop earlier when no material issue
+   remains
+
+The first user-facing explanation should stay short and practical. It should
+not say that Roster cannot do slide, scene, render, video, or presentation work.
+If playback, screenshot, OCR, render, Computer Use, or similar inspection is
+needed, describe it as tool access governed by the Capability Access Packet,
+not as something Quality owns.
+
 ## Workspace Selection Requirement
 
 The README must state how Codex chooses the output workspace.

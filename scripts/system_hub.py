@@ -161,6 +161,7 @@ PACKET_ROUTE_NATURAL_QUALITY_CUES = (
     "整理好",
 )
 ROSTER_QUALITY_DIRECTION_TERMS = (
+    "quality loop",
     "Quality",
     "quality direction",
     "quality setting",
@@ -178,6 +179,9 @@ ROSTER_QUALITY_DIRECTION_TERMS = (
     "驗收",
 )
 ROSTER_QUALITY_DIRECTION_ACTION_TERMS = (
+    "loop",
+    "iteration",
+    "iterations",
     "check",
     "set",
     "setting",
@@ -199,6 +203,65 @@ ROSTER_QUALITY_DIRECTION_ACTION_TERMS = (
     "看",
     "安排",
     "規劃",
+    "循環",
+    "迭代",
+)
+ROSTER_VISUAL_ARTIFACT_TERMS = (
+    "visual artifact",
+    "visual",
+    "slide deck",
+    "lecture slides",
+    "lecture video",
+    "slides",
+    "slide",
+    "deck",
+    "presentation",
+    "video",
+    "scene",
+    "render",
+    "screenshot",
+    "image",
+    "frame",
+    "ui",
+    "interface",
+    "dashboard",
+    "figure",
+    "chart",
+    "plot",
+    "視覺",
+    "投影片",
+    "簡報",
+    "影片",
+    "場景",
+    "渲染",
+    "截圖",
+    "圖片",
+    "圖像",
+    "畫面",
+    "介面",
+    "圖表",
+)
+ROSTER_VISUAL_QUALITY_LOOP_TERMS = (
+    "quality loop",
+    "visual quality",
+    "visual check",
+    "playback check",
+    "render check",
+    "screenshot check",
+    "occlusion",
+    "overlap",
+    "readability",
+    "contrast",
+    "mismatch",
+    "畫面品質",
+    "播放檢查",
+    "截圖檢查",
+    "遮住",
+    "遮擋",
+    "重疊",
+    "可讀",
+    "對比",
+    "不一致",
 )
 PACKET_ROUTE_NATURAL_PROCESS_CUES = (
     "task",
@@ -8902,6 +8965,54 @@ def packet_route_roster_quality_details(utterance: str, front_doors: list[str]) 
     }
 
 
+def packet_route_visual_quality_loop_details(
+    utterance: str,
+    natural_details: dict[str, Any],
+    quality_details: dict[str, Any],
+) -> dict[str, Any]:
+    def dedupe(items: list[str]) -> list[str]:
+        result: list[str] = []
+        for item in items:
+            if item not in result:
+                result.append(item)
+        return result
+
+    visual_terms = dedupe(match_artifact_harness_keywords(utterance, list(ROSTER_VISUAL_ARTIFACT_TERMS)))
+    loop_terms = dedupe(match_artifact_harness_keywords(utterance, list(ROSTER_VISUAL_QUALITY_LOOP_TERMS)))
+    visual_production = bool(visual_terms and natural_details.get("create_ready"))
+    explicit_visual_quality = bool(visual_terms and (quality_details.get("detected") or loop_terms))
+    detected = visual_production or explicit_visual_quality
+    reason = None
+    if visual_production:
+        reason = "visual artifact production should include a bounded quality loop before delivery"
+    elif explicit_visual_quality:
+        reason = "visual quality request should use the Roster quality loop guidance"
+    return {
+        "detected": detected,
+        "artifact_mode": "visual" if detected else None,
+        "recommended_iterations": "2-3" if detected else None,
+        "inspection_targets": [
+            "text occlusion",
+            "key element occlusion",
+            "layout overlap",
+            "contrast/readability",
+            "missing expected content",
+            "slide/render/video mismatch",
+        ] if detected else [],
+        "process_steps": [
+            "produce initial artifact",
+            "inspect visible output",
+            "detect material visual defects",
+            "apply focused correction",
+            "repeat until no material issue remains or the bounded iteration limit is reached",
+        ] if detected else [],
+        "matched_visual_terms": visual_terms,
+        "matched_loop_terms": loop_terms,
+        "capability_boundary": "visual inspection tools require CAP authorization when used" if detected else None,
+        "reason": reason,
+    }
+
+
 def artifact_harness_command(
     config: HubConfig,
     entrypoint: str,
@@ -9292,6 +9403,7 @@ def do_packet_route(
     matched = bool(candidate_routes)
     natural_details = packet_route_natural_artifact_details(utterance)
     quality_details = packet_route_roster_quality_details(utterance, recognized_front_doors)
+    quality_loop = packet_route_visual_quality_loop_details(utterance, natural_details, quality_details)
     artifact_intent = packet_route_artifact_intent(utterance, recognized_front_doors, natural_details)
     downstream_front_doors = [front_door for front_door in recognized_front_doors if front_door in {"team_architect_packet", "capability_access_packet", "runtime_mapping"}]
     packet_id = explicit_id.strip() if isinstance(explicit_id, str) and explicit_id.strip() else None
@@ -9442,6 +9554,7 @@ def do_packet_route(
             "underspecified_refs": natural_details.get("underspecified_refs", []),
         },
         "quality_direction": quality_details,
+        "quality_loop": quality_loop,
         "next_step_label": next_step_label,
         "user_message": user_message,
         "visible_next_action": visible_next_action,
