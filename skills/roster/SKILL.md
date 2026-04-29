@@ -24,8 +24,10 @@ Use this skill when the user asks for:
 - resuming or inspecting a Roster packet run
 - installing, uninstalling, or checking the Roster coordination surface
 
-Do not claim `@roster` is a working installed Codex mention. Treat `@roster` as
-a future product target unless a local health check explicitly proves otherwise.
+After `roster-install` and a Codex reload, `@roster` and `/roster` are the
+intended installed invocation targets. If the current Codex UI does not surface
+the plugin immediately, fall back to `Roster, ...` and use `roster-health` to
+inspect registration state.
 
 ## Operating Boundary
 
@@ -74,7 +76,7 @@ behavior. Use them only when the user explicitly asks to remember a preference,
 for example:
 
 ```text
-Roster, 記住以後 Lecture1 的影片任務都先檢查文字遮擋。
+Roster, 記住以後專案規劃任務都先列負責人、里程碑、風險和驗收條件。
 ```
 
 The adapter writes:
@@ -118,39 +120,38 @@ For ordinary user-facing Quality replies:
 - split `short-term` and `long-term` checks
 - avoid internal packet, runtime, CAP, or control-plane terms unless the user
   asks for debug/review/governance detail
-- make clear that Roster can still execute future slide, scene, render, video,
-  document, or data work through the relevant roles
+- make clear that Roster can still execute future document, planning, data,
+  code, presentation, visual, or media work through the relevant roles
 
 Good Quality first-touch shape:
 
 ```text
 我會把 Quality 分成兩層：
 
-短期先看這次 unit 能不能交付：
-- 內容是否講得清楚
-- slide / scene / video 是否一致
-- 有沒有明顯漏掉的步驟
+短期先看這次計畫能不能交付：
+- 目標和範圍是否清楚
+- 負責人、里程碑和風險是否完整
+- 有沒有漏掉決策或下一步
 
-長期則看這個 Lecture1 team 是否需要固定檢查流程：
-- 每個 unit 完成後都做 playback check
-- 每次修改 scene 後確認 slide 對應
-- 最後輸出前做一次完整驗收
+長期則看這類專案規劃是否需要固定檢查流程：
+- 每次交付前確認 owner / due date / blocker
+- 重複出現的風險整理成 checklist
+- 重要任務保留一份可追蹤的 handoff
 
 我會先用短期檢查幫你把這次任務穩住，再把重複出現的問題記成長期改善項目。
 ```
 
 For visual artifact production, attach a short Quality loop before delivery.
-This applies to slide, scene, render, video, screenshot, image, UI, and
-presentation work. It is production behavior inside Roster, not a separate
-permanent agent by default.
+This applies to presentation, figure, screenshot, image, UI, render, and media
+work. It is production behavior inside Roster, not a separate permanent agent by
+default.
 
 Use this bounded loop:
 
 1. Produce the initial artifact.
 2. Inspect the visible output.
 3. Check for hidden text, key element occlusion, layout overlap, unreadable
-   scale, poor contrast, missing expected content, and slide/render/video
-   mismatch.
+   scale, poor contrast, missing expected content, and source/export mismatch.
 4. Apply a focused correction.
 5. Repeat for 2-3 bounded iterations, or stop earlier when no material issue
    remains.
@@ -172,7 +173,8 @@ inspection tools are capabilities governed by the Capability Access Packet.
 Quality may request or plan those checks, but it does not own tool
 authorization.
 
-Use this CV activation ladder for slide, render, UI, image, and video work:
+Use this CV activation ladder for presentation, render, UI, image, and media
+work:
 
 1. Prefer existing rendered or exported visual files when present.
 2. Render or export the artifact into inspectable images or frames when safe
@@ -210,24 +212,25 @@ review, debug, or governance detail.
 
 Do not describe current-turn scope as a capability limit. If this turn only
 prepared a roster, say that directly and make clear that future Roster runs can
-assign scene, render, video, QA, or other artifact work to the relevant roles.
+assign document, planning, data, code, presentation, visual, media, QA, or
+other artifact work to the relevant roles.
 
 Good first-touch shape:
 
 ```text
-我已經把 Lecture1 的工作隊形整理好了：
+我已經把這個專案規劃任務的工作隊形整理好了：
 
-- Student：看懂不懂、哪裡會卡
-- Teacher：決定講解順序和例題
-- Video Production：處理畫面、旁白和輸出
-- Quality Management：做播放檢查和成品驗收
+- Project Lead：收斂目標、範圍和優先順序
+- Domain Reviewer：確認內容是否符合實際情境
+- Execution Planner：拆出里程碑、負責人和下一步
+- Quality Reviewer：檢查風險、遺漏和交付前條件
 
 之後你可以直接說：
-`用 Lecture1 team 跑下一個 unit`
+`用這個 Roster 跑下一步規劃`
 
-我會照這個隊形把任務分下去，該改 slide、scene、render 或影片時再進到對應步驟。
+我會照這個隊形把任務分下去，該寫 brief、拆 milestone、補風險或做交付檢查時再進到對應步驟。
 
-文件在：`LECTURE1_TEAM_ROSTER.md`
+文件在：`PROJECT_ROSTER.md`
 ```
 
 ## Installed Kit Reference
@@ -240,7 +243,8 @@ value instead of assuming the current working directory is the Roster kit root.
 If the manifest is unavailable, ask for the Roster kit folder before running
 repo adapter commands.
 
-Install and uninstall are explicit setup actions:
+Install and uninstall are explicit setup actions. They cover both the Roster
+skill and local plugin/slash surface:
 
 ```bash
 <brain_command> roster-install --codex-home <codex-home> --json

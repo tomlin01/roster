@@ -10,9 +10,11 @@ README.
 - Uninstall command: `./scripts/brain.sh roster-uninstall --codex-home <codex-home> --json`
 - Health command: `./scripts/brain.sh roster-health --codex-home <codex-home> --path <workspace-folder> --json`
 
-`@roster` remains a future product target. Do not claim it is a verified Codex
-mention, slash command, plugin/app mention, or automatic GUI/CLI interception
-surface.
+`roster-install` registers the `roster` skill and a local `roster` plugin
+surface. After Codex reloads plugin state, the intended user targets are
+`@roster <task>` and `/roster <task>`. Health checks verify local registration
+files and config state; final UI visibility still depends on the active Codex
+runtime refreshing plugin state.
 
 ## Packet Workflow
 

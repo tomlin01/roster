@@ -94,6 +94,11 @@ ROSTER_PRODUCT_TARGET = "@roster"
 ROSTER_VERIFIED_INVOCATION_MECHANISM = "scripts/brain.sh packet-route"
 ROSTER_SKILL_NAME = "roster"
 ROSTER_SKILL_SOURCE_DIR = ROOT / "skills" / ROSTER_SKILL_NAME
+ROSTER_PLUGIN_NAME = "roster"
+ROSTER_PLUGIN_SOURCE_DIR = ROOT / "plugins" / ROSTER_PLUGIN_NAME
+ROSTER_LOCAL_MARKETPLACE_NAME = "roster-local"
+ROSTER_LOCAL_MARKETPLACE_DISPLAY_NAME = "Roster Local"
+ROSTER_SLASH_COMMAND = "/roster"
 ROSTER_CURRENT_USER_INVOCATION = "Roster, <task>"
 ROSTER_HEALTH_DEFAULT_ID = "roster-health-smoke"
 ROSTER_HEALTH_VISIBILITY_UTTERANCE = "@roster"
@@ -758,12 +763,12 @@ def parse_args() -> argparse.Namespace:
     packet_route.add_argument("--artifact", default=None, help="Optional expected artifact path or label passed through to artifact-harness.")
     packet_route.add_argument("--force", "--overwrite", action="store_true", dest="force", help="Explicitly overwrite an existing routed packet run when used with --create.")
     packet_route.add_argument("--json", action="store_true", help="Emit a machine-readable JSON route instead of Markdown.")
-    roster_install = sub.add_parser("roster-install", help="Install or check the repo-owned Roster skill into a Codex skills root.")
+    roster_install = sub.add_parser("roster-install", help="Install the repo-owned Roster skill plus local plugin/slash surface into a Codex home.")
     roster_install.add_argument("--codex-home", default=None, help="Codex home whose `skills/` directory should receive the roster skill. Defaults to CODEX_HOME or ~/.codex.")
     roster_install.add_argument("--skills-root", default=None, help="Explicit skills root to install into. Overrides --codex-home.")
     roster_install.add_argument("--force", "--overwrite", action="store_true", dest="force", help="Overwrite an existing installed roster skill.")
     roster_install.add_argument("--json", action="store_true", help="Emit a machine-readable JSON install result instead of Markdown.")
-    roster_uninstall = sub.add_parser("roster-uninstall", help="Remove a repo-installed Roster skill from a Codex skills root.")
+    roster_uninstall = sub.add_parser("roster-uninstall", help="Remove a repo-installed Roster skill plus local plugin/slash surface from a Codex home.")
     roster_uninstall.add_argument("--codex-home", default=None, help="Codex home whose `skills/` directory should lose the roster skill. Defaults to CODEX_HOME or ~/.codex.")
     roster_uninstall.add_argument("--skills-root", default=None, help="Explicit skills root to uninstall from. Overrides --codex-home.")
     roster_uninstall.add_argument("--force", action="store_true", help="Remove an existing roster skill even when the install manifest is missing or not owned by this kit.")
@@ -10224,12 +10229,36 @@ def do_packet_route(
 def roster_skills_root(codex_home_arg: str | None = None, skills_root_arg: str | None = None) -> Path:
     if isinstance(skills_root_arg, str) and skills_root_arg.strip():
         return Path(skills_root_arg).expanduser().resolve()
+    return roster_codex_home(codex_home_arg) / "skills"
+
+
+def roster_codex_home(codex_home_arg: str | None = None) -> Path:
     codex_home = (codex_home_arg or os.getenv("CODEX_HOME") or "~/.codex").strip()
-    return Path(codex_home).expanduser().resolve() / "skills"
+    return Path(codex_home).expanduser().resolve()
 
 
 def roster_skill_path(codex_home_arg: str | None = None, skills_root_arg: str | None = None) -> Path:
     return roster_skills_root(codex_home_arg, skills_root_arg) / ROSTER_SKILL_NAME
+
+
+def roster_local_marketplace_root(codex_home_arg: str | None = None) -> Path:
+    return roster_codex_home(codex_home_arg) / "local-marketplaces" / ROSTER_LOCAL_MARKETPLACE_NAME
+
+
+def roster_local_marketplace_json_path(codex_home_arg: str | None = None) -> Path:
+    return roster_local_marketplace_root(codex_home_arg) / ".agents" / "plugins" / "marketplace.json"
+
+
+def roster_local_plugin_path(codex_home_arg: str | None = None) -> Path:
+    return roster_local_marketplace_root(codex_home_arg) / "plugins" / ROSTER_PLUGIN_NAME
+
+
+def roster_local_plugin_manifest_path(plugin_path: Path) -> Path:
+    return plugin_path / "references" / "install_manifest.json"
+
+
+def roster_codex_config_path(codex_home_arg: str | None = None) -> Path:
+    return roster_codex_home(codex_home_arg) / "config.toml"
 
 
 def roster_skill_manifest_path(skill_path: Path) -> Path:
@@ -10245,11 +10274,124 @@ def build_roster_install_manifest(config: HubConfig, skill_path: Path) -> dict[s
         "kit_root": str(config.workspace_root),
         "brain_command": str(config.scripts_dir / "brain.sh"),
         "current_user_invocation": ROSTER_CURRENT_USER_INVOCATION,
-        "future_product_target": ROSTER_PRODUCT_TARGET,
-        "verified_invocation_mechanism": "codex_skill_plus_repo_adapter",
+        "product_target": ROSTER_PRODUCT_TARGET,
+        "mention_invocation": ROSTER_PRODUCT_TARGET,
+        "slash_invocation": ROSTER_SLASH_COMMAND,
+        "verified_invocation_mechanism": "codex_skill_and_local_plugin_plus_repo_adapter",
         "repo_adapter": ROSTER_VERIFIED_INVOCATION_MECHANISM,
-        "at_roster_status": "product_target_unverified_as_installed_codex_mention",
+        "at_roster_status": "local_plugin_registered_after_codex_reload",
+        "slash_status": "local_plugin_command_registered_after_codex_reload",
         "no_persistent_server_required": True,
+    }
+
+
+def build_roster_plugin_install_manifest(config: HubConfig, plugin_path: Path, marketplace_root: Path) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "installed_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "plugin_name": ROSTER_PLUGIN_NAME,
+        "plugin_path": str(plugin_path),
+        "marketplace_name": ROSTER_LOCAL_MARKETPLACE_NAME,
+        "marketplace_root": str(marketplace_root),
+        "marketplace_json": str(marketplace_root / ".agents" / "plugins" / "marketplace.json"),
+        "kit_root": str(config.workspace_root),
+        "brain_command": str(config.scripts_dir / "brain.sh"),
+        "current_user_invocation": ROSTER_CURRENT_USER_INVOCATION,
+        "product_target": ROSTER_PRODUCT_TARGET,
+        "mention_invocation": ROSTER_PRODUCT_TARGET,
+        "slash_invocation": ROSTER_SLASH_COMMAND,
+        "verified_invocation_mechanism": "codex_local_plugin_plus_repo_adapter",
+        "repo_adapter": ROSTER_VERIFIED_INVOCATION_MECHANISM,
+        "no_persistent_server_required": True,
+    }
+
+
+def build_roster_marketplace_manifest() -> dict[str, Any]:
+    return {
+        "name": ROSTER_LOCAL_MARKETPLACE_NAME,
+        "interface": {"displayName": ROSTER_LOCAL_MARKETPLACE_DISPLAY_NAME},
+        "plugins": [
+            {
+                "name": ROSTER_PLUGIN_NAME,
+                "source": {"source": "local", "path": f"./plugins/{ROSTER_PLUGIN_NAME}"},
+                "policy": {"installation": "AVAILABLE", "authentication": "ON_USE"},
+                "category": "Productivity",
+            }
+        ],
+    }
+
+
+def remove_toml_table_block(text: str, table_header: str) -> str:
+    lines = text.splitlines()
+    kept: list[str] = []
+    i = 0
+    while i < len(lines):
+        if lines[i].strip() == table_header:
+            i += 1
+            while i < len(lines) and not re.match(r"^\s*\[[^\]]+\]\s*$", lines[i]):
+                i += 1
+            continue
+        kept.append(lines[i])
+        i += 1
+    return "\n".join(kept).rstrip()
+
+
+def write_roster_codex_config_registration(codex_home_arg: str | None, marketplace_root: Path) -> dict[str, Any]:
+    config_path = roster_codex_config_path(codex_home_arg)
+    plugin_header = f'[plugins."{ROSTER_PLUGIN_NAME}@{ROSTER_LOCAL_MARKETPLACE_NAME}"]'
+    marketplace_header = f"[marketplaces.{ROSTER_LOCAL_MARKETPLACE_NAME}]"
+    old_text = config_path.read_text(encoding="utf-8") if config_path.exists() else ""
+    cleaned = remove_toml_table_block(remove_toml_table_block(old_text, plugin_header), marketplace_header)
+    block = "\n".join(
+        [
+            plugin_header,
+            "enabled = true",
+            "",
+            marketplace_header,
+            f'last_updated = "{dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")}"',
+            'source_type = "local"',
+            f'source = "{marketplace_root}"',
+            "",
+        ]
+    )
+    new_text = (cleaned + "\n\n" + block).lstrip() if cleaned else block
+    changed = old_text != new_text
+    backup_path = None
+    if changed and config_path.exists():
+        backup_path = config_path.with_name(config_path.name + f".bak.roster-install-{dt.datetime.now().strftime('%Y%m%d-%H%M%S')}")
+        shutil.copy2(config_path, backup_path)
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(new_text, encoding="utf-8")
+    return {
+        "config_path": str(config_path),
+        "updated": changed,
+        "backup_path": str(backup_path) if backup_path else None,
+        "plugin_table": plugin_header,
+        "marketplace_table": marketplace_header,
+    }
+
+
+def remove_roster_codex_config_registration(codex_home_arg: str | None) -> dict[str, Any]:
+    config_path = roster_codex_config_path(codex_home_arg)
+    plugin_header = f'[plugins."{ROSTER_PLUGIN_NAME}@{ROSTER_LOCAL_MARKETPLACE_NAME}"]'
+    marketplace_header = f"[marketplaces.{ROSTER_LOCAL_MARKETPLACE_NAME}]"
+    if not config_path.exists():
+        return {"config_path": str(config_path), "updated": False, "backup_path": None, "reason": "config_missing"}
+    old_text = config_path.read_text(encoding="utf-8")
+    new_text = remove_toml_table_block(remove_toml_table_block(old_text, plugin_header), marketplace_header)
+    if new_text:
+        new_text += "\n"
+    changed = old_text != new_text
+    backup_path = None
+    if changed:
+        backup_path = config_path.with_name(config_path.name + f".bak.roster-uninstall-{dt.datetime.now().strftime('%Y%m%d-%H%M%S')}")
+        shutil.copy2(config_path, backup_path)
+        config_path.write_text(new_text, encoding="utf-8")
+    return {
+        "config_path": str(config_path),
+        "updated": changed,
+        "backup_path": str(backup_path) if backup_path else None,
+        "reason": None,
     }
 
 
@@ -10290,28 +10432,158 @@ def roster_skill_install_check(codex_home_arg: str | None = None, skills_root_ar
         "install_manifest_exists": manifest_exists,
         "install_manifest": manifest,
         "current_user_invocation": ROSTER_CURRENT_USER_INVOCATION,
-        "future_product_target": ROSTER_PRODUCT_TARGET,
+        "product_target": ROSTER_PRODUCT_TARGET,
         "reason": reason,
     }
+
+
+def roster_plugin_install_check(codex_home_arg: str | None = None, *, requested: bool = False) -> dict[str, Any]:
+    codex_home = roster_codex_home(codex_home_arg)
+    marketplace_root = roster_local_marketplace_root(codex_home_arg)
+    marketplace_json = roster_local_marketplace_json_path(codex_home_arg)
+    plugin_path = roster_local_plugin_path(codex_home_arg)
+    plugin_json = plugin_path / ".codex-plugin" / "plugin.json"
+    slash_command = plugin_path / "commands" / "roster.md"
+    manifest_path = roster_local_plugin_manifest_path(plugin_path)
+    config_path = roster_codex_config_path(codex_home_arg)
+    config_text = config_path.read_text(encoding="utf-8") if config_path.exists() else ""
+    config_plugin_enabled = f'[plugins."{ROSTER_PLUGIN_NAME}@{ROSTER_LOCAL_MARKETPLACE_NAME}"]' in config_text and "enabled = true" in config_text
+    config_marketplace_present = f"[marketplaces.{ROSTER_LOCAL_MARKETPLACE_NAME}]" in config_text and str(marketplace_root) in config_text
+    marketplace_json_exists = marketplace_json.is_file()
+    plugin_exists = plugin_path.is_dir()
+    plugin_json_exists = plugin_json.is_file()
+    slash_command_exists = slash_command.is_file()
+    manifest_exists = manifest_path.is_file()
+    status = "not_checked"
+    reason = None
+    if requested:
+        installed = all((marketplace_json_exists, plugin_exists, plugin_json_exists, slash_command_exists, config_plugin_enabled, config_marketplace_present))
+        status = "installed" if installed else "missing"
+        if not marketplace_json_exists:
+            reason = "marketplace_json_missing"
+        elif not plugin_exists:
+            reason = "plugin_not_installed"
+        elif not plugin_json_exists:
+            reason = "plugin_json_missing"
+        elif not slash_command_exists:
+            reason = "slash_command_missing"
+        elif not config_plugin_enabled:
+            reason = "codex_config_plugin_not_enabled"
+        elif not config_marketplace_present:
+            reason = "codex_config_marketplace_missing"
+    manifest: dict[str, Any] | None = None
+    if manifest_exists:
+        try:
+            parsed = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if isinstance(parsed, dict):
+                manifest = parsed
+        except json.JSONDecodeError:
+            reason = "plugin_install_manifest_invalid_json"
+            if status == "installed":
+                status = "installed_manifest_invalid"
+    return {
+        "status": status,
+        "requested": requested,
+        "plugin_name": ROSTER_PLUGIN_NAME,
+        "codex_home": str(codex_home),
+        "marketplace_name": ROSTER_LOCAL_MARKETPLACE_NAME,
+        "marketplace_root": str(marketplace_root),
+        "marketplace_json": str(marketplace_json),
+        "marketplace_json_exists": marketplace_json_exists,
+        "plugin_path": str(plugin_path),
+        "plugin_exists": plugin_exists,
+        "plugin_json": str(plugin_json),
+        "plugin_json_exists": plugin_json_exists,
+        "slash_command": ROSTER_SLASH_COMMAND,
+        "slash_command_file": str(slash_command),
+        "slash_command_exists": slash_command_exists,
+        "config_path": str(config_path),
+        "config_exists": config_path.exists(),
+        "config_plugin_enabled": config_plugin_enabled,
+        "config_marketplace_present": config_marketplace_present,
+        "install_manifest_path": str(manifest_path),
+        "install_manifest_exists": manifest_exists,
+        "install_manifest": manifest,
+        "mention_invocation": ROSTER_PRODUCT_TARGET,
+        "slash_invocation": ROSTER_SLASH_COMMAND,
+        "requires_codex_reload": status == "installed",
+        "reason": reason,
+    }
+
+
+def install_roster_plugin_surface(config: HubConfig, codex_home_arg: str | None, force: bool = False) -> tuple[dict[str, Any], list[str]]:
+    codex_home = roster_codex_home(codex_home_arg)
+    marketplace_root = roster_local_marketplace_root(codex_home_arg)
+    marketplace_json = roster_local_marketplace_json_path(codex_home_arg)
+    plugin_path = roster_local_plugin_path(codex_home_arg)
+    payload_base = {
+        "plugin_name": ROSTER_PLUGIN_NAME,
+        "codex_home": str(codex_home),
+        "source_plugin_path": str(ROSTER_PLUGIN_SOURCE_DIR),
+        "marketplace_name": ROSTER_LOCAL_MARKETPLACE_NAME,
+        "marketplace_root": str(marketplace_root),
+        "marketplace_json": str(marketplace_json),
+        "plugin_path": str(plugin_path),
+        "mention_invocation": ROSTER_PRODUCT_TARGET,
+        "slash_invocation": ROSTER_SLASH_COMMAND,
+    }
+    if not ROSTER_PLUGIN_SOURCE_DIR.is_dir() or not (ROSTER_PLUGIN_SOURCE_DIR / ".codex-plugin" / "plugin.json").is_file():
+        return {**payload_base, "installed": False, "refused": True, "reason": "missing_roster_plugin_source"}, [f"Roster plugin source is missing: {ROSTER_PLUGIN_SOURCE_DIR}"]
+    if plugin_path.exists() and not force:
+        return {
+            **payload_base,
+            "installed": False,
+            "refused": True,
+            "reason": "existing_roster_plugin",
+            "installed_plugin": roster_plugin_install_check(codex_home_arg, requested=True),
+        }, [f"Roster plugin already exists: {plugin_path}; use --force to overwrite."]
+    marketplace_root.mkdir(parents=True, exist_ok=True)
+    if plugin_path.exists():
+        if plugin_path.is_dir():
+            shutil.rmtree(plugin_path)
+        else:
+            plugin_path.unlink()
+    shutil.copytree(ROSTER_PLUGIN_SOURCE_DIR, plugin_path)
+    marketplace_json.parent.mkdir(parents=True, exist_ok=True)
+    marketplace_json.write_text(json.dumps(build_roster_marketplace_manifest(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    manifest_path = roster_local_plugin_manifest_path(plugin_path)
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(json.dumps(build_roster_plugin_install_manifest(config, plugin_path, marketplace_root), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    config_registration = write_roster_codex_config_registration(codex_home_arg, marketplace_root)
+    return {
+        **payload_base,
+        "installed": True,
+        "refused": False,
+        "reason": None,
+        "config_registration": config_registration,
+        "installed_plugin": roster_plugin_install_check(codex_home_arg, requested=True),
+        "requires_codex_reload": True,
+    }, []
 
 
 def build_roster_install_result(config: HubConfig, codex_home_arg: str | None = None, skills_root_arg: str | None = None, force: bool = False) -> tuple[int, dict[str, Any], list[str]]:
     skills_root = roster_skills_root(codex_home_arg, skills_root_arg)
     skill_path = skills_root / ROSTER_SKILL_NAME
+    plugin_path = roster_local_plugin_path(codex_home_arg)
     payload_base = {
         "schema_version": 1,
-        "report_type": "roster_skill_install",
+        "report_type": "roster_install",
         "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "skill_name": ROSTER_SKILL_NAME,
+        "plugin_name": ROSTER_PLUGIN_NAME,
         "kit_root": str(config.workspace_root),
         "source_skill_path": str(ROSTER_SKILL_SOURCE_DIR),
+        "source_plugin_path": str(ROSTER_PLUGIN_SOURCE_DIR),
         "skills_root": str(skills_root),
         "skill_path": str(skill_path),
+        "plugin_path": str(plugin_path),
         "current_user_invocation": ROSTER_CURRENT_USER_INVOCATION,
-        "future_product_target": ROSTER_PRODUCT_TARGET,
-        "verified_invocation_mechanism": "codex_skill_plus_repo_adapter",
-        "next_human_command": "Start a new Codex thread and type `Roster, <your artifact task>`.",
-        "at_roster_status": "product_target_unverified_as_installed_codex_mention",
+        "product_target": ROSTER_PRODUCT_TARGET,
+        "mention_invocation": ROSTER_PRODUCT_TARGET,
+        "slash_invocation": ROSTER_SLASH_COMMAND,
+        "verified_invocation_mechanism": "codex_skill_and_local_plugin_plus_repo_adapter",
+        "next_human_command": "Restart or reload Codex, then try `@roster <task>` or `/roster <task>`. Fallback: `Roster, <task>`.",
+        "at_roster_status": "local_plugin_registered_after_codex_reload",
         "server_required": False,
         "daemon_required": False,
         "database_required": False,
@@ -10319,6 +10591,8 @@ def build_roster_install_result(config: HubConfig, codex_home_arg: str | None = 
     }
     if not ROSTER_SKILL_SOURCE_DIR.is_dir() or not (ROSTER_SKILL_SOURCE_DIR / "SKILL.md").is_file():
         return 1, {**payload_base, "installed": False, "refused": True, "reason": "missing_roster_skill_source"}, [f"Roster skill source is missing: {ROSTER_SKILL_SOURCE_DIR}"]
+    if not ROSTER_PLUGIN_SOURCE_DIR.is_dir() or not (ROSTER_PLUGIN_SOURCE_DIR / ".codex-plugin" / "plugin.json").is_file():
+        return 1, {**payload_base, "installed": False, "refused": True, "reason": "missing_roster_plugin_source"}, [f"Roster plugin source is missing: {ROSTER_PLUGIN_SOURCE_DIR}"]
     if skill_path.exists() and not force:
         return 1, {
             **payload_base,
@@ -10327,6 +10601,14 @@ def build_roster_install_result(config: HubConfig, codex_home_arg: str | None = 
             "reason": "existing_roster_skill",
             "installed_skill": roster_skill_install_check(codex_home_arg, skills_root_arg, requested=True),
         }, [f"Roster skill already exists: {skill_path}; use --force to overwrite."]
+    if plugin_path.exists() and not force:
+        return 1, {
+            **payload_base,
+            "installed": False,
+            "refused": True,
+            "reason": "existing_roster_plugin",
+            "installed_plugin": roster_plugin_install_check(codex_home_arg, requested=True),
+        }, [f"Roster plugin already exists: {plugin_path}; use --force to overwrite."]
     skills_root.mkdir(parents=True, exist_ok=True)
     if skill_path.exists():
         if skill_path.is_dir():
@@ -10337,30 +10619,45 @@ def build_roster_install_result(config: HubConfig, codex_home_arg: str | None = 
     manifest_path = roster_skill_manifest_path(skill_path)
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps(build_roster_install_manifest(config, skill_path), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    plugin_payload, plugin_errors = install_roster_plugin_surface(config, codex_home_arg, force=True)
+    if plugin_errors:
+        return 1, {
+            **payload_base,
+            "installed": False,
+            "refused": bool(plugin_payload.get("refused")),
+            "reason": plugin_payload.get("reason") or "roster_plugin_install_failed",
+            "installed_skill": roster_skill_install_check(codex_home_arg, skills_root_arg, requested=True),
+            "installed_plugin": plugin_payload,
+        }, plugin_errors
     return 0, {
         **payload_base,
         "installed": True,
         "refused": False,
         "reason": None,
         "installed_skill": roster_skill_install_check(codex_home_arg, skills_root_arg, requested=True),
+        "installed_plugin": plugin_payload.get("installed_plugin"),
+        "plugin_registration": plugin_payload,
+        "requires_codex_reload": True,
     }, []
 
 
 def render_roster_install_markdown(payload: dict[str, Any]) -> str:
     lines = [
-        "# Roster Skill Install",
+        "# Roster Install",
         "",
         f"- Installed: `{payload.get('installed')}`",
         f"- Refused: `{payload.get('refused')}`",
         f"- Skill path: `{payload.get('skill_path')}`",
+        f"- Plugin path: `{payload.get('plugin_path')}`",
         f"- Current invocation: `{payload.get('current_user_invocation')}`",
-        f"- Future target: `{payload.get('future_product_target')}`",
+        f"- Mention invocation: `{payload.get('mention_invocation')}`",
+        f"- Slash invocation: `{payload.get('slash_invocation')}`",
         "",
         "## Next",
         "",
         str(payload.get("next_human_command") or "Start a new Codex thread and type `Roster, <task>`."),
         "",
-        "`@roster` is not verified as an installed Codex mention.",
+        "Restart or reload Codex after install so plugin and slash-command state can refresh.",
         "",
     ]
     if payload.get("reason"):
@@ -10396,56 +10693,107 @@ def roster_installed_skill_owned_by_this_kit(config: HubConfig, installed_skill:
     return True, None
 
 
+def roster_installed_plugin_owned_by_this_kit(config: HubConfig, installed_plugin: dict[str, Any]) -> tuple[bool, str | None]:
+    manifest = installed_plugin.get("install_manifest")
+    if not isinstance(manifest, dict):
+        return False, "missing_plugin_install_manifest"
+    if manifest.get("plugin_name") != ROSTER_PLUGIN_NAME:
+        return False, "manifest_plugin_name_mismatch"
+    manifest_kit_root = str(manifest.get("kit_root") or "")
+    if not manifest_kit_root:
+        return False, "manifest_kit_root_missing"
+    try:
+        if Path(manifest_kit_root).expanduser().resolve() != config.workspace_root.resolve():
+            return False, "manifest_kit_root_mismatch"
+    except OSError:
+        return False, "manifest_kit_root_invalid"
+    return True, None
+
+
 def build_roster_uninstall_result(config: HubConfig, codex_home_arg: str | None = None, skills_root_arg: str | None = None, force: bool = False) -> tuple[int, dict[str, Any], list[str]]:
     skills_root = roster_skills_root(codex_home_arg, skills_root_arg)
     skill_path = skills_root / ROSTER_SKILL_NAME
+    plugin_path = roster_local_plugin_path(codex_home_arg)
+    marketplace_root = roster_local_marketplace_root(codex_home_arg)
     installed_before = roster_skill_install_check(codex_home_arg, skills_root_arg, requested=True)
+    plugin_before = roster_plugin_install_check(codex_home_arg, requested=True)
     payload_base = {
         "schema_version": 1,
-        "report_type": "roster_skill_uninstall",
+        "report_type": "roster_uninstall",
         "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "skill_name": ROSTER_SKILL_NAME,
+        "plugin_name": ROSTER_PLUGIN_NAME,
         "kit_root": str(config.workspace_root),
         "skills_root": str(skills_root),
         "skill_path": str(skill_path),
+        "plugin_path": str(plugin_path),
+        "marketplace_root": str(marketplace_root),
         "current_user_invocation": ROSTER_CURRENT_USER_INVOCATION,
-        "future_product_target": ROSTER_PRODUCT_TARGET,
+        "product_target": ROSTER_PRODUCT_TARGET,
+        "mention_invocation": ROSTER_PRODUCT_TARGET,
+        "slash_invocation": ROSTER_SLASH_COMMAND,
         "server_required": False,
         "daemon_required": False,
         "database_required": False,
         "separate_ui_required": False,
         "next_human_command": "Run `roster-install` again when you want to reinstall Roster on this Codex home.",
     }
-    if not skill_path.exists():
+    skill_present = skill_path.exists()
+    plugin_present = plugin_path.exists() or marketplace_root.exists()
+    if not skill_present and not plugin_present:
         return 0, {
             **payload_base,
             "uninstalled": False,
             "refused": False,
             "reason": "not_installed",
             "installed_before": installed_before,
+            "plugin_before": plugin_before,
             "installed_after": roster_skill_install_check(codex_home_arg, skills_root_arg, requested=True),
+            "plugin_after": roster_plugin_install_check(codex_home_arg, requested=True),
         }, []
-    if not skill_path.is_dir() and not force:
+    if skill_present and not skill_path.is_dir() and not force:
         return 1, {
             **payload_base,
             "uninstalled": False,
             "refused": True,
             "reason": "skill_path_not_directory",
             "installed_before": installed_before,
+            "plugin_before": plugin_before,
         }, [f"Roster skill path exists but is not a directory: {skill_path}; use --force to remove it."]
-    owned, reason = roster_installed_skill_owned_by_this_kit(config, installed_before)
-    if not owned and not force:
+    owned, reason = (True, None)
+    if skill_present:
+        owned, reason = roster_installed_skill_owned_by_this_kit(config, installed_before)
+    if skill_present and not owned and not force:
         return 1, {
             **payload_base,
             "uninstalled": False,
             "refused": True,
             "reason": reason or "install_manifest_not_owned_by_this_kit",
             "installed_before": installed_before,
+            "plugin_before": plugin_before,
         }, [f"Refusing to remove {skill_path}: {reason or 'install manifest is not owned by this kit'}; use --force only if this is the Roster install to remove."]
+    plugin_owned, plugin_reason = (True, None)
+    if plugin_path.exists():
+        plugin_owned, plugin_reason = roster_installed_plugin_owned_by_this_kit(config, plugin_before)
+    if plugin_path.exists() and not plugin_owned and not force:
+        return 1, {
+            **payload_base,
+            "uninstalled": False,
+            "refused": True,
+            "reason": plugin_reason or "plugin_install_manifest_not_owned_by_this_kit",
+            "installed_before": installed_before,
+            "plugin_before": plugin_before,
+        }, [f"Refusing to remove {plugin_path}: {plugin_reason or 'plugin install manifest is not owned by this kit'}; use --force only if this is the Roster install to remove."]
     if skill_path.is_dir():
         shutil.rmtree(skill_path)
-    else:
+    elif skill_path.exists():
         skill_path.unlink()
+    if marketplace_root.exists():
+        if marketplace_root.is_dir():
+            shutil.rmtree(marketplace_root)
+        else:
+            marketplace_root.unlink()
+    config_removal = remove_roster_codex_config_registration(codex_home_arg)
     return 0, {
         **payload_base,
         "uninstalled": True,
@@ -10453,18 +10801,22 @@ def build_roster_uninstall_result(config: HubConfig, codex_home_arg: str | None 
         "reason": None,
         "forced": force,
         "installed_before": installed_before,
+        "plugin_before": plugin_before,
         "installed_after": roster_skill_install_check(codex_home_arg, skills_root_arg, requested=True),
+        "plugin_after": roster_plugin_install_check(codex_home_arg, requested=True),
+        "config_removal": config_removal,
     }, []
 
 
 def render_roster_uninstall_markdown(payload: dict[str, Any]) -> str:
     lines = [
-        "# Roster Skill Uninstall",
+        "# Roster Uninstall",
         "",
         f"- Uninstalled: `{payload.get('uninstalled')}`",
         f"- Refused: `{payload.get('refused')}`",
         f"- Reason: `{payload.get('reason')}`",
         f"- Skill path: `{payload.get('skill_path')}`",
+        f"- Plugin path: `{payload.get('plugin_path')}`",
         "",
         "## Next",
         "",
@@ -10850,6 +11202,7 @@ def build_roster_health_report(
     provider_check = build_roster_provider_check(provider, auth_env)
     cv_capability = build_roster_cv_capability_check(cv_provider, cv_auth_env)
     installed_skill = roster_skill_install_check(codex_home, skills_root, requested=bool(codex_home or skills_root))
+    installed_plugin = roster_plugin_install_check(codex_home, requested=bool(codex_home))
     dependency_check = {
         "persistent_server_required": False,
         "daemon_required": False,
@@ -10865,6 +11218,8 @@ def build_roster_health_report(
         blocking.append("packet_output_failed")
     if installed_skill.get("requested") and installed_skill.get("status") != "installed":
         blocking.append("roster_skill_not_installed")
+    if installed_plugin.get("requested") and installed_plugin.get("status") != "installed":
+        blocking.append("roster_plugin_not_installed")
     cv_health_degraded = bool(cv_capability.get("health_blocking") and cv_capability.get("status") != "configured")
     if blocking:
         overall_status = "failed"
@@ -10891,22 +11246,25 @@ def build_roster_health_report(
             "recognized_front_doors": visibility_payload.get("recognized_front_doors", []),
             "matched_keywords": visibility_payload.get("matched_keywords", []),
             "current_codex_surface": {
-                "mention_at_roster": "product_target_unverified_as_installed_codex_mention",
+                "mention_at_roster": "registered_local_plugin_requires_codex_reload_or_ui_verification" if installed_plugin.get("status") == "installed" else "not_registered_by_this_repo_health_check",
                 "skill": installed_skill.get("status"),
-                "plugin": "not_registered_by_this_repo_health_check",
+                "plugin": installed_plugin.get("status"),
                 "app_mention": "not_registered_by_this_repo_health_check",
-                "slash_command": "not_verified",
+                "slash_command": "registered_local_plugin_command_requires_codex_reload_or_ui_verification" if installed_plugin.get("status") == "installed" else "not_registered_by_this_repo_health_check",
+                "slash_invocation": ROSTER_SLASH_COMMAND,
             },
             "unavailable_reason": None if visible else (visibility_payload.get("reason") or visibility_result.get("stdout_parse_error") or visibility_result.get("stderr") or "route_not_visible"),
         },
         "installed_skill": installed_skill,
+        "installed_plugin": installed_plugin,
         "packet_output": packet_output,
         "llm_provider": provider_check,
         "cv_inspection_capability": cv_capability,
         "runtime_dependency_check": dependency_check,
         "portable_setup": [
-            "repo files: scripts/brain.sh, scripts/system_hub.py, policy/system_hub.toml, contexts/team_alias_registry.json, skills/roster, templates/",
+            "repo files: scripts/brain.sh, scripts/system_hub.py, policy/system_hub.toml, contexts/team_alias_registry.json, skills/roster, plugins/roster, templates/",
             "install adapter: scripts/brain.sh roster-install --codex-home <codex-home>",
+            "plugin adapter: local marketplace roster-local with plugin roster and slash command /roster",
             "verified adapter: scripts/brain.sh packet-route, then artifact-harness packet output under --path",
         ],
         "machine_local_state": [
@@ -10932,6 +11290,8 @@ def render_roster_health_markdown(payload: dict[str, Any]) -> str:
         f"- Verified mechanism: `{payload.get('verified_invocation_mechanism', {}).get('name')}`",
         f"- Invocation surface: `{payload.get('verified_invocation_mechanism', {}).get('status')}`",
         f"- Installed skill: `{payload.get('installed_skill', {}).get('status')}`",
+        f"- Installed plugin: `{payload.get('installed_plugin', {}).get('status')}`",
+        f"- Slash command: `{payload.get('installed_plugin', {}).get('slash_invocation')}`",
         f"- Target path: `{payload.get('target_path')}`",
         f"- Packet output: `{payload.get('packet_output', {}).get('status')}`",
         f"- LLM/provider: `{payload.get('llm_provider', {}).get('status')}`",
@@ -10939,7 +11299,7 @@ def render_roster_health_markdown(payload: dict[str, Any]) -> str:
         "",
         "## Boundaries",
         "",
-        "- `@roster` remains the product target; this check does not prove an installed Codex mention.",
+        "- `@roster` and `/roster` require Codex to reload plugin state before UI verification.",
         "- No persistent server, daemon, database, separate UI, or external control plane is required.",
         "- Provider and CV secrets are checked only for presence and are not printed.",
         "",

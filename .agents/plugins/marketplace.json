@@ -1,0 +1,20 @@
+{
+  "name": "roster-local",
+  "interface": {
+    "displayName": "Roster Local"
+  },
+  "plugins": [
+    {
+      "name": "roster",
+      "source": {
+        "source": "local",
+        "path": "./plugins/roster"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

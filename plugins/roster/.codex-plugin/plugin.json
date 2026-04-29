@@ -1,0 +1,42 @@
+{
+  "name": "roster",
+  "version": "0.6.0",
+  "description": "Roster coordinates artifact work into a working team, quality loop, tool boundary, and resumable task packets inside the active Codex workspace.",
+  "author": {
+    "name": "tomlin01",
+    "url": "https://github.com/tomlin01"
+  },
+  "homepage": "https://github.com/tomlin01/roster",
+  "repository": "https://github.com/tomlin01/roster",
+  "license": "MIT",
+  "keywords": [
+    "roster",
+    "staffing",
+    "project-planning",
+    "multi-agent",
+    "quality",
+    "artifact"
+  ],
+  "interface": {
+    "displayName": "Roster",
+    "shortDescription": "Coordinate artifact work with roles, checks, and handoff continuity",
+    "longDescription": "Use Roster to turn non-trivial artifact work into a clear team shape, task boundary, quality loop, tool-access boundary, and resumable packet trail in the active Codex workspace. Roster does not require a persistent server, daemon, database, or separate orchestration UI.",
+    "developerName": "tomlin01",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/tomlin01/roster",
+    "privacyPolicyURL": "https://github.com/tomlin01/roster",
+    "termsOfServiceURL": "https://github.com/tomlin01/roster",
+    "defaultPrompt": [
+      "Help me turn these meeting notes into a project plan",
+      "Set up the working team and quality checks",
+      "Find where this Roster task is blocked"
+    ],
+    "brandColor": "#166534",
+    "screenshots": []
+  }
+}

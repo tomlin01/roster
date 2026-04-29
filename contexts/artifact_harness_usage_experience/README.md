@@ -12,13 +12,14 @@ which parts still leak implementation details to the user.
 Current verified user invocation:
 
 ```text
-Roster, 幫我把這個 slide 任務安排好。
+Roster, 幫我把這些會議筆記整理成可執行的專案計畫。
 ```
 
-Current status: `@roster` was tested and did not work as an installed Codex
-mention in this phase. Treat it as a future install target only. The current
-usable surface is natural-language invocation through `Roster, ...`, backed by
-repo-local route checks when Codex or a reviewer needs deterministic evidence.
+Current status: `roster-install` registers a local Roster skill plus local
+plugin/slash surface. After Codex reloads plugin state, the intended installed
+targets are `@roster <task>` and `/roster <task>`. The stable fallback remains
+natural-language invocation through `Roster, ...`, backed by repo-local route
+checks when Codex or a reviewer needs deterministic evidence.
 
 Current target artifacts:
 
@@ -28,8 +29,8 @@ Current target artifacts:
   records the review-derived instruction that the final README should satisfy.
 - [`NAMING_DECISION_DRAFT.md`](./NAMING_DECISION_DRAFT.md)
   records the current move away from `codex-cns` toward a human-role surface,
-  with `Roster` as the current recommendation and `@roster` as a future install
-  target only.
+  with `Roster` as the natural-language fallback and `@roster` / `/roster` as
+  installed Codex targets after `roster-install` plus Codex reload.
 - [`ROSTER_RENAME_ROLLOUT_PLAN.md`](./ROSTER_RENAME_ROLLOUT_PLAN.md)
   defines the staged, safe rename plan and no-touch zones.
 - [`ROSTER_DEVELOPER_PROMPTS.md`](./ROSTER_DEVELOPER_PROMPTS.md)
@@ -43,11 +44,11 @@ The user should not need to remember or type `brain.sh`, `packet-route`, or
 The intended user-facing interaction is natural Codex CLI/GUI language, for
 example:
 
-- `Roster, 幫我把這個 slide 任務安排好。`
+- `Roster, 幫我把這些會議筆記整理成可執行的專案計畫。`
 - `Roster, organize the task boundary and handoff for this artifact`
 - `HR, help me confirm the staffing roles for this artifact`
 - `CAP, what tool access does this task need?`
-- `Roster, make this lecture slide task organized`
+- `Roster, make this project planning task organized`
 
 `PM` is an optional natural alias for project-planning language. `HR` remains
 staffing-only; it should not become the project-coordination or tool-access
@@ -85,11 +86,11 @@ Important human factors:
 - Quality as normal coordination: when the user asks how Quality should be set,
   answer with immediate delivery checks and durable improvement checks before
   exposing internal packet names.
-- Visual artifact quality loop: for slide, scene, render, video, screenshot,
-  image, UI, or presentation production, Roster should plan 2-3 bounded
+- Visual artifact quality loop: for presentation, figure, screenshot, image,
+  UI, rendered output, or media production, Roster should plan 2-3 bounded
   inspect-and-correct passes before delivery. The loop checks visible output for
   occlusion, overlap, readability, contrast, missing expected content, and
-  slide/render/video mismatch. CV inspection follows an activation ladder:
+  source/export mismatch. CV inspection follows an activation ladder:
   prefer existing rendered/exported visual evidence, render/export inspectable
   images or frames when safe, request CAP-governed screenshot capture,
   playback/frame sampling, Computer Use/app playback, OCR/readability, or
@@ -119,8 +120,7 @@ For this kit, `install` should mean registering a Codex-native invocation
 surface that can reach the existing packet engine:
 
 - user-facing surface: current `Roster, ...` natural-language invocation backed
-  by an installable `roster` skill, with `@roster`, plugin/app mention, or
-  slash-accessible command reserved for a future verified install layer
+  by an installable `roster` skill and local `roster` plugin/slash surface
 - agent-facing adapter: the existing deterministic CLI and JSON outputs
 - output location: the target workspace, not the kit repo by default
 - governance boundary: unchanged Artifact Harness / HR / Team Architect / CAP /
@@ -131,9 +131,9 @@ surface that can reach the existing packet engine:
   Codex can invoke the surface and that LLM-dependent paths either work or fail
   with an actionable missing-auth / missing-provider message
 
-The current repo has the packet engine, repo-local instructions, and a
-repo-owned `roster` skill install path. The installation story is still
-incomplete only for custom `@`, `/`, plugin, or app-mention affordances.
+The current repo has the packet engine, repo-local instructions, a repo-owned
+`roster` skill install path, and a local plugin/slash registration path.
+Runtime UI visibility still depends on Codex refreshing plugin state.
 
 Machine-specific state should stay out of the repo:
 
@@ -200,12 +200,13 @@ Acceptance signal:
 Current risk:
 
 - The workflow is repo-local and executable, and now has an installable
-  repo-owned `roster` Codex skill source. It is still not verified as a custom
-  `@roster` mention, slash command, plugin/app mention, or globally distributed
-  package.
+  repo-owned `roster` Codex skill plus local plugin/slash surface.
+- `roster-install` can register the local files and Codex config, but actual
+  composer visibility still depends on restarting or reloading Codex plugin
+  state and verifying the UI in the current Codex build.
 - If the user must remember exact paths or shell commands during ordinary work,
-  the kit is still too manual; the current human path should remain `Roster, ...`
-  after install, with shell commands reserved for setup and diagnostics.
+  the kit is still too manual; shell commands should remain setup and
+  diagnostics surfaces, not ordinary usage.
 - The user reasonably expects a reusable coordination surface to be easy to
   call through Codex-native affordances such as a mention, skill invocation,
   plugin/app entry, or slash-accessible command.
@@ -217,10 +218,10 @@ Current risk:
 Desired behavior:
 
 - The user can call the staffing-and-coordination surface without typing bash.
-- The current primary call is `Roster, ...`; `PM` may remain an optional natural
-  alias for project-planning language.
-- `@roster` remains the desired future install target, but it is not current
-  verified behavior.
+- After install and Codex reload, the concrete target calls are
+  `@roster <task>` and `/roster <task>`.
+- The stable fallback call remains `Roster, ...`; `PM` may remain an optional
+  natural alias for project-planning language.
 - Natural aliases such as `HR` should still work when they appear in ordinary
   language, but `HR` stays staffing-only.
 - Explicit invocation should also exist for cases where the user does not want
@@ -266,7 +267,7 @@ Open question for implementation:
   currently has strong built-in command semantics in Codex CLI, so any custom
   slash path needs explicit support rather than assumption.
 
-### UX-003: `@roster` is not currently a working Codex mention
+### UX-003: Installed invocation needs plugin-state verification
 
 - date: `2026-04-28`
 - source: user manual test of `@` invocation
@@ -274,18 +275,22 @@ Open question for implementation:
 
 Observed result:
 
-- The user tested `@roster` and it did not activate as a Codex mention.
-- Repo-local `packet-route` can still match the literal text `@roster`, but that
-  is not the same thing as an installed mention, skill, plugin/app mention, or
-  slash command.
+- The user previously tested `@roster` before plugin registration existed, and
+  it did not activate as a Codex mention.
+- `roster-install` now writes a local marketplace/plugin registration plus a
+  `/roster` command, but the active Codex UI may require restart or reload
+  before the surfaces appear.
+- Repo-local `packet-route` can still match the literal text `@roster`; that is
+  useful fallback evidence, but not the same thing as seeing the plugin surface
+  in the active composer.
 
 Current documentation rule:
 
-- Current primary user-facing invocation is `Roster, ...`.
-- `@roster` must be described only as a future install target until a real
-  registration layer proves it in Codex CLI/GUI.
-- Any future README that puts `@roster` in the first-screen primary path must
-  include concrete verification evidence for the installed surface.
+- `Roster, ...` remains the stable fallback.
+- `@roster <task>` and `/roster <task>` may be shown as installed targets after
+  `roster-install` and a Codex reload.
+- `roster-health --codex-home <home>` verifies local registration files and
+  config state; final UI visibility is still verified by trying the composer.
 
 ### UX-003: Cross-machine install must include LLM attachment
 
@@ -449,7 +454,7 @@ Acceptance signal:
 ### UX-008: First-touch replies should feel like a working interface
 
 - date: `2026-04-28`
-- source: user feedback after a Lecture1 team-roster test
+- source: user feedback after a first Roster team-setup test
 - severity: P1 for daily usability
 
 Current risk:
@@ -469,8 +474,8 @@ Desired behavior:
 - Internal governance terms remain available in generated files, review/debug
   replies, and later explanations, but they do not lead the ordinary response.
 - If this turn only prepared a roster, say that as current-turn scope and make
-  clear that future Roster runs can assign slide, scene, render, video, QA, or
-  other artifact work to the relevant roles.
+  clear that future Roster runs can assign document, planning, data, code,
+  presentation, visual, media, QA, or other artifact work to the relevant roles.
 
 ## Experience Probes
 
@@ -512,7 +517,7 @@ Expected agent behavior:
 User phrase:
 
 ```text
-幫我整理這個投影片任務
+幫我整理這個專案計畫任務
 ```
 
 Expected agent behavior:

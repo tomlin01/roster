@@ -3,8 +3,8 @@
 Roster helps Codex organize artifact work into a working team, a short quality
 loop, and clear tool boundaries.
 
-Use it when a task is more than a one-shot answer: slides, videos, documents,
-datasets, code changes, reviews, or any project artifact that benefits from
+Use it when a task is more than a one-shot answer: project plans, meeting notes,
+documents, datasets, code changes, reviews, or any artifact that benefits from
 roles, checks, and handoff continuity.
 
 Roster is Codex-native. It does not require a persistent server, daemon,
@@ -13,13 +13,17 @@ workspace where the work happens.
 
 ## Install
 
-Clone the kit and install the local `roster` skill into your Codex home:
+Clone the kit and install the local `roster` skill plus local plugin surface
+into your Codex home:
 
 ```bash
 git clone https://github.com/tomlin01/roster.git
 cd roster
 ./scripts/brain.sh roster-install --codex-home ~/.codex --json
 ```
+
+Restart or reload Codex after install so plugin and slash-command state can be
+refreshed.
 
 Check that Roster can see a target workspace and write/clean a smoke packet
 there:
@@ -43,13 +47,13 @@ make a remote model call.
 Open Codex in the project workspace and say:
 
 ```text
-Roster, help me plan this slide task.
+Roster, help me turn these meeting notes into a project plan.
 ```
 
 or:
 
 ```text
-Roster, 幫我把這個影片任務安排好。
+Roster, 幫我把這些會議筆記整理成可執行的專案計畫。
 ```
 
 Roster should answer in plain project language: what team shape it will use,
@@ -62,9 +66,16 @@ Current truthful invocation:
 Roster, <your task>
 ```
 
-`@roster` is a future product target, not a verified installed Codex mention,
-plugin/app mention, or slash command. The route helper can recognize the
-literal text `@roster`, but that is not the same as Codex mention interception.
+Installed invocation targets after `roster-install` and a Codex reload:
+
+```text
+@roster <your task>
+/roster <your task>
+```
+
+If the current Codex UI does not surface the plugin immediately, use the stable
+fallback `Roster, <your task>` and run `roster-health --codex-home ~/.codex` to
+inspect the local registration state.
 
 ## What Roster Does
 
@@ -94,14 +105,14 @@ Quality is built into Roster as a short self-check loop.
 For text and planning work, Roster should check whether the current artifact is
 clear, internally consistent, and ready to hand off.
 
-For visual work, such as slides, screenshots, rendered scenes, videos, UI, or
-presentations, Roster should try to inspect actual visual evidence before
-calling the output done. A typical loop is:
+For visual work, such as presentations, screenshots, figures, UI, or rendered
+outputs, Roster should try to inspect actual visual evidence before calling the
+output done. A typical loop is:
 
 1. produce the first version
 2. inspect a screenshot, render, frame, or playback segment
 3. catch text occlusion, key element overlap, poor readability, missing
-   content, or slide/render/video mismatch
+   content, or source/export mismatch
 4. make a focused correction
 5. repeat for 2-3 bounded iterations, or stop earlier when no material issue
    remains
@@ -115,7 +126,7 @@ Roster can keep a tiny workspace-local preference file for explicit future
 coordination preferences:
 
 ```text
-Roster, 記住以後 Lecture1 的影片任務都先檢查文字遮擋。
+Roster, 記住以後專案規劃任務都先列負責人、里程碑、風險和驗收條件。
 ```
 
 The adapter writes:
@@ -130,7 +141,7 @@ preferred coordination wording.
 
 ## Uninstall
 
-Remove the installed skill from a Codex home:
+Remove the installed skill and local plugin surface from a Codex home:
 
 ```bash
 ./scripts/brain.sh roster-uninstall --codex-home ~/.codex --json
