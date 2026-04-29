@@ -1005,6 +1005,7 @@ def test_capabilities_reports_new_commands_and_active_skills() -> None:
         assert_true(result.returncode == 0, f"capabilities expected 0, got {result.returncode}")
         assert_true("`intake`" in result.stdout, "capabilities should list intake command")
         assert_true("`roster-install`" in result.stdout, "capabilities should list roster-install command")
+        assert_true("`roster-uninstall`" in result.stdout, "capabilities should list roster-uninstall command")
         assert_true("`roster-health`" in result.stdout, "capabilities should list roster-health command")
         assert_true("`capabilities`" in result.stdout, "capabilities should list capabilities command")
         assert_true("## Active Skills" in result.stdout, "capabilities should report active skills")
@@ -3191,6 +3192,56 @@ def test_roster_install_temp_codex_home_and_health_detects_skill() -> None:
         assert_true(not (target / "contexts" / "artifact_harness_runs").exists(), "health should clean target packet runs")
 
 
+def test_roster_uninstall_temp_codex_home_removes_owned_skill_safely() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-roster-uninstall-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        codex_home = Path(tmp_s) / "fresh_codex_home"
+        skill_path = codex_home / "skills" / "roster"
+
+        install = run_brain(ws, "roster-install", "--codex-home", str(codex_home), "--json")
+        assert_true(install.returncode == 0, f"roster-install should succeed before uninstall, got {install.returncode}, stderr={install.stderr}")
+        assert_true((skill_path / "SKILL.md").exists(), "installed skill should exist before uninstall")
+
+        uninstall = run_brain(ws, "roster-uninstall", "--codex-home", str(codex_home), "--json")
+        assert_true(uninstall.returncode == 0, f"roster-uninstall should succeed for owned install, got {uninstall.returncode}, stderr={uninstall.stderr}")
+        payload = json.loads(uninstall.stdout)
+        assert_true(payload["report_type"] == "roster_skill_uninstall", "uninstall JSON should identify report type")
+        assert_true(payload["uninstalled"] is True, "uninstall JSON should report uninstalled=true")
+        assert_true(payload["refused"] is False, "owned uninstall should not be refused")
+        assert_true(payload["installed_before"]["status"] == "installed", "uninstall should report installed_before")
+        assert_true(payload["installed_after"]["status"] == "missing", "uninstall should report missing installed_after")
+        assert_true(not skill_path.exists(), "roster-uninstall should remove the installed skill folder")
+
+        duplicate = run_brain(ws, "roster-uninstall", "--codex-home", str(codex_home), "--json")
+        duplicate_payload = json.loads(duplicate.stdout)
+        assert_true(duplicate.returncode == 0, "repeated roster-uninstall should be idempotent")
+        assert_true(duplicate_payload["uninstalled"] is False, "repeated uninstall should report no removal")
+        assert_true(duplicate_payload["reason"] == "not_installed", "repeated uninstall should identify not_installed")
+
+
+def test_roster_uninstall_refuses_unknown_same_name_skill_without_force() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-roster-uninstall-refuse-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        codex_home = Path(tmp_s) / "fresh_codex_home"
+        skill_path = codex_home / "skills" / "roster"
+        skill_path.mkdir(parents=True, exist_ok=True)
+        (skill_path / "SKILL.md").write_text("# custom roster\n", encoding="utf-8")
+
+        refused = run_brain(ws, "roster-uninstall", "--codex-home", str(codex_home), "--json")
+        refused_payload = json.loads(refused.stdout)
+        assert_true(refused.returncode != 0, "roster-uninstall should refuse unknown same-name skill")
+        assert_true(refused_payload["refused"] is True, "unknown same-name skill refusal should be structured")
+        assert_true(refused_payload["reason"] == "missing_install_manifest", "unknown same-name skill should require manifest or force")
+        assert_true((skill_path / "SKILL.md").exists(), "refused uninstall should preserve unknown same-name skill")
+
+        forced = run_brain(ws, "roster-uninstall", "--codex-home", str(codex_home), "--force", "--json")
+        forced_payload = json.loads(forced.stdout)
+        assert_true(forced.returncode == 0, f"forced roster-uninstall should succeed, got {forced.returncode}, stderr={forced.stderr}")
+        assert_true(forced_payload["uninstalled"] is True, "forced uninstall should report removal")
+        assert_true(forced_payload["forced"] is True, "forced uninstall should record force")
+        assert_true(not skill_path.exists(), "forced uninstall should remove unknown same-name skill")
+
+
 def test_skill_route_gap_triggers_discovery() -> None:
     with tempfile.TemporaryDirectory(prefix="system-hub-skill-route-gap-") as tmp_s:
         ws = make_workspace(Path(tmp_s))
@@ -4245,6 +4296,8 @@ def main() -> int:
         test_roster_health_provider_missing_auth_and_configured_auth_are_structured_without_secret_leak,
         test_roster_health_missing_target_json_refusal_is_parseable,
         test_roster_install_temp_codex_home_and_health_detects_skill,
+        test_roster_uninstall_temp_codex_home_removes_owned_skill_safely,
+        test_roster_uninstall_refuses_unknown_same_name_skill_without_force,
         test_skill_route_gap_triggers_discovery,
         test_skill_route_uses_closeout_quality_signals,
         test_skill_review_lists_open_proposals,

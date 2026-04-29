@@ -22,7 +22,7 @@ Use this skill when the user asks for:
   "預設" for future coordination behavior in this workspace
 - Team Architect, Capability Access Packet, runtime mapping, or review handoff
 - resuming or inspecting a Roster packet run
-- installing or checking the Roster coordination surface
+- installing, uninstalling, or checking the Roster coordination surface
 
 Do not claim `@roster` is a working installed Codex mention. Treat `@roster` as
 a future product target unless a local health check explicitly proves otherwise.
@@ -64,6 +64,8 @@ a future product target unless a local health check explicitly proves otherwise.
    <workspace> --json`. Do not silently record ordinary task content.
 8. For setup checks, use `scripts/brain.sh roster-health --path <workspace>
    --json` and include `--codex-home <dir>` when verifying an installed skill.
+   Use `roster-uninstall` only for setup/removal requests, not ordinary task
+   routing.
 
 ## Roster Preferences
 
@@ -237,3 +239,15 @@ value instead of assuming the current working directory is the Roster kit root.
 
 If the manifest is unavailable, ask for the Roster kit folder before running
 repo adapter commands.
+
+Install and uninstall are explicit setup actions:
+
+```bash
+<brain_command> roster-install --codex-home <codex-home> --json
+<brain_command> roster-uninstall --codex-home <codex-home> --json
+<brain_command> roster-health --codex-home <codex-home> --path <workspace> --json
+```
+
+`roster-uninstall` should remove only a manifest-owned Roster install by
+default; use `--force` only when the user confirms an unknown same-name skill
+should be removed.
