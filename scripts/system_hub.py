@@ -1565,13 +1565,32 @@ def roster_preference_active_entries(registry: dict[str, Any]) -> list[dict[str,
 
 def roster_preferences_summary(target: Path) -> dict[str, Any]:
     path = roster_preferences_path_for_target(target)
-    registry = load_roster_preferences_registry(target, strict=False)
+    try:
+        registry = load_roster_preferences_registry(target, strict=True)
+    except HubRuntimeError as exc:
+        return {
+            "schema_version": ROSTER_PREFERENCES_SCHEMA_VERSION,
+            "path": str(path),
+            "exists": path.exists(),
+            "status": "invalid",
+            "diagnostic_code": "invalid_preferences_registry",
+            "diagnostic": str(exc),
+            "blocking": False,
+            "entry_count": 0,
+            "active_count": 0,
+            "active": [],
+            "write_policy": "explicit roster-preferences remember only",
+            "boundary": default_roster_preferences_registry(target)["boundary"],
+        }
     entries = [entry for entry in registry.get("entries", []) if isinstance(entry, dict)]
     active = roster_preference_active_entries(registry)
     return {
         "schema_version": registry.get("schema_version", ROSTER_PREFERENCES_SCHEMA_VERSION),
         "path": str(path),
         "exists": path.exists(),
+        "status": "ok",
+        "diagnostic_code": None,
+        "blocking": False,
         "entry_count": len(entries),
         "active_count": len(active),
         "active": active,
@@ -9557,6 +9576,18 @@ def artifact_harness_command(
     return " ".join(shlex.quote(part) for part in command_parts)
 
 
+def roster_preferences_remember_command(config: HubConfig, preference: str, target: Path) -> str:
+    command_parts = [
+        str(config.scripts_dir / "brain.sh"),
+        "roster-preferences",
+        "remember",
+        preference,
+        "--path",
+        str(target),
+    ]
+    return " ".join(shlex.quote(part) for part in command_parts)
+
+
 def packet_route_stage_for_family(family_id: str) -> str:
     return {
         "artifact_harness_workflow": "Artifact Harness SPEC",
@@ -9597,6 +9628,55 @@ def packet_route_artifact_intent(utterance: str, front_doors: list[str], natural
     if natural_details.get("create_ready"):
         return True
     return False
+
+
+def packet_route_roster_preference_text(utterance: str) -> str:
+    text = re.sub(r"^\s*(?:@roster|roster)\s*[,，:：;；-]*\s*", "", utterance, flags=re.IGNORECASE)
+    text = re.sub(
+        r"^\s*(?:please\s+)?(?:remember(?:\s+that)?|save(?:\s+this)?|record|memorize|記住|记住|記錄|记录)\s*[,，:：;；-]*\s*",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    return text.strip() or utterance.strip()
+
+
+def packet_route_roster_preference_memory_details(utterance: str, front_doors: list[str]) -> dict[str, Any]:
+    markers = (
+        "remember",
+        "remember that",
+        "save this",
+        "memorize",
+        "going forward",
+        "from now on",
+        "next time",
+        "for future",
+        "in future",
+        "always",
+        "記住",
+        "记住",
+        "記錄",
+        "记录",
+        "以後",
+        "以后",
+        "之後",
+        "之后",
+        "往後",
+        "往后",
+        "未來",
+        "未来",
+        "每次",
+        "都先",
+    )
+    matched_terms = match_artifact_harness_keywords(utterance, list(markers))
+    detected = "roster" in front_doors and bool(matched_terms)
+    return {
+        "detected": detected,
+        "matched_terms": matched_terms,
+        "action": "remember" if detected else None,
+        "preference_text": packet_route_roster_preference_text(utterance) if detected else None,
+        "reason": "explicit Roster preference-memory wording" if detected else None,
+    }
 
 
 def packet_route_alias_is_leading_invocation(utterance: str, alias: str) -> bool:
@@ -9919,6 +9999,7 @@ def do_packet_route(
     natural_details = packet_route_natural_artifact_details(utterance)
     quality_details = packet_route_roster_quality_details(utterance, recognized_front_doors)
     quality_loop = packet_route_visual_quality_loop_details(utterance, natural_details, quality_details)
+    preference_memory = packet_route_roster_preference_memory_details(utterance, recognized_front_doors)
     artifact_intent = packet_route_artifact_intent(utterance, recognized_front_doors, natural_details)
     roster_quality_direction_detected = bool(
         quality_details.get("detected")
@@ -9941,7 +10022,16 @@ def do_packet_route(
     confidence = natural_details.get("confidence") if natural_details.get("detected") else "none"
 
     if matched:
-        if packet_id and downstream_front_doors:
+        if preference_memory.get("detected"):
+            preference_text = str(preference_memory.get("preference_text") or utterance)
+            recommended_route = "roster_preferences"
+            recommended_command = roster_preferences_remember_command(config, preference_text, target)
+            command_action = "remember"
+            create_allowed = False
+            chain_start = None
+            handoff_target = None
+            reason = "Roster preference-memory request; route to explicit workspace-local roster-preferences remember command"
+        elif packet_id and downstream_front_doors:
             code, state, _errors, _manifest, _status = load_artifact_harness_lifecycle_state(config, "resume", str(target), packet_id)
             existing_run_found = code == 0
             if existing_run_found:
@@ -10011,6 +10101,9 @@ def do_packet_route(
     elif recommended_route == "roster_quality_direction":
         user_intent = "quality_direction"
         confidence = "high"
+    elif recommended_route == "roster_preferences":
+        user_intent = "roster_preference_memory"
+        confidence = "high"
     elif not matched:
         user_intent = "ordinary"
         confidence = "none"
@@ -10031,6 +10124,10 @@ def do_packet_route(
         next_step_label = "Set Quality direction"
         user_message = "This is a Quality direction question. Answer with short-term delivery checks first, then long-term workflow improvements."
         visible_next_action = "Separate this-task fixes from reusable team, process, or template improvements."
+    elif recommended_route == "roster_preferences":
+        next_step_label = "Remember Roster preference"
+        user_message = "This is a workspace-local Roster preference-memory request, not an artifact-production packet run."
+        visible_next_action = "Run the recommended roster-preferences remember command to record it explicitly."
     elif downstream_front_doors:
         next_step_label = "Inspect or start upstream packet chain"
         user_message = "This names a downstream packet surface. Use an existing packet id for inspection, or start from the artifact task first."
@@ -10074,6 +10171,7 @@ def do_packet_route(
         },
         "quality_direction": quality_details,
         "quality_loop": quality_loop,
+        "preference_memory": preference_memory,
         "roster_preferences": preferences,
         "next_step_label": next_step_label,
         "user_message": user_message,
