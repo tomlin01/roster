@@ -51,6 +51,13 @@
 - Roster skill install / health check:
   - `./scripts/brain.sh roster-install --codex-home <codex-home> --json`
   - `./scripts/brain.sh roster-health --codex-home <codex-home> --path <workspace-folder> --json`
+- Roster preference memory is explicit and workspace-local only:
+  - `./scripts/brain.sh roster-preferences remember "<preference>" --path <workspace-folder> --json`
+  - `./scripts/brain.sh roster-preferences list --path <workspace-folder> --json`
+  - `./scripts/brain.sh roster-preferences forget --id <preference-id> --path <workspace-folder> --json`
+  - Preferences live at `<workspace-folder>/contexts/roster_preferences.json`.
+  - Do not silently record ordinary task content; only write preferences when the user explicitly asks Roster to remember a recurring coordination default.
+  - Preferences guide Roster defaults only and do not replace Artifact Harness SPEC acceptance, HR staffing boundaries, Team Architect planning, CAP authorization, runtime policy, verification, or final artifact acceptance.
 - `--path <workspace-folder>` is the target workspace and packet output root; packet runs go under `<workspace-folder>/contexts/artifact_harness_runs/` with a sibling `<workspace-folder>/contexts/artifact_harness_registry.json`.
 - `packet-route` uses deterministic repo keywords and must be called by Codex or the user; do not imply automatic interception of every free-form GUI/CLI phrase.
 - `packet-route` also supports conservative natural artifact-mission intake. It may route ordinary phrases like `make a review-ready methods appendix` when deterministic deliverable plus action/quality cues are present, but vague hints such as `help with this artifact` must ask for clarification before creating packets.
