@@ -2482,6 +2482,12 @@ def test_packet_route_roster_visual_quality_loop_attaches_to_production() -> Non
         assert_true(payload["quality_loop"]["cv_inspection"]["requested"] is True, "visual artifact production should request CV inspection")
         assert_true("screenshot_capture" in payload["quality_loop"]["cv_inspection"]["capability_requests"], "CV inspection should request screenshot capture")
         assert_true("vision_model_review" in payload["quality_loop"]["cv_inspection"]["capability_requests"], "CV inspection should request vision review")
+        ladder = payload["quality_loop"]["cv_inspection"]["activation_ladder"]
+        assert_true(len(ladder) >= 5, "CV inspection should expose an activation ladder")
+        assert_true(ladder[0]["step"] == "use_existing_visual_evidence", "CV ladder should prefer existing visual evidence")
+        assert_true(ladder[-1]["step"] == "ask_user_for_screenshot_or_frame", "CV ladder should ask the user for screenshots/frames only last")
+        assert_true(ladder[-1]["fallback"] is True, "final CV ladder step should be marked as fallback")
+        assert_true(payload["quality_loop"]["cv_inspection"]["evidence_required_for_visual_acceptance"] is True, "visual acceptance should require inspected evidence")
 
 
 def test_packet_route_roster_visual_quality_only_uses_quality_direction() -> None:
@@ -2502,6 +2508,9 @@ def test_packet_route_roster_visual_quality_only_uses_quality_direction() -> Non
         assert_true("layout overlap" in targets, "visual quality loop should inspect overlap")
         assert_true(payload["quality_loop"]["cv_inspection"]["requested"] is True, "visual quality-only prompt should request CV inspection")
         assert_true("vision_model_review" in payload["quality_loop"]["cv_inspection"]["capability_requests"], "quality-only CV request should include vision review capability")
+        ladder = payload["quality_loop"]["cv_inspection"]["activation_ladder"]
+        assert_true(ladder[-1]["step"] == "ask_user_for_screenshot_or_frame", "quality-only CV ladder should keep user screenshots as final fallback")
+        assert_true(payload["quality_loop"]["cv_inspection"]["no_visual_evidence_policy"], "quality-only CV route should include a no-visual-evidence policy")
 
 
 def test_packet_route_visual_cv_create_carries_request_into_packet_scaffolds() -> None:
@@ -2521,13 +2530,22 @@ def test_packet_route_visual_cv_create_carries_request_into_packet_scaffolds() -
         runtime_text = packets["runtime_mapping"].read_text(encoding="utf-8")
         assert_true("Visual / CV Inspection Targets" in spec_text, "SPEC should carry CV inspection targets")
         assert_true("text occlusion" in spec_text and "slide/render/video mismatch" in spec_text, "SPEC should list visual inspection acceptance targets")
+        assert_true("visual acceptance requires inspected visual evidence" in spec_text, "SPEC should require inspected visual evidence for visual acceptance")
+        assert_true("only non-visual, text, or structure checks can be marked complete" in spec_text, "SPEC should limit completion when visual evidence is missing")
+        assert_true("actionable visual finding shape" in spec_text, "SPEC should carry the visual finding output contract")
         assert_true("Visual Inspect-And-Correct Loop" in top_text, "TOP should include the bounded visual inspection loop")
         assert_true("quality reviewer / visual inspector" in top_text, "TOP should mention optional visual inspector role")
+        assert_true("activation ladder task procedure" in top_text, "TOP should include the activation ladder as procedure")
+        assert_true("inspect -> finding -> fix -> recheck loop" in top_text, "TOP should include an inspect/fix/recheck loop")
+        assert_true("ask the user for a screenshot or frame only as the final fallback" in top_text, "TOP should make user screenshots the final fallback")
+        assert_true("structured finding shape" in top_text, "TOP should include the actionable finding shape")
         assert_true("CV Inspection Capability Request" in cap_text, "CAP should include a CV inspection capability request")
-        assert_true("screenshot_capture" in cap_text and "vision_model_review" in cap_text, "CAP should request screenshot and vision review capabilities")
+        assert_true("render_export_visual_evidence" in cap_text and "screenshot_capture" in cap_text and "vision_model_review" in cap_text, "CAP should request render/export, screenshot, and vision review capabilities")
+        assert_true("user evidence fallback" in cap_text, "CAP should keep user-provided evidence as fallback")
         assert_true("CAP authorizes tools and gates only" in cap_text, "CAP should preserve authorization-only boundary")
         assert_true("CV Inspection Runtime Trace" in runtime_text, "runtime mapping should carry a CAP-derived CV trace")
-        assert_true("expose to runtime only if CAP explicitly authorizes" in runtime_text, "runtime mapping should not own CV authorization")
+        assert_true("expose visual inspection steps to runtime only if CAP explicitly authorizes" in runtime_text, "runtime mapping should not own CV authorization")
+        assert_true("runtime boundary" in runtime_text and "does not own authorization" in runtime_text, "runtime mapping should preserve execution-layer boundary")
 
 
 def test_packet_route_pm_alias_requires_artifact_context() -> None:
@@ -2889,6 +2907,10 @@ def test_roster_health_smoke_json_reports_missing_provider_and_target_packet_out
         assert_true("screenshot" in payload["cv_inspection_capability"]["supported_local_input_modes"], "CV health should list screenshot input support")
         assert_true("OCR/readability review" in payload["cv_inspection_capability"]["supported_local_input_modes"], "CV health should list OCR/readability support")
         assert_true(payload["cv_inspection_capability"]["remote_call_attempted"] is False, "CV health should not make remote calls")
+        assert_true(payload["cv_inspection_capability"]["visual_evidence_acquisition"]["status"] == "available_as_capability_plan", "CV health should report evidence acquisition availability")
+        assert_true(payload["cv_inspection_capability"]["user_evidence_fallback"]["status"] == "last_fallback", "CV health should report user screenshots/frames as final fallback")
+        assert_true(payload["cv_inspection_capability"]["no_visual_evidence_policy"], "CV health should include the no-visual-evidence policy")
+        assert_true(payload["cv_inspection_capability"]["default_health_blocked"] is False, "default health should not be blocked by missing CV provider auth")
         assert_true(payload["runtime_dependency_check"]["persistent_server_required"] is False, "health should not require a persistent server")
         assert_true(payload["runtime_dependency_check"]["daemon_required"] is False, "health should not require a daemon")
         assert_true(payload["runtime_dependency_check"]["database_required"] is False, "health should not require a database")

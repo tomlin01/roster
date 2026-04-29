@@ -276,13 +276,17 @@ ROSTER_VISUAL_QUALITY_LOOP_TERMS = (
 ROSTER_CV_INSPECTION_ROUTE_INPUTS = (
     "rendered image",
     "screenshot",
+    "exported video frame",
     "video frame",
 )
 ROSTER_CV_INSPECTION_SUPPORTED_LOCAL_INPUT_MODES = (
+    "existing rendered/exported visual file",
+    "local render/export",
     "screenshot",
     "image",
     "rendered frame",
     "video frame",
+    "playback/frame sampling",
     "OCR/readability review",
 )
 ROSTER_CV_INSPECTION_CHECKS = (
@@ -294,11 +298,34 @@ ROSTER_CV_INSPECTION_CHECKS = (
     "slide/render/video mismatch",
 )
 ROSTER_CV_INSPECTION_CAPABILITY_REQUESTS = (
+    "render_export_visual_evidence",
     "screenshot_capture",
     "playback_or_frame_sampling",
+    "computer_use_or_app_playback",
     "ocr_text_readability",
     "vision_model_review",
 )
+ROSTER_CV_NO_VISUAL_EVIDENCE_POLICY = "visual quality is limited until a screenshot, render, frame, or playback evidence is inspected"
+ROSTER_CV_VISUAL_EVIDENCE_ACQUISITION = (
+    "use existing rendered images, screenshots, exported frames, or video frames when present",
+    "render or export local artifacts into inspectable images or frames when safe",
+    "request CAP-governed screenshot capture, playback, frame sampling, Computer Use, or app playback only when needed",
+    "request CAP-governed OCR/readability or vision-model review when available",
+    "ask the user for a screenshot or frame only after local evidence acquisition is unavailable",
+)
+ROSTER_CV_FINDING_SHAPE = {
+    "artifact": "path or artifact label",
+    "slide": "slide number/title when available",
+    "frame": "frame id when available",
+    "timecode": "timecode when available",
+    "region": "visible region or location when possible",
+    "issue_type": "occlusion|overlap|readability|contrast|missing_content|mismatch|other",
+    "severity": "P0|P1|P2|P3",
+    "evidence_source": "render|screenshot|frame|playback|ocr|vision_model|user_provided",
+    "suggested_fix_owner": "role or owner responsible for correction",
+    "suggested_correction": "specific correction to apply",
+    "recheck_condition": "visible condition that must pass after correction",
+}
 PACKET_ROUTE_NATURAL_PROCESS_CUES = (
     "task",
     "workflow",
@@ -5371,6 +5398,43 @@ def do_skill_discover(config: HubConfig, query: str) -> int:
     return 0 if payload["status"] == "healthy" else 2
 
 
+def roster_cv_activation_ladder() -> list[dict[str, Any]]:
+    return [
+        {
+            "step": "use_existing_visual_evidence",
+            "preference": 1,
+            "inputs": ["rendered image", "screenshot", "exported video frame"],
+            "fallback": False,
+        },
+        {
+            "step": "render_or_export_inspection_artifact",
+            "preference": 2,
+            "capability_requests": ["render_export_visual_evidence"],
+            "capability_owner": "Capability Access Packet",
+            "fallback": False,
+        },
+        {
+            "step": "local_capture_or_playback",
+            "preference": 3,
+            "capability_requests": ["screenshot_capture", "playback_or_frame_sampling", "computer_use_or_app_playback"],
+            "capability_owner": "Capability Access Packet",
+            "fallback": False,
+        },
+        {
+            "step": "ocr_or_vision_model_review",
+            "preference": 4,
+            "capability_requests": ["ocr_text_readability", "vision_model_review"],
+            "capability_owner": "Capability Access Packet",
+            "fallback": False,
+        },
+        {
+            "step": "ask_user_for_screenshot_or_frame",
+            "preference": 5,
+            "fallback": True,
+        },
+    ]
+
+
 def roster_cv_inspection_request(requested: bool) -> dict[str, Any]:
     if not requested:
         return {
@@ -5381,15 +5445,23 @@ def roster_cv_inspection_request(requested: bool) -> dict[str, Any]:
             "capability_requests": [],
             "authorization_owner": None,
             "execution_boundary": None,
+            "activation_ladder": [],
+            "no_visual_evidence_policy": None,
+            "evidence_required_for_visual_acceptance": False,
+            "finding_shape": None,
         }
     return {
         "requested": True,
-        "mode": "agent_vision_review",
+        "mode": "activation_ladder",
         "inputs": list(ROSTER_CV_INSPECTION_ROUTE_INPUTS),
         "checks": list(ROSTER_CV_INSPECTION_CHECKS),
         "capability_requests": list(ROSTER_CV_INSPECTION_CAPABILITY_REQUESTS),
         "authorization_owner": "Capability Access Packet",
         "execution_boundary": "advisory until CAP authorizes the needed tools",
+        "activation_ladder": roster_cv_activation_ladder(),
+        "no_visual_evidence_policy": ROSTER_CV_NO_VISUAL_EVIDENCE_POLICY,
+        "evidence_required_for_visual_acceptance": True,
+        "finding_shape": dict(ROSTER_CV_FINDING_SHAPE),
     }
 
 
@@ -5416,7 +5488,11 @@ def render_spec_cv_inspection_section(quality_loop: dict[str, Any] | None) -> st
 - visual inspection request [source: mission keywords]: yes
 - inspection inputs [source: Roster visual Quality loop]: rendered image, screenshot, video frame
 - acceptance targets [source: Roster visual Quality loop]: text occlusion; key element occlusion; layout overlap; contrast/readability; missing expected content; slide/render/video mismatch
+- visual acceptance rule [source: Roster CV activation ladder]: when visual output is part of the artifact, visual acceptance requires inspected visual evidence from a screenshot, render, frame, or playback sample
+- no visual evidence rule [source: Roster CV activation ladder]: without inspected visual evidence, only non-visual, text, or structure checks can be marked complete; visual quality remains limited
+- activation ladder [source: Roster CV activation ladder]: use existing visual evidence; render/export an inspection artifact; use CAP-governed local capture or playback; use CAP-governed OCR or vision-model review; ask the user for a screenshot or frame only as the final fallback
 - capability boundary [source: CAP policy]: screenshot capture, playback/frame sampling, OCR/readability, and vision-model review require Capability Access Packet authorization before use
+- actionable visual finding shape [source: Quality output contract]: artifact, slide/frame/timecode, region, issue type, severity, evidence source, suggested fix owner, suggested correction, and recheck condition
 - pass condition [source: verification/review]: visible output has no material occlusion, overlap, unreadable text, missing expected content, or slide/render/video mismatch before delivery
 """
 
@@ -5430,8 +5506,11 @@ def render_team_cv_inspection_section(quality_loop: dict[str, Any] | None) -> st
 - detected from mission: visual artifact production or visual Quality request
 - recommended iterations: 2-3 bounded passes, stopping earlier when no material issue remains
 - quality reviewer / visual inspector: assign when the Team Operating Packet needs an explicit review role
-- loop plan: produce first output; capture or inspect visible output; check occlusion, overlap, readability, missing content, and slide/render/video mismatch; apply a focused correction; re-inspect
-- capability source: Capability Access Packet must authorize screenshot capture, playback/frame sampling, OCR/readability, vision-model review, and Computer Use only when needed
+- activation ladder task procedure: first use existing rendered/exported visual files; if absent, render/export inspectable images or frames; if local GUI state is needed, request CAP-governed screenshot capture, playback, frame sampling, Computer Use, or app playback; if available, request CAP-governed OCR/readability or vision-model review; ask the user for a screenshot or frame only as the final fallback
+- inspect -> finding -> fix -> recheck loop: produce first output; inspect visible evidence; record a structured finding; apply a focused correction by the fix owner; re-inspect the same evidence condition before delivery
+- structured finding shape: artifact, slide/frame/timecode, region, issue type, severity, evidence source, suggested fix owner, suggested correction, and recheck condition
+- no visual evidence rule: if no screenshot, render, frame, or playback evidence is inspected, visual quality remains limited and only non-visual checks can be considered complete
+- capability source: Capability Access Packet must authorize render/export evidence, screenshot capture, playback/frame sampling, OCR/readability, vision-model review, and Computer Use/app playback only when needed
 - boundary: this loop attaches to production and does not replace Artifact Harness acceptance or CAP authorization
 """
 
@@ -5444,12 +5523,15 @@ def render_cap_cv_inspection_section(quality_loop: dict[str, Any] | None) -> str
 
 - request status: requested by Roster visual Quality loop
 - intended use: inspect rendered images, screenshots, rendered frames, or video frames for visible defects before artifact delivery
+- activation ladder authorization: prefer existing visual evidence without extra access; request render/export evidence, local capture/playback, OCR/readability, vision-model review, Computer Use, or app playback only when the previous ladder step cannot supply enough visual evidence
 - capability requests:
+  - render_export_visual_evidence: render or export the artifact into an inspectable image or frame when safe and local
   - screenshot_capture: capture still output for review
   - playback_or_frame_sampling: inspect video playback or selected frames when video is involved
+  - computer_use_or_app_playback: use local GUI/app playback only when the artifact state cannot be inspected from files
   - ocr_text_readability: check whether visible text can be read at delivery scale
   - vision_model_review: review screenshot, frame, or image for occlusion, overlap, contrast/readability, missing expected content, and slide/render/video mismatch
-  - computer_use_or_app_playback: allowed only when the artifact needs local app playback or GUI capture
+- user evidence fallback: ask the user for a screenshot or frame only after local evidence acquisition is unavailable
 - approval gate: user or local policy approval before exposing external services, Computer Use, playback, screenshot capture, OCR, or vision-model review tools
 - authorization boundary: CAP authorizes tools and gates only; it does not accept the artifact, own Quality, or make runtime adapters governance owners
 """
@@ -5462,7 +5544,8 @@ def render_runtime_cv_inspection_section(quality_loop: dict[str, Any] | None) ->
 ## CV Inspection Runtime Trace
 
 - CAP-derived capability request: CV inspection / agent vision review
-- expose to runtime only if CAP explicitly authorizes the needed screenshot, playback/frame sampling, OCR/readability, vision-model review, or Computer Use tools
+- visual inspection runtime steps: render/export evidence, screenshot capture, playback/frame sampling, OCR/readability, vision-model review, and Computer Use/app playback
+- expose visual inspection steps to runtime only if CAP explicitly authorizes the needed render/export, screenshot, playback/frame sampling, OCR/readability, vision-model review, or Computer Use/app playback tools
 - runtime task graph source: Team Operating Packet visual inspect-and-correct loop
 - runtime boundary: this mapping may wire authorized capabilities for execution, but it does not own authorization, verification, artifact acceptance, or governance
 """
@@ -9974,12 +10057,27 @@ def build_roster_cv_capability_check(cv_provider_arg: str | None, cv_auth_env_ar
         "supported_local_input_modes": list(ROSTER_CV_INSPECTION_SUPPORTED_LOCAL_INPUT_MODES),
         "supported_checks": list(ROSTER_CV_INSPECTION_CHECKS),
         "capability_requests": list(ROSTER_CV_INSPECTION_CAPABILITY_REQUESTS),
+        "activation_ladder": roster_cv_activation_ladder(),
+        "visual_evidence_acquisition": {
+            "status": "available_as_capability_plan",
+            "modes": list(ROSTER_CV_VISUAL_EVIDENCE_ACQUISITION),
+            "capability_owner": "Capability Access Packet",
+        },
+        "user_evidence_fallback": {
+            "status": "last_fallback",
+            "requested_only_after": "existing evidence, local render/export, local capture/playback, and OCR/vision review are unavailable or unauthorized",
+            "accepted_inputs": ["screenshot", "frame", "rendered image"],
+        },
+        "no_visual_evidence_policy": ROSTER_CV_NO_VISUAL_EVIDENCE_POLICY,
+        "evidence_required_for_visual_acceptance": True,
+        "finding_shape": dict(ROSTER_CV_FINDING_SHAPE),
         "authorization_owner": "Capability Access Packet",
         "execution_boundary": "local-only diagnostic; no remote calls; advisory until CAP authorizes tools",
         "remote_call_attempted": False,
         "verification_method": "local_configuration_only",
         "secret_material": "not_read_or_reported",
         "explicit_check_requested": explicit_check_requested,
+        "default_health_blocked": False,
         "configuration_source": source,
     }
     if not provider:

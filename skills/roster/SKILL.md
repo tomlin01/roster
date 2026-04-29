@@ -121,12 +121,31 @@ Good visual Quality first-touch shape:
 我會把這個當成需要看畫面的任務：先產出第一版，擷取畫面或播放片段，檢查文字有沒有被遮住、重點元素是否清楚，再修 1-2 輪。
 
 需要截圖、播放、OCR 或 vision review 時，我會把它當成工具能力處理。
+
+我會先嘗試自動取得畫面證據，例如 render/export、截圖、播放片段或抽 frame；如果環境拿不到畫面，再請你提供截圖。
+
+沒有畫面證據時，我只能做非視覺品質檢查，不能把畫面驗收當成完成。
 ```
 
 CV inspection, Computer Use, screenshot, playback, render, OCR, and similar
 inspection tools are capabilities governed by the Capability Access Packet.
 Quality may request or plan those checks, but it does not own tool
 authorization.
+
+Use this CV activation ladder for slide, render, UI, image, and video work:
+
+1. Prefer existing rendered or exported visual files when present.
+2. Render or export the artifact into inspectable images or frames when safe
+   and local.
+3. Request CAP-governed screenshot capture, playback, frame sampling, Computer
+   Use, or app playback only when needed.
+4. Request CAP-governed OCR/readability or vision-model review when available.
+5. Ask the user for a screenshot or frame only when Roster cannot obtain visual
+   evidence itself.
+
+When visual evidence is inspected, findings should be structured with artifact,
+slide/frame/timecode, region, issue type, severity, evidence source, suggested
+fix owner, suggested correction, and recheck condition.
 
 When a packet run already exists, read the Artifact Harness SPEC acceptance
 checks as the source of truth and translate them into practical Quality checks.

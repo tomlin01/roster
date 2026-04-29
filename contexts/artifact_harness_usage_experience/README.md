@@ -89,9 +89,17 @@ Important human factors:
   image, UI, or presentation production, Roster should plan 2-3 bounded
   inspect-and-correct passes before delivery. The loop checks visible output for
   occlusion, overlap, readability, contrast, missing expected content, and
-  slide/render/video mismatch; CV inspection can request screenshot capture,
-  playback or frame sampling, OCR/readability review, and vision-model review.
-  These remain tool capabilities governed by CAP, not Quality-owned governance.
+  slide/render/video mismatch. CV inspection follows an activation ladder:
+  prefer existing rendered/exported visual evidence, render/export inspectable
+  images or frames when safe, request CAP-governed screenshot capture,
+  playback/frame sampling, Computer Use/app playback, OCR/readability, or
+  vision-model review when needed, and ask the user for a screenshot or frame
+  only as the final fallback. Without inspected visual evidence, only
+  non-visual checks can be complete; visual acceptance remains limited. These
+  remain tool capabilities governed by CAP, not Quality-owned governance.
+  Visual findings should be actionable: artifact, slide/frame/timecode, region,
+  issue type, severity, evidence source, suggested fix owner, suggested
+  correction, and recheck condition.
 - Bilingual tolerance: English aliases and Chinese task phrases should both
   feel native. The user should not need to switch language to activate the
   workflow.

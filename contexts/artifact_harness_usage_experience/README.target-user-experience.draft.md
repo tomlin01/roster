@@ -102,6 +102,10 @@ before delivery:
 我會把這個當成需要看畫面的任務：先產出第一版，擷取畫面或播放片段，檢查文字有沒有被遮住、重點元素是否清楚，再修 1-2 輪。
 
 需要截圖、播放、OCR 或 vision review 時，我會把它當成工具能力處理。
+
+我會先嘗試自動取得畫面證據，例如 render/export、截圖、播放片段或抽 frame；如果環境拿不到畫面，再請你提供截圖。
+
+沒有畫面證據時，我只能做非視覺品質檢查，不能把畫面驗收當成完成。
 ```
 
 The loop applies to slides, scenes, renders, videos, screenshots, images, UIs,
@@ -112,7 +116,18 @@ or stop earlier when no material issue remains.
 
 CV inspection, playback, screenshot, OCR, render, Computer Use, and similar
 inspection tools remain tool capabilities governed by the Capability Access
-Packet. Quality may plan the check, but it does not own tool authorization.
+Packet. Quality may plan the check, but it does not own tool authorization. The
+activation order is: use existing rendered/exported visual files, render/export
+inspectable evidence when safe, use CAP-governed capture/playback/frame
+sampling, use CAP-governed OCR or vision review, and ask the user for a
+screenshot or frame only as the final fallback.
+
+Visual acceptance requires inspected visual evidence when the artifact has a
+visual output. Without a screenshot, render, frame, or playback evidence,
+Roster can complete only non-visual, text, or structure checks. Visual findings
+should include artifact, slide/frame/timecode, region, issue type, severity,
+evidence source, suggested fix owner, suggested correction, and recheck
+condition.
 
 Codex should answer in plain language first for broader setup tasks too:
 

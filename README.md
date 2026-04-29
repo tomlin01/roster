@@ -114,12 +114,22 @@ this:
 我會把這個當成需要看畫面的任務：先產出第一版，擷取畫面或播放片段，檢查文字有沒有被遮住、重點元素是否清楚，再修 1-2 輪。
 
 需要截圖、播放、OCR 或 vision review 時，我會把它當成工具能力處理。
+
+我會先嘗試自動取得畫面證據，例如 render/export、截圖、播放片段或抽 frame；如果環境拿不到畫面，再請你提供截圖。
+
+沒有畫面證據時，我只能做非視覺品質檢查，不能把畫面驗收當成完成。
 ```
 
-Internally, CV inspection is a capability request for screenshot capture,
-playback or frame sampling, OCR/readability review, and vision-model review.
-CAP authorizes those tools; it does not accept the artifact or make the runtime
-adapter the governance owner.
+Internally, CV inspection follows an activation ladder: prefer existing visual
+evidence, render/export an inspection artifact when safe, use CAP-governed
+local capture or playback when needed, request CAP-governed OCR/readability or
+vision-model review when available, and ask the user for a screenshot or frame
+only as the final fallback. CAP authorizes those tools; it does not accept the
+artifact or make the runtime adapter the governance owner.
+
+When visual evidence is inspected, findings should name the artifact,
+slide/frame/timecode when available, region, issue type, severity, evidence
+source, suggested fix owner, suggested correction, and recheck condition.
 
 When an Artifact Harness SPEC exists, its acceptance checks remain the source of
 truth. Quality consumes those checks and turns them into self-check behavior; it
