@@ -14,7 +14,7 @@ orchestration UI. You use it from ordinary Codex CLI or Codex GUI sessions.
 Current primary invocation:
 
 ```text
-Roster, 幫我把這個 slide 任務安排好。
+Roster, 幫我把這些會議筆記整理成可執行的專案計畫。
 ```
 
 In the current verified path, type `Roster` in ordinary Codex chat and then say
@@ -47,19 +47,19 @@ For the first response to a team or task setup request, Codex should keep the
 reply short and useful:
 
 ```text
-我已經把 Lecture1 的工作隊形整理好了：
+我已經把這個專案規劃任務的工作隊形整理好了：
 
-- Student：看懂不懂、哪裡會卡
-- Teacher：決定講解順序和例題
-- Video Production：處理畫面、旁白和輸出
-- Quality Management：做播放檢查和成品驗收
+- Project Lead：收斂目標、範圍和優先順序
+- Domain Reviewer：確認內容是否符合實際情境
+- Execution Planner：拆出里程碑、負責人和下一步
+- Quality Reviewer：檢查風險、遺漏和交付前條件
 
 之後你可以直接說：
-`用 Lecture1 team 跑下一個 unit`
+`用這個 Roster 跑下一步規劃`
 
-我會照這個隊形把任務分下去，該改 slide、scene、render 或影片時再進到對應步驟。
+我會照這個隊形把任務分下去，該寫 brief、拆 milestone、補風險或做交付檢查時再進到對應步驟。
 
-文件在：`LECTURE1_TEAM_ROSTER.md`
+文件在：`PROJECT_ROSTER.md`
 ```
 
 Do not put internal control-plane roles, packet names, runtime details, or
@@ -67,8 +67,8 @@ continuity receipts in this first response. Keep those in generated files,
 review/debug replies, or later explanations when the user asks.
 
 If this turn only prepared a roster, say that as current-turn scope. Do not make
-it sound like Roster cannot later assign and execute slide, scene, render,
-video, or QA work.
+it sound like Roster cannot later assign and execute document, planning, data,
+code, presentation, visual, media, or QA work.
 
 For Quality setup requests, Codex should answer as a project coordinator first,
 not as a governance explainer:
@@ -76,15 +76,15 @@ not as a governance explainer:
 ```text
 我會把 Quality 分成兩層：
 
-短期先看這次 unit 能不能交付：
-- 內容是否講得清楚
-- slide / scene / video 是否一致
-- 有沒有明顯漏掉的步驟
+短期先看這次計畫能不能交付：
+- 目標和範圍是否清楚
+- 負責人、里程碑和風險是否完整
+- 有沒有漏掉決策或下一步
 
-長期則看這個 Lecture1 team 是否需要固定檢查流程：
-- 每個 unit 完成後都做 playback check
-- 每次修改 scene 後確認 slide 對應
-- 最後輸出前做一次完整驗收
+長期則看這類專案規劃是否需要固定檢查流程：
+- 每次交付前確認 owner / due date / blocker
+- 重複出現的風險整理成 checklist
+- 重要任務保留一份可追蹤的 handoff
 
 我會先用短期檢查幫你把這次任務穩住，再把重複出現的問題記成長期改善項目。
 ```
@@ -108,10 +108,10 @@ before delivery:
 沒有畫面證據時，我只能做非視覺品質檢查，不能把畫面驗收當成完成。
 ```
 
-The loop applies to slides, scenes, renders, videos, screenshots, images, UIs,
-and presentations. It should inspect visible output for text occlusion, key
+The loop applies to presentations, figures, screenshots, images, UIs, rendered
+outputs, and media artifacts. It should inspect visible output for text occlusion, key
 element occlusion, layout overlap, poor contrast or unreadable scale, missing
-expected content, and slide/render/video mismatch. Use 2-3 bounded iterations,
+expected content, and source/export mismatch. Use 2-3 bounded iterations,
 or stop earlier when no material issue remains.
 
 CV inspection, playback, screenshot, OCR, render, Computer Use, and similar
@@ -160,8 +160,8 @@ short location question before writing anything.
 Use `Roster` when a task has enough moving parts that Codex should make the
 working boundary explicit before acting:
 
-- a document, slide deck, dataset, code change, video, or research artifact must
-  be produced or revised
+- a project plan, document, dataset, code change, review packet, or research
+  artifact must be produced or revised
 - several roles or review perspectives are useful
 - tool, plugin, LLM, filesystem, network, or runtime access needs to be clear
 - the task may need to be resumed later

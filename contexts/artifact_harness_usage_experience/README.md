@@ -12,7 +12,7 @@ which parts still leak implementation details to the user.
 Current verified user invocation:
 
 ```text
-Roster, 幫我把這個 slide 任務安排好。
+Roster, 幫我把這些會議筆記整理成可執行的專案計畫。
 ```
 
 Current status: `@roster` was tested and did not work as an installed Codex
@@ -43,11 +43,11 @@ The user should not need to remember or type `brain.sh`, `packet-route`, or
 The intended user-facing interaction is natural Codex CLI/GUI language, for
 example:
 
-- `Roster, 幫我把這個 slide 任務安排好。`
+- `Roster, 幫我把這些會議筆記整理成可執行的專案計畫。`
 - `Roster, organize the task boundary and handoff for this artifact`
 - `HR, help me confirm the staffing roles for this artifact`
 - `CAP, what tool access does this task need?`
-- `Roster, make this lecture slide task organized`
+- `Roster, make this project planning task organized`
 
 `PM` is an optional natural alias for project-planning language. `HR` remains
 staffing-only; it should not become the project-coordination or tool-access
@@ -85,11 +85,11 @@ Important human factors:
 - Quality as normal coordination: when the user asks how Quality should be set,
   answer with immediate delivery checks and durable improvement checks before
   exposing internal packet names.
-- Visual artifact quality loop: for slide, scene, render, video, screenshot,
-  image, UI, or presentation production, Roster should plan 2-3 bounded
+- Visual artifact quality loop: for presentation, figure, screenshot, image,
+  UI, rendered output, or media production, Roster should plan 2-3 bounded
   inspect-and-correct passes before delivery. The loop checks visible output for
   occlusion, overlap, readability, contrast, missing expected content, and
-  slide/render/video mismatch. CV inspection follows an activation ladder:
+  source/export mismatch. CV inspection follows an activation ladder:
   prefer existing rendered/exported visual evidence, render/export inspectable
   images or frames when safe, request CAP-governed screenshot capture,
   playback/frame sampling, Computer Use/app playback, OCR/readability, or
@@ -449,7 +449,7 @@ Acceptance signal:
 ### UX-008: First-touch replies should feel like a working interface
 
 - date: `2026-04-28`
-- source: user feedback after a Lecture1 team-roster test
+- source: user feedback after a first Roster team-setup test
 - severity: P1 for daily usability
 
 Current risk:
@@ -469,8 +469,8 @@ Desired behavior:
 - Internal governance terms remain available in generated files, review/debug
   replies, and later explanations, but they do not lead the ordinary response.
 - If this turn only prepared a roster, say that as current-turn scope and make
-  clear that future Roster runs can assign slide, scene, render, video, QA, or
-  other artifact work to the relevant roles.
+  clear that future Roster runs can assign document, planning, data, code,
+  presentation, visual, media, QA, or other artifact work to the relevant roles.
 
 ## Experience Probes
 
@@ -512,7 +512,7 @@ Expected agent behavior:
 User phrase:
 
 ```text
-幫我整理這個投影片任務
+幫我整理這個專案計畫任務
 ```
 
 Expected agent behavior:

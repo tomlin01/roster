@@ -78,7 +78,7 @@ The README must show ordinary user language first.
 Good examples:
 
 ```text
-Roster, 幫我把這個 slide 任務安排好。
+Roster, 幫我把這些會議筆記整理成可執行的專案計畫。
 ```
 
 ```text
@@ -109,7 +109,8 @@ implementation details.
 
 Do not describe current-turn scope as a capability limit. If this turn only
 prepared the roster, say that directly and make clear that future Roster runs can
-assign scene, render, video, QA, or other artifact work to the relevant roles.
+assign document, planning, data, code, presentation, visual, media, QA, or other
+artifact work to the relevant roles.
 
 ## Quality Response Requirement
 
@@ -119,13 +120,13 @@ has to operate manually.
 For prompts such as:
 
 ```text
-Roster，幫我看 Lecture1 的 Quality 要怎麼設定
+Roster，幫我看這份專案計畫的 Quality 要怎麼設定
 ```
 
 The README and skill instructions should show a short response that separates:
 
-- short-term checks for whether the current artifact, unit, scene, render,
-  table, draft, or output can be delivered now
+- short-term checks for whether the current project plan, artifact, table,
+  draft, or output can be delivered now
 - long-term improvements for recurring team, workflow, checklist, or template
   issues
 
@@ -140,20 +141,20 @@ Visual artifact production should include a short built-in Quality loop before
 delivery. The README and skill instructions should describe it as Roster
 production behavior, not as a separate permanent agent by default.
 
-For slides, scenes, renders, videos, screenshots, images, UIs, and
-presentations, the loop should:
+For presentations, figures, screenshots, images, UIs, rendered outputs, and
+media artifacts, the loop should:
 
 1. produce the initial artifact
 2. inspect the visible output
 3. detect text occlusion, key element occlusion, layout overlap, poor contrast
-   or unreadable scale, missing expected content, and slide/render/video
-   mismatch
+   or unreadable scale, missing expected content, and source/export mismatch
 4. apply a focused correction
 5. repeat for 2-3 bounded iterations, or stop earlier when no material issue
    remains
 
 The first user-facing explanation should stay short and practical. It should
-not say that Roster cannot do slide, scene, render, video, or presentation work.
+not say that Roster cannot do document, planning, data, code, presentation,
+visual, or media work.
 It should be acceptable to say:
 
 ```text
