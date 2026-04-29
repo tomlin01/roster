@@ -98,6 +98,9 @@ ROSTER_CURRENT_USER_INVOCATION = "Roster, <task>"
 ROSTER_HEALTH_DEFAULT_ID = "roster-health-smoke"
 ROSTER_HEALTH_VISIBILITY_UTTERANCE = "@roster"
 ROSTER_HEALTH_PACKET_UTTERANCE = "@roster make a review-ready Roster health-check report artifact"
+ROSTER_PREFERENCES_FILENAME = "roster_preferences.json"
+ROSTER_PREFERENCES_SCHEMA_VERSION = 1
+ROSTER_PREFERENCES_MAX_ACTIVE = 12
 ROSTER_PROVIDER_AUTH_ENV_DEFAULTS = {
     "openai": "OPENAI_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
@@ -409,6 +412,7 @@ DEFAULT_BRAIN_COMMANDS = (
     "packet-route",
     "roster-install",
     "roster-health",
+    "roster-preferences",
     "overlay",
     "closeout",
     "skill-route",
@@ -769,6 +773,12 @@ def parse_args() -> argparse.Namespace:
     roster_health.add_argument("--skills-root", default=None, help="Optional explicit skills root whose `roster` skill install should be verified.")
     roster_health.add_argument("--keep-artifacts", action="store_true", help="Keep the health-check packet output instead of cleaning it up after verification.")
     roster_health.add_argument("--json", action="store_true", help="Emit a machine-readable JSON health report instead of Markdown.")
+    roster_preferences = sub.add_parser("roster-preferences", help="Record, list, or archive explicit workspace-local Roster preferences.")
+    roster_preferences.add_argument("action", choices=("remember", "list", "forget"), help="Preference action to run.")
+    roster_preferences.add_argument("text", nargs="?", default=None, help="Preference text for `remember`.")
+    roster_preferences.add_argument("--path", default=".", help="Target workspace folder for the preferences file. Defaults to the current directory.")
+    roster_preferences.add_argument("--id", default=None, help="Preference id for `forget`.")
+    roster_preferences.add_argument("--json", action="store_true", help="Emit a machine-readable JSON preference result instead of Markdown.")
     overlay = sub.add_parser("overlay", help="Generate a runtime overlay brief for a working folder.")
     overlay.add_argument("path", nargs="?", default=".", help="Folder to inspect. Defaults to the current directory.")
     closeout = sub.add_parser("closeout", help="Record task closeout notes and generate candidate skill proposals.")
@@ -1466,6 +1476,300 @@ def ensure_targets_under_root(root: Path, targets: dict[str, Path]) -> None:
 def dump_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def roster_preferences_path_for_target(target: Path) -> Path:
+    return target.resolve() / "contexts" / ROSTER_PREFERENCES_FILENAME
+
+
+def default_roster_preferences_registry(target: Path) -> dict[str, Any]:
+    return {
+        "schema_version": ROSTER_PREFERENCES_SCHEMA_VERSION,
+        "registry_type": "roster_preferences",
+        "generated_at": None,
+        "target_path": str(target.resolve()),
+        "write_policy": "explicit roster-preferences remember only",
+        "boundary": {
+            "scope": "workspace-local coordination preferences",
+            "does_not_replace": [
+                "Artifact Harness SPEC contract or acceptance",
+                "HR staffing boundary",
+                "Team Architect collaboration pattern",
+                "Capability Access Packet authorization",
+                "runtime adapter policy",
+                "artifact verification or final acceptance",
+            ],
+        },
+        "entries": [],
+    }
+
+
+def load_roster_preferences_registry(target: Path, *, strict: bool = False) -> dict[str, Any]:
+    path = roster_preferences_path_for_target(target)
+    default = default_roster_preferences_registry(target)
+    if strict:
+        payload = load_json_file_strict(path, default, "Roster preferences registry")
+    else:
+        payload = load_json_file(path, default)
+    if not isinstance(payload.get("entries"), list):
+        payload["entries"] = []
+    payload.setdefault("schema_version", ROSTER_PREFERENCES_SCHEMA_VERSION)
+    payload.setdefault("registry_type", "roster_preferences")
+    payload.setdefault("target_path", str(target.resolve()))
+    payload.setdefault("write_policy", "explicit roster-preferences remember only")
+    payload.setdefault("boundary", default["boundary"])
+    return payload
+
+
+def roster_preference_category(text: str) -> str:
+    normalized = " ".join(text.lower().split())
+    visual_terms = (
+        "cv",
+        "vision",
+        "visual",
+        "screenshot",
+        "screen",
+        "slide",
+        "video",
+        "render",
+        "frame",
+        "occlusion",
+        "overlap",
+        "遮擋",
+        "重疊",
+        "畫面",
+        "截圖",
+        "影片",
+        "投影片",
+        "簡報",
+    )
+    quality_terms = ("quality", "qa", "check", "review", "檢查", "品質", "驗收", "自我檢查")
+    staffing_terms = ("team", "role", "staff", "roster", "學生", "老師", "角色", "團隊", "分工")
+    invocation_terms = ("invoke", "call", "trigger", "使用", "呼叫", "啟動", "口令")
+    if any(term in normalized for term in visual_terms):
+        return "visual_quality_preference"
+    if any(term in normalized for term in quality_terms):
+        return "quality_preference"
+    if any(term in normalized for term in staffing_terms):
+        return "staffing_preference"
+    if any(term in normalized for term in invocation_terms):
+        return "invocation_preference"
+    return "coordination_preference"
+
+
+def roster_preference_active_entries(registry: dict[str, Any]) -> list[dict[str, Any]]:
+    entries = [entry for entry in registry.get("entries", []) if isinstance(entry, dict)]
+    active = [entry for entry in entries if entry.get("status", "active") == "active"]
+    return active[-ROSTER_PREFERENCES_MAX_ACTIVE:]
+
+
+def roster_preferences_summary(target: Path) -> dict[str, Any]:
+    path = roster_preferences_path_for_target(target)
+    try:
+        registry = load_roster_preferences_registry(target, strict=True)
+    except HubRuntimeError as exc:
+        return {
+            "schema_version": ROSTER_PREFERENCES_SCHEMA_VERSION,
+            "path": str(path),
+            "exists": path.exists(),
+            "status": "invalid",
+            "diagnostic_code": "invalid_preferences_registry",
+            "diagnostic": str(exc),
+            "blocking": False,
+            "entry_count": 0,
+            "active_count": 0,
+            "active": [],
+            "write_policy": "explicit roster-preferences remember only",
+            "boundary": default_roster_preferences_registry(target)["boundary"],
+        }
+    entries = [entry for entry in registry.get("entries", []) if isinstance(entry, dict)]
+    active = roster_preference_active_entries(registry)
+    return {
+        "schema_version": registry.get("schema_version", ROSTER_PREFERENCES_SCHEMA_VERSION),
+        "path": str(path),
+        "exists": path.exists(),
+        "status": "ok",
+        "diagnostic_code": None,
+        "blocking": False,
+        "entry_count": len(entries),
+        "active_count": len(active),
+        "active": active,
+        "write_policy": registry.get("write_policy", "explicit roster-preferences remember only"),
+        "boundary": registry.get("boundary", default_roster_preferences_registry(target)["boundary"]),
+    }
+
+
+def roster_preferences_base_payload(action: str, target: Path) -> dict[str, Any]:
+    path = roster_preferences_path_for_target(target)
+    return {
+        "schema_version": ROSTER_PREFERENCES_SCHEMA_VERSION,
+        "report_type": "roster_preferences",
+        "action": action,
+        "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "target_path": str(target.resolve()),
+        "preferences_path": str(path),
+        "write_policy": "explicit roster-preferences remember only",
+        "scope": "workspace",
+        "recorded": False,
+        "forgot": False,
+        "refused": False,
+        "reason": None,
+    }
+
+
+def build_roster_preference_entry(text: str) -> dict[str, Any]:
+    now = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    return {
+        "id": new_record_id("roster-pref"),
+        "created_at": now,
+        "updated_at": now,
+        "status": "active",
+        "scope": "workspace",
+        "source": "explicit_roster_preferences_remember",
+        "category": roster_preference_category(text),
+        "preference": text,
+        "applies_to": "Roster coordination defaults only",
+        "boundary": "does not replace packet contracts, capability authorization, runtime policy, artifact verification, or final acceptance",
+    }
+
+
+def render_roster_preferences_markdown(payload: dict[str, Any]) -> str:
+    lines = [
+        "# Roster Preferences",
+        "",
+        f"- Action: `{payload.get('action')}`",
+        f"- Target path: `{payload.get('target_path')}`",
+        f"- Preferences path: `{payload.get('preferences_path')}`",
+        f"- Recorded: `{payload.get('recorded')}`",
+        f"- Forgot: `{payload.get('forgot')}`",
+        f"- Refused: `{payload.get('refused')}`",
+        f"- Active count: `{payload.get('active_count', 0)}`",
+        "",
+        "## Active Preferences",
+        "",
+    ]
+    active = payload.get("active", [])
+    if active:
+        for entry in active:
+            lines.append(f"- `{entry.get('id')}` ({entry.get('category')}): {entry.get('preference')}")
+    else:
+        lines.append("- none")
+    lines.extend(
+        [
+            "",
+            "## Boundary",
+            "",
+            "- Preferences guide Roster coordination defaults only.",
+            "- They do not replace packet contracts, capability authorization, runtime policy, artifact verification, or final acceptance.",
+            "",
+        ]
+    )
+    if payload.get("reason"):
+        lines.extend(["## Reason", "", f"- `{payload.get('reason')}`", ""])
+    return "\n".join(lines)
+
+
+def do_roster_preferences(
+    config: HubConfig,
+    action: str,
+    target_arg: str,
+    text: str | None,
+    preference_id: str | None,
+    emit_json: bool = False,
+) -> int:
+    target = Path(target_arg).expanduser().resolve()
+    if not target.exists():
+        payload = {
+            **roster_preferences_base_payload(action, target),
+            "refused": True,
+            "reason": "missing_target",
+            "summary": roster_preferences_summary(target),
+        }
+        print(f"Target path does not exist: {target}", file=sys.stderr)
+        if emit_json:
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 1
+    if not target.is_dir():
+        payload = {
+            **roster_preferences_base_payload(action, target),
+            "refused": True,
+            "reason": "target_not_directory",
+            "summary": roster_preferences_summary(target),
+        }
+        print(f"Target path must be a directory: {target}", file=sys.stderr)
+        if emit_json:
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 1
+
+    path = roster_preferences_path_for_target(target)
+    payload = roster_preferences_base_payload(action, target)
+    try:
+        registry = load_roster_preferences_registry(target, strict=True)
+    except HubRuntimeError as exc:
+        payload.update({"refused": True, "reason": "invalid_preferences_registry"})
+        print(str(exc), file=sys.stderr)
+        if emit_json:
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 1
+
+    if action == "remember":
+        preference = (text or "").strip()
+        if not preference:
+            payload.update({"refused": True, "reason": "empty_preference"})
+            print("Roster preference text must not be empty.", file=sys.stderr)
+            if emit_json:
+                print(json.dumps(payload, ensure_ascii=False, indent=2))
+            return 1
+        entry = build_roster_preference_entry(preference)
+        registry["generated_at"] = payload["generated_at"]
+        registry["target_path"] = str(target.resolve())
+        registry.setdefault("entries", []).append(entry)
+        dump_json(path, registry)
+        summary = roster_preferences_summary(target)
+        payload.update(summary)
+        payload.update({"recorded": True, "entry": entry})
+    elif action == "list":
+        summary = roster_preferences_summary(target)
+        payload.update(summary)
+    elif action == "forget":
+        pref_id = (preference_id or "").strip()
+        if not pref_id:
+            payload.update({"refused": True, "reason": "missing_preference_id"})
+            print("Roster preference forget requires --id <preference-id>.", file=sys.stderr)
+            if emit_json:
+                print(json.dumps(payload, ensure_ascii=False, indent=2))
+            return 1
+        changed = None
+        now = payload["generated_at"]
+        for entry in registry.get("entries", []):
+            if isinstance(entry, dict) and entry.get("id") == pref_id:
+                entry["status"] = "archived"
+                entry["updated_at"] = now
+                entry["archived_at"] = now
+                changed = entry
+                break
+        if changed is None:
+            payload.update({"refused": True, "reason": "preference_not_found"})
+            print(f"Roster preference not found: {pref_id}", file=sys.stderr)
+            if emit_json:
+                print(json.dumps(payload, ensure_ascii=False, indent=2))
+            return 1
+        registry["generated_at"] = now
+        dump_json(path, registry)
+        summary = roster_preferences_summary(target)
+        payload.update(summary)
+        payload.update({"forgot": True, "entry": changed})
+    else:
+        payload.update({"refused": True, "reason": "unsupported_action"})
+        if emit_json:
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 1
+
+    if emit_json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print(render_roster_preferences_markdown(payload), end="")
+    return 0
 
 
 def default_memory_governance_registry() -> dict[str, Any]:
@@ -9272,6 +9576,18 @@ def artifact_harness_command(
     return " ".join(shlex.quote(part) for part in command_parts)
 
 
+def roster_preferences_remember_command(config: HubConfig, preference: str, target: Path) -> str:
+    command_parts = [
+        str(config.scripts_dir / "brain.sh"),
+        "roster-preferences",
+        "remember",
+        preference,
+        "--path",
+        str(target),
+    ]
+    return " ".join(shlex.quote(part) for part in command_parts)
+
+
 def packet_route_stage_for_family(family_id: str) -> str:
     return {
         "artifact_harness_workflow": "Artifact Harness SPEC",
@@ -9312,6 +9628,55 @@ def packet_route_artifact_intent(utterance: str, front_doors: list[str], natural
     if natural_details.get("create_ready"):
         return True
     return False
+
+
+def packet_route_roster_preference_text(utterance: str) -> str:
+    text = re.sub(r"^\s*(?:@roster|roster)\s*[,，:：;；-]*\s*", "", utterance, flags=re.IGNORECASE)
+    text = re.sub(
+        r"^\s*(?:please\s+)?(?:remember(?:\s+that)?|save(?:\s+this)?|record|memorize|記住|记住|記錄|记录)\s*[,，:：;；-]*\s*",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    return text.strip() or utterance.strip()
+
+
+def packet_route_roster_preference_memory_details(utterance: str, front_doors: list[str]) -> dict[str, Any]:
+    markers = (
+        "remember",
+        "remember that",
+        "save this",
+        "memorize",
+        "going forward",
+        "from now on",
+        "next time",
+        "for future",
+        "in future",
+        "always",
+        "記住",
+        "记住",
+        "記錄",
+        "记录",
+        "以後",
+        "以后",
+        "之後",
+        "之后",
+        "往後",
+        "往后",
+        "未來",
+        "未来",
+        "每次",
+        "都先",
+    )
+    matched_terms = match_artifact_harness_keywords(utterance, list(markers))
+    detected = "roster" in front_doors and bool(matched_terms)
+    return {
+        "detected": detected,
+        "matched_terms": matched_terms,
+        "action": "remember" if detected else None,
+        "preference_text": packet_route_roster_preference_text(utterance) if detected else None,
+        "reason": "explicit Roster preference-memory wording" if detected else None,
+    }
 
 
 def packet_route_alias_is_leading_invocation(utterance: str, alias: str) -> bool:
@@ -9560,6 +9925,13 @@ def render_packet_route_markdown(route: dict[str, Any]) -> str:
             lines.append(f"- `{candidate['route']}` -> `{candidate.get('workflow_stage')}`: {candidate.get('reason')}")
     else:
         lines.append("- none")
+    preferences = route.get("roster_preferences") or {}
+    active_preferences = preferences.get("active") if isinstance(preferences, dict) else []
+    if active_preferences:
+        lines.extend(["", "## Roster Preferences", ""])
+        for entry in active_preferences:
+            lines.append(f"- `{entry.get('id')}` ({entry.get('category')}): {entry.get('preference')}")
+        lines.append(f"- Write policy: `{preferences.get('write_policy')}`")
     lines.extend(
         [
             "",
@@ -9620,12 +9992,14 @@ def do_packet_route(
             print(json.dumps({"utterance": utterance, "target_path": str(target), "matched": False, "route": "none", "recognized_front_doors": [], "matched_keywords": [], "candidate_routes": [], "recommended_route": "none", "recommended_command": None, "command": None, "create": create, "force": force, "refused": True, "reason": "target_not_directory"}, ensure_ascii=False, indent=2))
         return 1
 
+    preferences = roster_preferences_summary(target)
     entrypoint = artifact_harness_entrypoint(config)
     candidate_routes, recognized_front_doors, matched_keywords = packet_route_candidate_routes(config, utterance)
     matched = bool(candidate_routes)
     natural_details = packet_route_natural_artifact_details(utterance)
     quality_details = packet_route_roster_quality_details(utterance, recognized_front_doors)
     quality_loop = packet_route_visual_quality_loop_details(utterance, natural_details, quality_details)
+    preference_memory = packet_route_roster_preference_memory_details(utterance, recognized_front_doors)
     artifact_intent = packet_route_artifact_intent(utterance, recognized_front_doors, natural_details)
     roster_quality_direction_detected = bool(
         quality_details.get("detected")
@@ -9648,7 +10022,16 @@ def do_packet_route(
     confidence = natural_details.get("confidence") if natural_details.get("detected") else "none"
 
     if matched:
-        if packet_id and downstream_front_doors:
+        if preference_memory.get("detected"):
+            preference_text = str(preference_memory.get("preference_text") or utterance)
+            recommended_route = "roster_preferences"
+            recommended_command = roster_preferences_remember_command(config, preference_text, target)
+            command_action = "remember"
+            create_allowed = False
+            chain_start = None
+            handoff_target = None
+            reason = "Roster preference-memory request; route to explicit workspace-local roster-preferences remember command"
+        elif packet_id and downstream_front_doors:
             code, state, _errors, _manifest, _status = load_artifact_harness_lifecycle_state(config, "resume", str(target), packet_id)
             existing_run_found = code == 0
             if existing_run_found:
@@ -9718,6 +10101,9 @@ def do_packet_route(
     elif recommended_route == "roster_quality_direction":
         user_intent = "quality_direction"
         confidence = "high"
+    elif recommended_route == "roster_preferences":
+        user_intent = "roster_preference_memory"
+        confidence = "high"
     elif not matched:
         user_intent = "ordinary"
         confidence = "none"
@@ -9738,6 +10124,10 @@ def do_packet_route(
         next_step_label = "Set Quality direction"
         user_message = "This is a Quality direction question. Answer with short-term delivery checks first, then long-term workflow improvements."
         visible_next_action = "Separate this-task fixes from reusable team, process, or template improvements."
+    elif recommended_route == "roster_preferences":
+        next_step_label = "Remember Roster preference"
+        user_message = "This is a workspace-local Roster preference-memory request, not an artifact-production packet run."
+        visible_next_action = "Run the recommended roster-preferences remember command to record it explicitly."
     elif downstream_front_doors:
         next_step_label = "Inspect or start upstream packet chain"
         user_message = "This names a downstream packet surface. Use an existing packet id for inspection, or start from the artifact task first."
@@ -9781,6 +10171,8 @@ def do_packet_route(
         },
         "quality_direction": quality_details,
         "quality_loop": quality_loop,
+        "preference_memory": preference_memory,
+        "roster_preferences": preferences,
         "next_step_label": next_step_label,
         "user_message": user_message,
         "visible_next_action": visible_next_action,
@@ -11418,6 +11810,8 @@ def main() -> int:
             return do_roster_install(config, args.codex_home, args.skills_root, args.force, args.json)
         if args.command == "roster-health":
             return do_roster_health(config, args.path, args.id, args.provider, args.auth_env, args.cv_provider, args.cv_auth_env, args.codex_home, args.skills_root, args.keep_artifacts, args.json)
+        if args.command == "roster-preferences":
+            return do_roster_preferences(config, args.action, args.path, args.text, args.id, args.json)
         if args.command == "overlay":
             return do_overlay(config, args.path)
         if args.command == "closeout":

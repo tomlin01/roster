@@ -18,6 +18,8 @@ Use this skill when the user asks for:
 - project/task boundary setup
 - Quality direction, self-check setup, or short-term vs long-term correction
   planning for an artifact task
+- explicit Roster preference memory such as "記住", "以後", "每次", or
+  "預設" for future coordination behavior in this workspace
 - Team Architect, Capability Access Packet, runtime mapping, or review handoff
 - resuming or inspecting a Roster packet run
 - installing or checking the Roster coordination surface
@@ -57,8 +59,44 @@ a future product target unless a local health check explicitly proves otherwise.
    asks to set up the task forms.
 6. Keep generated packets under the target workspace:
    `<workspace>/contexts/artifact_harness_runs/<packet-id>/`.
-7. For setup checks, use `scripts/brain.sh roster-health --path <workspace>
+7. If the user explicitly asks Roster to remember a preference, record it with
+   `<brain_command> roster-preferences remember "<preference>" --path
+   <workspace> --json`. Do not silently record ordinary task content.
+8. For setup checks, use `scripts/brain.sh roster-health --path <workspace>
    --json` and include `--codex-home <dir>` when verifying an installed skill.
+
+## Roster Preferences
+
+Roster Preferences are small workspace-local defaults for future coordination
+behavior. Use them only when the user explicitly asks to remember a preference,
+for example:
+
+```text
+Roster, 記住以後 Lecture1 的影片任務都先檢查文字遮擋。
+```
+
+The adapter writes:
+
+```text
+<workspace>/contexts/roster_preferences.json
+```
+
+Current adapter commands:
+
+```bash
+<brain_command> roster-preferences remember "<preference>" --path <workspace> --json
+<brain_command> roster-preferences list --path <workspace> --json
+<brain_command> roster-preferences forget --id <preference-id> --path <workspace> --json
+```
+
+Use preferences to guide Roster defaults such as recurring roles, Quality focus,
+visual inspection habits, naming conventions, or preferred next-invocation
+phrases. Do not use them as a broad chat-memory dump.
+
+Preferences do not replace task contracts, acceptance checks, capability
+authorization, runtime policy, verification, or final artifact acceptance. If a
+preference conflicts with an explicit user instruction in the current turn, the
+current instruction wins.
 
 ## Quality Direction And Self-Check
 

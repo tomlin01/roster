@@ -55,6 +55,33 @@ You should not need to remember or type `brain.sh`, `packet-route`, or
 `artifact-harness` during ordinary work. The current verified command fallback
 is documented separately below.
 
+## Roster Preferences
+
+Roster can keep a tiny workspace-local preference file for recurring ways you
+want it to coordinate work. Use plain language first:
+
+```text
+Roster, 記住以後 Lecture1 的影片任務都先檢查文字遮擋。
+```
+
+Codex should translate that into the installed adapter:
+
+```bash
+<brain_command> roster-preferences remember "以後 Lecture1 的影片任務都先檢查文字遮擋" --path <workspace> --json
+```
+
+The file lives with the project, not in a central server:
+
+```text
+<workspace>/contexts/roster_preferences.json
+```
+
+This is intentionally small. It is for explicit Roster preferences such as
+recurring team shape, Quality focus, visual inspection habits, or preferred
+coordination wording. It is not general chat memory, and it does not replace the
+task brief, acceptance checks, tool authorization, runtime policy, or final
+review.
+
 ## Quality Direction
 
 Quality is built into Roster as direction-setting and self-check behavior. It

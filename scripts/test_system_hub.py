@@ -2513,6 +2513,136 @@ def test_packet_route_roster_visual_quality_only_uses_quality_direction() -> Non
         assert_true(payload["quality_loop"]["cv_inspection"]["no_visual_evidence_policy"], "quality-only CV route should include a no-visual-evidence policy")
 
 
+def test_roster_preferences_remember_and_list_workspace_local() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-roster-preferences-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "lecture_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        text = "之後做影片任務都先檢查文字遮擋和畫面重疊"
+
+        remembered = run_brain(ws, "roster-preferences", "remember", text, "--path", str(folder), "--json")
+        assert_true(remembered.returncode == 0, f"roster-preferences remember expected 0, got {remembered.returncode}, stderr={remembered.stderr}")
+        remembered_payload = json.loads(remembered.stdout)
+        preference_path = folder / "contexts" / "roster_preferences.json"
+        assert_true(remembered_payload["recorded"] is True, "remember should report recorded=true")
+        assert_true(Path(remembered_payload["preferences_path"]).resolve() == preference_path.resolve(), "preference file should live under target workspace contexts")
+        assert_true(remembered_payload["entry"]["preference"] == text, "remember should preserve the explicit preference text")
+        assert_true(remembered_payload["entry"]["scope"] == "workspace", "preference scope should default to workspace")
+        assert_true(remembered_payload["entry"]["category"] == "visual_quality_preference", "visual quality wording should be categorized")
+        assert_true(preference_path.exists(), "remember should write workspace-local roster preferences")
+
+        listed = run_brain(ws, "roster-preferences", "list", "--path", str(folder), "--json")
+        assert_true(listed.returncode == 0, f"roster-preferences list expected 0, got {listed.returncode}, stderr={listed.stderr}")
+        listed_payload = json.loads(listed.stdout)
+        assert_true(listed_payload["entry_count"] == 1, "list should include the remembered entry")
+        assert_true(listed_payload["active_count"] == 1, "list should expose one active preference")
+        assert_true(listed_payload["active"][0]["preference"] == text, "list should return the active preference text")
+
+
+def test_roster_preferences_refuses_empty_remember() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-roster-preferences-empty-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "lecture_case"
+        folder.mkdir(parents=True, exist_ok=True)
+
+        result = run_brain(ws, "roster-preferences", "remember", "   ", "--path", str(folder), "--json")
+        assert_true(result.returncode != 0, "empty roster preference should be refused")
+        payload = json.loads(result.stdout)
+        assert_true(payload["refused"] is True, "empty remember refusal should be structured")
+        assert_true(payload["reason"] == "empty_preference", "empty remember refusal should identify the reason")
+        assert_true(not (folder / "contexts" / "roster_preferences.json").exists(), "empty preference should not create a preferences file")
+
+
+def test_packet_route_includes_roster_preferences_without_writing_packets() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-roster-preferences-route-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "lecture_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        text = "Roster 之後規劃 Lecture1 都保留 Student / Teacher / Video / Quality 四個工作角色"
+
+        remember = run_brain(ws, "roster-preferences", "remember", text, "--path", str(folder), "--json")
+        assert_true(remember.returncode == 0, f"remember setup expected 0, got {remember.returncode}, stderr={remember.stderr}")
+
+        route = run_brain(ws, "packet-route", "Roster, 幫我安排這個 slide 任務", "--path", str(folder), "--json")
+        assert_true(route.returncode == 0, f"packet-route expected 0, got {route.returncode}, stderr={route.stderr}")
+        payload = json.loads(route.stdout)
+        prefs = payload["roster_preferences"]
+        assert_true(prefs["entry_count"] == 1, "packet-route JSON should include workspace-local Roster preferences")
+        assert_true(prefs["active"][0]["preference"] == text, "packet-route should expose the active preference text")
+        assert_true(prefs["write_policy"] == "explicit roster-preferences remember only", "packet-route should not be a silent memory writer")
+        assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "packet-route without --create should not write artifact packet output")
+
+
+def test_packet_route_roster_preference_memory_routes_to_remember_without_writing() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-roster-preferences-route-remember-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "lecture_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        cases = [
+            "Roster, 記住以後 Lecture1 的影片任務都先檢查文字遮擋",
+            "Roster, 以後 Lecture1 的影片任務都先檢查文字遮擋",
+        ]
+
+        for utterance in cases:
+            route = run_brain(ws, "packet-route", utterance, "--path", str(folder), "--json")
+            assert_true(route.returncode == 0, f"packet-route expected 0 for {utterance!r}, got {route.returncode}, stderr={route.stderr}")
+            payload = json.loads(route.stdout)
+            assert_true(payload["recommended_route"] == "roster_preferences", "preference-memory phrasing should route to roster-preferences")
+            assert_true(payload["command_action"] == "remember", "preference route should identify the remember action")
+            assert_true("roster-preferences remember" in payload["recommended_command"], "preference route should emit a roster-preferences remember command")
+            assert_true(payload["create_allowed"] is False, "preference route should not be packet-createable")
+            assert_true(payload["user_intent"] == "roster_preference_memory", "preference route should expose preference-memory intent")
+            assert_true(payload["preference_memory"]["detected"] is True, "preference route should include detection details")
+            assert_true(payload["roster_preferences"]["entry_count"] == 0, "packet-route should not silently record a preference")
+            assert_true("artifact-harness" not in payload["recommended_command"], "preference route should not emit an artifact-harness command")
+        assert_true(not (folder / "contexts" / "roster_preferences.json").exists(), "packet-route should not create roster preference memory")
+        assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "preference route should not write artifact packet output")
+
+
+def test_packet_route_roster_preference_memory_create_refuses_without_writing_packets() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-roster-preferences-route-create-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "lecture_case"
+        folder.mkdir(parents=True, exist_ok=True)
+
+        route = run_brain(
+            ws,
+            "packet-route",
+            "Roster, 記住以後 Lecture1 的影片任務都先檢查文字遮擋",
+            "--path",
+            str(folder),
+            "--create",
+            "--json",
+        )
+        assert_true(route.returncode != 0, "packet-route --create should refuse preference-only routes")
+        payload = json.loads(route.stdout)
+        assert_true(payload["recommended_route"] == "roster_preferences", "--create refusal should preserve the preference route")
+        assert_true(payload["reason"] == "create_not_allowed_for_recommended_route", "--create refusal should identify route mismatch")
+        assert_true(payload["refused"] is True, "--create preference route should be structured as refused")
+        assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "preference --create should not write artifact packet output")
+        assert_true(not (folder / "contexts" / "roster_preferences.json").exists(), "preference --create should not write preference memory implicitly")
+
+
+def test_packet_route_invalid_roster_preferences_registry_reports_nonblocking_diagnostic() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-roster-preferences-invalid-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "lecture_case"
+        contexts = folder / "contexts"
+        contexts.mkdir(parents=True, exist_ok=True)
+        (contexts / "roster_preferences.json").write_text("{broken", encoding="utf-8")
+
+        route = run_brain(ws, "packet-route", "Roster, 幫我安排這個 slide 任務", "--path", str(folder), "--json")
+        assert_true(route.returncode == 0, f"packet-route should stay non-blocking for invalid preferences, got {route.returncode}, stderr={route.stderr}")
+        payload = json.loads(route.stdout)
+        prefs = payload["roster_preferences"]
+        assert_true(prefs["status"] == "invalid", "packet-route should expose invalid preference registry status")
+        assert_true(prefs["diagnostic_code"] == "invalid_preferences_registry", "packet-route should expose a stable invalid-registry diagnostic")
+        assert_true(prefs["blocking"] is False, "invalid preferences should be non-blocking for packet-route")
+        assert_true(prefs["active"] == [], "invalid preferences should not expose active entries")
+        assert_true(payload["recommended_route"] == "artifact_harness_workflow", "invalid preferences should not block artifact routing")
+        assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "packet-route without --create should not write artifact packet output")
+
+
 def test_packet_route_visual_cv_create_carries_request_into_packet_scaffolds() -> None:
     with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-roster-cv-create-") as tmp_s:
         ws = make_workspace(Path(tmp_s))
@@ -4090,6 +4220,12 @@ def main() -> int:
         test_packet_route_roster_quality_attached_artifact_is_spec_first,
         test_packet_route_roster_visual_quality_loop_attaches_to_production,
         test_packet_route_roster_visual_quality_only_uses_quality_direction,
+        test_roster_preferences_remember_and_list_workspace_local,
+        test_roster_preferences_refuses_empty_remember,
+        test_packet_route_includes_roster_preferences_without_writing_packets,
+        test_packet_route_roster_preference_memory_routes_to_remember_without_writing,
+        test_packet_route_roster_preference_memory_create_refuses_without_writing_packets,
+        test_packet_route_invalid_roster_preferences_registry_reports_nonblocking_diagnostic,
         test_packet_route_visual_cv_create_carries_request_into_packet_scaffolds,
         test_packet_route_pm_alias_requires_artifact_context,
         test_packet_route_underspecified_artifact_hint_refuses_create,
