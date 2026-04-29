@@ -13,13 +13,17 @@ workspace where the work happens.
 
 ## Install
 
-Clone the kit and install the local `roster` skill into your Codex home:
+Clone the kit and install the local `roster` skill plus local plugin surface
+into your Codex home:
 
 ```bash
 git clone https://github.com/tomlin01/roster.git
 cd roster
 ./scripts/brain.sh roster-install --codex-home ~/.codex --json
 ```
+
+Restart or reload Codex after install so plugin and slash-command state can be
+refreshed.
 
 Check that Roster can see a target workspace and write/clean a smoke packet
 there:
@@ -62,9 +66,16 @@ Current truthful invocation:
 Roster, <your task>
 ```
 
-`@roster` is a future product target, not a verified installed Codex mention,
-plugin/app mention, or slash command. The route helper can recognize the
-literal text `@roster`, but that is not the same as Codex mention interception.
+Installed invocation targets after `roster-install` and a Codex reload:
+
+```text
+@roster <your task>
+/roster <your task>
+```
+
+If the current Codex UI does not surface the plugin immediately, use the stable
+fallback `Roster, <your task>` and run `roster-health --codex-home ~/.codex` to
+inspect the local registration state.
 
 ## What Roster Does
 
@@ -130,7 +141,7 @@ preferred coordination wording.
 
 ## Uninstall
 
-Remove the installed skill from a Codex home:
+Remove the installed skill and local plugin surface from a Codex home:
 
 ```bash
 ./scripts/brain.sh roster-uninstall --codex-home ~/.codex --json

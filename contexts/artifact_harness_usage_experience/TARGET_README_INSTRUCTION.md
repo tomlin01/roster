@@ -61,10 +61,10 @@ In Codex, type: Roster, <your artifact task>
 Then say the artifact task in ordinary language.
 ```
 
-Current evidence says `@roster` is not a working installed Codex mention. Do
-not publish `@roster` as the primary path until a Codex mention/plugin/app layer
-proves it in the actual CLI or GUI. If a future verified primary path is not
-plain `Roster, ...`, replace this section with the real installed surface.
+Current implementation registers a local `roster` plugin and `/roster` command
+through `roster-install`. Publish `@roster <task>` and `/roster <task>` as
+post-install targets only with the restart/reload caveat; keep `Roster, ...` as
+the stable fallback if the active Codex UI has not refreshed plugin state.
 
 Specialized aliases may remain supported, but they are secondary convenience
 paths and should not appear on the first screen unless the user asks for review,

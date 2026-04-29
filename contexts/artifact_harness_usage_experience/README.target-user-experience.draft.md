@@ -17,11 +17,10 @@ Current primary invocation:
 Roster, 幫我把這些會議筆記整理成可執行的專案計畫。
 ```
 
-In the current verified path, type `Roster` in ordinary Codex chat and then say
-the task in natural language. `@roster` has been tested and is not currently a
-working installed Codex mention, skill, plugin, app mention, or slash command.
-Keep `@roster` as a future install target only until a real registration layer
-proves it.
+In the stable path, type `Roster` in ordinary Codex chat and then say the task
+in natural language. After `roster-install` and a Codex reload, users should
+also be able to try `@roster <task>` and `/roster <task>` through the local
+plugin/slash registration surface.
 
 Specialized aliases may also work in ordinary chat, but they are secondary and
 should not appear on the first screen unless the user asks for review, staffing,
@@ -295,28 +294,24 @@ On a new machine:
 ./scripts/brain.sh roster-health --codex-home ~/.codex --path <workspace-folder> --provider openai --auth-env OPENAI_API_KEY --json
 ```
 
-6. Confirm the invocation status. Current verified mechanism:
-   installed `roster` skill plus `Roster` as a natural-language route alias,
-   with `scripts/brain.sh packet-route` available to Codex or a reviewer as the
-   internal adapter. `@roster` has been tested and is not yet a working installed
-   Codex mention, plugin/app mention, or slash command.
-7. Configure local LLM credentials or Codex auth for the provider you intend to
+6. Confirm the invocation status. Current mechanism: installed `roster` skill,
+   local `roster` plugin, `/roster` command, and `Roster` as the stable
+   natural-language fallback.
+7. Restart or reload Codex so plugin and slash-command state refreshes.
+8. Configure local LLM credentials or Codex auth for the provider you intend to
    use.
-8. After a real mention/plugin/slash layer is implemented and verified,
-   use the target health-check prompt:
+9. Try the installed health-check prompt:
 
 ```text
 @roster run health check for this workspace.
 ```
 
-9. Confirm that the health check reports skill install visibility, packet output,
+10. Confirm that the health check reports skill/plugin install visibility, packet output,
    and LLM/provider status.
 
-Current status: the prompt form above remains target behavior and is known not
-to work through `@roster` today. The implemented health check is the repo-native
-`roster-health` command, and the implemented install layer is the repo-owned
-`roster` skill. It must not be described as a verified installed `@roster`
-mention.
+Current status: the repo-native health check verifies local registration files
+and config state. Final composer visibility for `@roster` and `/roster` is
+verified by reloading Codex and trying the installed surfaces.
 `roster-health` creates a smoke packet under the target workspace and cleans it
 up by default. Use `--keep-artifacts` only when a reviewer needs the smoke
 packet files retained as evidence. Provider credential values are never printed;

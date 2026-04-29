@@ -24,8 +24,10 @@ Use this skill when the user asks for:
 - resuming or inspecting a Roster packet run
 - installing, uninstalling, or checking the Roster coordination surface
 
-Do not claim `@roster` is a working installed Codex mention. Treat `@roster` as
-a future product target unless a local health check explicitly proves otherwise.
+After `roster-install` and a Codex reload, `@roster` and `/roster` are the
+intended installed invocation targets. If the current Codex UI does not surface
+the plugin immediately, fall back to `Roster, ...` and use `roster-health` to
+inspect registration state.
 
 ## Operating Boundary
 
@@ -241,7 +243,8 @@ value instead of assuming the current working directory is the Roster kit root.
 If the manifest is unavailable, ask for the Roster kit folder before running
 repo adapter commands.
 
-Install and uninstall are explicit setup actions:
+Install and uninstall are explicit setup actions. They cover both the Roster
+skill and local plugin/slash surface:
 
 ```bash
 <brain_command> roster-install --codex-home <codex-home> --json

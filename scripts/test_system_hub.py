@@ -534,6 +534,9 @@ def make_workspace(
     roster_skill_source = ROOT / "skills" / "roster"
     if roster_skill_source.exists():
         shutil.copytree(roster_skill_source, ws / "skills" / "roster")
+    roster_plugin_source = ROOT / "plugins" / "roster"
+    if roster_plugin_source.exists():
+        shutil.copytree(roster_plugin_source, ws / "plugins" / "roster")
     (scripts_dir / "brain.sh").chmod(0o755)
     (scripts_dir / "system_hub.py").chmod(0o755)
 
@@ -3027,7 +3030,7 @@ def test_roster_health_smoke_json_reports_missing_provider_and_target_packet_out
         assert_true(payload["overall_status"] == "degraded", "missing provider should degrade rather than hide diagnostics")
         assert_true(payload["verified_invocation_mechanism"]["status"] == "visible", "Roster alias should be visible through packet-route")
         assert_true(payload["verified_invocation_mechanism"]["name"] == "scripts/brain.sh packet-route", "health should name the verified invocation mechanism")
-        assert_true(payload["verified_invocation_mechanism"]["current_codex_surface"]["mention_at_roster"] == "product_target_unverified_as_installed_codex_mention", "health must not claim installed @roster mention support")
+        assert_true(payload["verified_invocation_mechanism"]["current_codex_surface"]["mention_at_roster"] == "not_registered_by_this_repo_health_check", "health without --codex-home should not claim installed @roster support")
         assert_true(payload["packet_output"]["status"] == "success", "health should write a packet through the verified route")
         assert_true(Path(payload["packet_output"]["run_dir"]).resolve() == (target / "contexts" / "artifact_harness_runs" / "roster-health-smoke").resolve(), "health packet run should live under target workspace")
         assert_true(Path(payload["packet_output"]["registry_path"]).resolve() == (target / "contexts" / "artifact_harness_registry.json").resolve(), "health registry should live under target workspace")
@@ -3151,14 +3154,28 @@ def test_roster_install_temp_codex_home_and_health_detects_skill() -> None:
         install_payload = json.loads(install.stdout)
         skill_path = codex_home / "skills" / "roster"
         manifest_path = skill_path / "references" / "install_manifest.json"
+        plugin_path = codex_home / "local-marketplaces" / "roster-local" / "plugins" / "roster"
+        plugin_manifest_path = plugin_path / "references" / "install_manifest.json"
+        marketplace_json = codex_home / "local-marketplaces" / "roster-local" / ".agents" / "plugins" / "marketplace.json"
+        codex_config = codex_home / "config.toml"
         assert_true(install_payload["installed"] is True, "install JSON should report installed=true")
         assert_true(Path(install_payload["skill_path"]).resolve() == skill_path.resolve(), "install JSON should point to temp Codex home skill")
+        assert_true(Path(install_payload["plugin_path"]).resolve() == plugin_path.resolve(), "install JSON should point to temp Codex home plugin")
         assert_true((skill_path / "SKILL.md").exists(), "roster-install should copy SKILL.md")
         assert_true(manifest_path.exists(), "roster-install should write install manifest")
+        assert_true((plugin_path / ".codex-plugin" / "plugin.json").exists(), "roster-install should copy plugin manifest")
+        assert_true((plugin_path / "commands" / "roster.md").exists(), "roster-install should copy /roster command")
+        assert_true(plugin_manifest_path.exists(), "roster-install should write plugin install manifest")
+        assert_true(marketplace_json.exists(), "roster-install should write local marketplace manifest")
+        assert_true(codex_config.exists(), "roster-install should register local marketplace in Codex config")
+        assert_true('[plugins."roster@roster-local"]' in codex_config.read_text(encoding="utf-8"), "roster-install should enable roster plugin in Codex config")
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         assert_true(manifest["skill_name"] == "roster", "install manifest should identify roster skill")
         assert_true(manifest["current_user_invocation"] == "Roster, <task>", "install manifest should name truthful current invocation")
-        assert_true(manifest["at_roster_status"] == "product_target_unverified_as_installed_codex_mention", "install manifest must not claim @roster")
+        assert_true(manifest["at_roster_status"] == "local_plugin_registered_after_codex_reload", "install manifest should identify the registered local plugin surface")
+        plugin_manifest = json.loads(plugin_manifest_path.read_text(encoding="utf-8"))
+        assert_true(plugin_manifest["mention_invocation"] == "@roster", "plugin manifest should name @roster")
+        assert_true(plugin_manifest["slash_invocation"] == "/roster", "plugin manifest should name /roster")
 
         duplicate = run_brain(ws, "roster-install", "--codex-home", str(codex_home), "--json")
         duplicate_payload = json.loads(duplicate.stdout)
@@ -3185,7 +3202,10 @@ def test_roster_install_temp_codex_home_and_health_detects_skill() -> None:
         health_payload = json.loads(health.stdout)
         assert_true(health_payload["overall_status"] == "healthy", "installed-skill health should be healthy with local provider env")
         assert_true(health_payload["installed_skill"]["status"] == "installed", "health should detect installed roster skill")
+        assert_true(health_payload["installed_plugin"]["status"] == "installed", "health should detect installed roster plugin")
         assert_true(health_payload["verified_invocation_mechanism"]["current_codex_surface"]["skill"] == "installed", "health surface should report skill installed")
+        assert_true(health_payload["verified_invocation_mechanism"]["current_codex_surface"]["plugin"] == "installed", "health surface should report plugin installed")
+        assert_true(health_payload["verified_invocation_mechanism"]["current_codex_surface"]["slash_invocation"] == "/roster", "health should report slash invocation")
         assert_true(health_payload["packet_output"]["cleanup"]["status"] == "success", "health should clean smoke packet output")
         assert_true("placeholder-roster-test-token" not in health.stdout, "health output must not print provider secrets")
         assert_true(not (target / "contexts" / "artifact_harness_registry.json").exists(), "health should clean target registry")
@@ -3197,20 +3217,27 @@ def test_roster_uninstall_temp_codex_home_removes_owned_skill_safely() -> None:
         ws = make_workspace(Path(tmp_s))
         codex_home = Path(tmp_s) / "fresh_codex_home"
         skill_path = codex_home / "skills" / "roster"
+        plugin_path = codex_home / "local-marketplaces" / "roster-local" / "plugins" / "roster"
+        codex_config = codex_home / "config.toml"
 
         install = run_brain(ws, "roster-install", "--codex-home", str(codex_home), "--json")
         assert_true(install.returncode == 0, f"roster-install should succeed before uninstall, got {install.returncode}, stderr={install.stderr}")
         assert_true((skill_path / "SKILL.md").exists(), "installed skill should exist before uninstall")
+        assert_true((plugin_path / "commands" / "roster.md").exists(), "installed plugin command should exist before uninstall")
 
         uninstall = run_brain(ws, "roster-uninstall", "--codex-home", str(codex_home), "--json")
         assert_true(uninstall.returncode == 0, f"roster-uninstall should succeed for owned install, got {uninstall.returncode}, stderr={uninstall.stderr}")
         payload = json.loads(uninstall.stdout)
-        assert_true(payload["report_type"] == "roster_skill_uninstall", "uninstall JSON should identify report type")
+        assert_true(payload["report_type"] == "roster_uninstall", "uninstall JSON should identify report type")
         assert_true(payload["uninstalled"] is True, "uninstall JSON should report uninstalled=true")
         assert_true(payload["refused"] is False, "owned uninstall should not be refused")
         assert_true(payload["installed_before"]["status"] == "installed", "uninstall should report installed_before")
+        assert_true(payload["plugin_before"]["status"] == "installed", "uninstall should report plugin_before")
         assert_true(payload["installed_after"]["status"] == "missing", "uninstall should report missing installed_after")
+        assert_true(payload["plugin_after"]["status"] == "missing", "uninstall should report missing plugin_after")
         assert_true(not skill_path.exists(), "roster-uninstall should remove the installed skill folder")
+        assert_true(not (codex_home / "local-marketplaces" / "roster-local").exists(), "roster-uninstall should remove the local Roster marketplace")
+        assert_true('[plugins."roster@roster-local"]' not in codex_config.read_text(encoding="utf-8"), "roster-uninstall should remove plugin config")
 
         duplicate = run_brain(ws, "roster-uninstall", "--codex-home", str(codex_home), "--json")
         duplicate_payload = json.loads(duplicate.stdout)
