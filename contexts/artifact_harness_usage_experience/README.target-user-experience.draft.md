@@ -70,6 +70,65 @@ If this turn only prepared a roster, say that as current-turn scope. Do not make
 it sound like Roster cannot later assign and execute slide, scene, render,
 video, or QA work.
 
+For Quality setup requests, Codex should answer as a project coordinator first,
+not as a governance explainer:
+
+```text
+我會把 Quality 分成兩層：
+
+短期先看這次 unit 能不能交付：
+- 內容是否講得清楚
+- slide / scene / video 是否一致
+- 有沒有明顯漏掉的步驟
+
+長期則看這個 Lecture1 team 是否需要固定檢查流程：
+- 每個 unit 完成後都做 playback check
+- 每次修改 scene 後確認 slide 對應
+- 最後輸出前做一次完整驗收
+
+我會先用短期檢查幫你把這次任務穩住，再把重複出現的問題記成長期改善項目。
+```
+
+The short-term layer stabilizes the current artifact or unit. The long-term
+layer captures repeated problems as team, process, checklist, or template
+improvements. If an acceptance contract already exists, use it as the source of
+truth for the checks without showing internal packet terminology in the first
+reply.
+
+For visual artifact production, Codex should quietly add a short Quality loop
+before delivery:
+
+```text
+我會把這個當成需要看畫面的任務：先產出第一版，擷取畫面或播放片段，檢查文字有沒有被遮住、重點元素是否清楚，再修 1-2 輪。
+
+需要截圖、播放、OCR 或 vision review 時，我會把它當成工具能力處理。
+
+我會先嘗試自動取得畫面證據，例如 render/export、截圖、播放片段或抽 frame；如果環境拿不到畫面，再請你提供截圖。
+
+沒有畫面證據時，我只能做非視覺品質檢查，不能把畫面驗收當成完成。
+```
+
+The loop applies to slides, scenes, renders, videos, screenshots, images, UIs,
+and presentations. It should inspect visible output for text occlusion, key
+element occlusion, layout overlap, poor contrast or unreadable scale, missing
+expected content, and slide/render/video mismatch. Use 2-3 bounded iterations,
+or stop earlier when no material issue remains.
+
+CV inspection, playback, screenshot, OCR, render, Computer Use, and similar
+inspection tools remain tool capabilities governed by the Capability Access
+Packet. Quality may plan the check, but it does not own tool authorization. The
+activation order is: use existing rendered/exported visual files, render/export
+inspectable evidence when safe, use CAP-governed capture/playback/frame
+sampling, use CAP-governed OCR or vision review, and ask the user for a
+screenshot or frame only as the final fallback.
+
+Visual acceptance requires inspected visual evidence when the artifact has a
+visual output. Without a screenshot, render, frame, or playback evidence,
+Roster can complete only non-visual, text, or structure checks. Visual findings
+should include artifact, slide/frame/timecode, region, issue type, severity,
+evidence source, suggested fix owner, suggested correction, and recheck
+condition.
+
 Codex should answer in plain language first for broader setup tasks too:
 
 ```text

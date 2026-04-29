@@ -2419,6 +2419,135 @@ def test_packet_route_roster_aliases_route_to_artifact_harness() -> None:
         assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "route aliases without --create should not write packets")
 
 
+def test_packet_route_roster_quality_direction_is_plain_self_check() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-roster-quality-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "quality_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        cases = [
+            ("Roster，幫我看 Lecture1 的 Quality 要怎麼設定", "Quality"),
+            ("Roster，幫我檢查 Lecture1 的品質", "品質"),
+            ("Roster，幫我做自我檢查", "自我檢查"),
+        ]
+        for utterance, expected_quality_term in cases:
+            result = run_brain(ws, "packet-route", utterance, "--path", str(folder), "--json")
+            assert_true(result.returncode == 0, f"Roster Quality route expected 0 for {utterance!r}, got {result.returncode}, stderr={result.stderr}")
+            payload = json.loads(result.stdout)
+            assert_true(payload["matched"] is True, "Roster Quality prompt should match the Roster front door")
+            assert_true(payload["recommended_route"] == "roster_quality_direction", "Quality direction should not become a packet-creation route")
+            assert_true(payload["user_intent"] == "quality_direction", "Quality prompt should expose quality_direction intent")
+            assert_true(payload["create_allowed"] is False, "Quality direction should answer directly without creating packets")
+            assert_true(payload["recommended_command"] is None, "Quality direction should not emit an Artifact Harness create command")
+            assert_true(payload["quality_direction"]["detected"] is True, "Quality direction details should be structured")
+            assert_true(expected_quality_term in payload["quality_direction"]["quality_terms"], "Quality term should be recorded")
+            assert_true(payload["quality_direction"]["short_term_focus"], "Quality direction should include short-term self-check focus")
+            assert_true(payload["quality_direction"]["long_term_focus"], "Quality direction should include long-term improvement focus")
+        assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "Quality direction route should not write packet output")
+
+
+def test_packet_route_roster_quality_attached_artifact_is_spec_first() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-roster-quality-artifact-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        utterance = "Roster, create a review-ready methods appendix with Quality settings"
+        result = run_brain(ws, "packet-route", utterance, "--path", str(folder), "--json")
+        assert_true(result.returncode == 0, f"Roster Quality artifact route expected 0, got {result.returncode}, stderr={result.stderr}")
+        payload = json.loads(result.stdout)
+        assert_true(payload["matched"] is True, "Roster Quality artifact prompt should match")
+        assert_true(payload["recommended_route"] == "artifact_harness_workflow", "artifact production with Quality should remain SPEC-first")
+        assert_true(payload["user_intent"] == "artifact_production", "artifact production with Quality should expose artifact-production intent")
+        assert_true(payload["create_allowed"] is True, "artifact production with Quality should allow packet creation")
+        assert_true(payload["chain_start"] == "Artifact Harness SPEC", "artifact production with Quality should start at SPEC")
+        assert_true(payload["quality_direction"]["detected"] is True, "Quality direction should remain attached as advisory context")
+        assert_true("Quality" in payload["quality_direction"]["quality_terms"], "Quality advisory context should record the Quality term")
+        assert_true(payload["recommended_command"] is not None, "artifact production with Quality should emit a create command")
+        assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "route without --create should not write packet output")
+
+
+def test_packet_route_roster_visual_quality_loop_attaches_to_production() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-roster-visual-loop-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        utterance = "Roster, create a review-ready Lecture1 slide with CV quality check"
+        result = run_brain(ws, "packet-route", utterance, "--path", str(folder), "--json")
+        assert_true(result.returncode == 0, f"Roster visual quality loop route expected 0, got {result.returncode}, stderr={result.stderr}")
+        payload = json.loads(result.stdout)
+        assert_true(payload["recommended_route"] == "artifact_harness_workflow", "visual artifact production with Quality loop should remain SPEC-first")
+        assert_true(payload["create_allowed"] is True, "visual artifact production should allow packet creation")
+        assert_true(payload["quality_loop"]["detected"] is True, "visual artifact production should attach quality loop guidance")
+        assert_true(payload["quality_loop"]["artifact_mode"] == "visual", "quality loop should identify visual artifact mode")
+        assert_true(payload["quality_loop"]["recommended_iterations"] == "2-3", "quality loop should recommend 2-3 bounded iterations")
+        assert_true(payload["quality_loop"]["cv_inspection"]["requested"] is True, "visual artifact production should request CV inspection")
+        assert_true("screenshot_capture" in payload["quality_loop"]["cv_inspection"]["capability_requests"], "CV inspection should request screenshot capture")
+        assert_true("vision_model_review" in payload["quality_loop"]["cv_inspection"]["capability_requests"], "CV inspection should request vision review")
+        ladder = payload["quality_loop"]["cv_inspection"]["activation_ladder"]
+        assert_true(len(ladder) >= 5, "CV inspection should expose an activation ladder")
+        assert_true(ladder[0]["step"] == "use_existing_visual_evidence", "CV ladder should prefer existing visual evidence")
+        assert_true(ladder[-1]["step"] == "ask_user_for_screenshot_or_frame", "CV ladder should ask the user for screenshots/frames only last")
+        assert_true(ladder[-1]["fallback"] is True, "final CV ladder step should be marked as fallback")
+        assert_true(payload["quality_loop"]["cv_inspection"]["evidence_required_for_visual_acceptance"] is True, "visual acceptance should require inspected evidence")
+
+
+def test_packet_route_roster_visual_quality_only_uses_quality_direction() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-roster-visual-quality-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "quality_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        utterance = "Roster，幫我用CV檢查 Lecture1 影片畫面品質"
+        result = run_brain(ws, "packet-route", utterance, "--path", str(folder), "--json")
+        assert_true(result.returncode == 0, f"Roster visual quality route expected 0, got {result.returncode}, stderr={result.stderr}")
+        payload = json.loads(result.stdout)
+        assert_true(payload["recommended_route"] == "roster_quality_direction", "visual quality-only prompt should route to Quality direction")
+        assert_true(payload["create_allowed"] is False, "visual quality-only prompt should not create packets")
+        assert_true(payload["quality_loop"]["detected"] is True, "visual quality-only prompt should include quality loop guidance")
+        targets = payload["quality_loop"]["inspection_targets"]
+        assert_true("text occlusion" in targets, "visual quality loop should inspect text occlusion")
+        assert_true("contrast/readability" in targets, "visual quality loop should inspect readability")
+        assert_true("layout overlap" in targets, "visual quality loop should inspect overlap")
+        assert_true(payload["quality_loop"]["cv_inspection"]["requested"] is True, "visual quality-only prompt should request CV inspection")
+        assert_true("vision_model_review" in payload["quality_loop"]["cv_inspection"]["capability_requests"], "quality-only CV request should include vision review capability")
+        ladder = payload["quality_loop"]["cv_inspection"]["activation_ladder"]
+        assert_true(ladder[-1]["step"] == "ask_user_for_screenshot_or_frame", "quality-only CV ladder should keep user screenshots as final fallback")
+        assert_true(payload["quality_loop"]["cv_inspection"]["no_visual_evidence_policy"], "quality-only CV route should include a no-visual-evidence policy")
+
+
+def test_packet_route_visual_cv_create_carries_request_into_packet_scaffolds() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-roster-cv-create-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "artifact_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        utterance = "Roster, create a review-ready Lecture1 slide with CV quality check"
+        result = run_brain(ws, "packet-route", utterance, "--path", str(folder), "--id", "smoke-cv-quality", "--create", "--json")
+        assert_true(result.returncode == 0, f"CV visual packet creation expected 0, got {result.returncode}, stderr={result.stderr}")
+        payload = json.loads(result.stdout)
+        assert_true(payload["artifact_harness"]["created"] is True, "CV visual packet route should create the packet chain")
+        packets = {key: Path(value) for key, value in payload["artifact_harness"]["packets"].items()}
+        spec_text = packets["artifact_harness_spec"].read_text(encoding="utf-8")
+        top_text = packets["team_operating_packet"].read_text(encoding="utf-8")
+        cap_text = packets["capability_access_packet"].read_text(encoding="utf-8")
+        runtime_text = packets["runtime_mapping"].read_text(encoding="utf-8")
+        assert_true("Visual / CV Inspection Targets" in spec_text, "SPEC should carry CV inspection targets")
+        assert_true("text occlusion" in spec_text and "slide/render/video mismatch" in spec_text, "SPEC should list visual inspection acceptance targets")
+        assert_true("visual acceptance requires inspected visual evidence" in spec_text, "SPEC should require inspected visual evidence for visual acceptance")
+        assert_true("only non-visual, text, or structure checks can be marked complete" in spec_text, "SPEC should limit completion when visual evidence is missing")
+        assert_true("actionable visual finding shape" in spec_text, "SPEC should carry the visual finding output contract")
+        assert_true("Visual Inspect-And-Correct Loop" in top_text, "TOP should include the bounded visual inspection loop")
+        assert_true("quality reviewer / visual inspector" in top_text, "TOP should mention optional visual inspector role")
+        assert_true("activation ladder task procedure" in top_text, "TOP should include the activation ladder as procedure")
+        assert_true("inspect -> finding -> fix -> recheck loop" in top_text, "TOP should include an inspect/fix/recheck loop")
+        assert_true("ask the user for a screenshot or frame only as the final fallback" in top_text, "TOP should make user screenshots the final fallback")
+        assert_true("structured finding shape" in top_text, "TOP should include the actionable finding shape")
+        assert_true("CV Inspection Capability Request" in cap_text, "CAP should include a CV inspection capability request")
+        assert_true("render_export_visual_evidence" in cap_text and "screenshot_capture" in cap_text and "vision_model_review" in cap_text, "CAP should request render/export, screenshot, and vision review capabilities")
+        assert_true("user evidence fallback" in cap_text, "CAP should keep user-provided evidence as fallback")
+        assert_true("CAP authorizes tools and gates only" in cap_text, "CAP should preserve authorization-only boundary")
+        assert_true("CV Inspection Runtime Trace" in runtime_text, "runtime mapping should carry a CAP-derived CV trace")
+        assert_true("expose visual inspection steps to runtime only if CAP explicitly authorizes" in runtime_text, "runtime mapping should not own CV authorization")
+        assert_true("runtime boundary" in runtime_text and "does not own authorization" in runtime_text, "runtime mapping should preserve execution-layer boundary")
+
+
 def test_packet_route_pm_alias_requires_artifact_context() -> None:
     with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-pm-ambiguous-") as tmp_s:
         ws = make_workspace(Path(tmp_s))
@@ -2773,6 +2902,15 @@ def test_roster_health_smoke_json_reports_missing_provider_and_target_packet_out
         assert_true(Path(payload["packet_output"]["registry_path"]).resolve() == (target / "contexts" / "artifact_harness_registry.json").resolve(), "health registry should live under target workspace")
         assert_true(payload["packet_output"]["under_target_workspace"] is True, "health JSON should verify packet paths are under the target workspace")
         assert_true(payload["llm_provider"]["status"] == "missing_provider", "provider absence should be structured")
+        assert_true("cv_inspection_capability" in payload, "health JSON should include CV inspection capability diagnostics")
+        assert_true(payload["cv_inspection_capability"]["status"] == "not_configured", "absent CV provider should be reported without becoming a packet-output failure")
+        assert_true("screenshot" in payload["cv_inspection_capability"]["supported_local_input_modes"], "CV health should list screenshot input support")
+        assert_true("OCR/readability review" in payload["cv_inspection_capability"]["supported_local_input_modes"], "CV health should list OCR/readability support")
+        assert_true(payload["cv_inspection_capability"]["remote_call_attempted"] is False, "CV health should not make remote calls")
+        assert_true(payload["cv_inspection_capability"]["visual_evidence_acquisition"]["status"] == "available_as_capability_plan", "CV health should report evidence acquisition availability")
+        assert_true(payload["cv_inspection_capability"]["user_evidence_fallback"]["status"] == "last_fallback", "CV health should report user screenshots/frames as final fallback")
+        assert_true(payload["cv_inspection_capability"]["no_visual_evidence_policy"], "CV health should include the no-visual-evidence policy")
+        assert_true(payload["cv_inspection_capability"]["default_health_blocked"] is False, "default health should not be blocked by missing CV provider auth")
         assert_true(payload["runtime_dependency_check"]["persistent_server_required"] is False, "health should not require a persistent server")
         assert_true(payload["runtime_dependency_check"]["daemon_required"] is False, "health should not require a daemon")
         assert_true(payload["runtime_dependency_check"]["database_required"] is False, "health should not require a database")
@@ -2828,8 +2966,34 @@ def test_roster_health_provider_missing_auth_and_configured_auth_are_structured_
         assert_true(configured_payload["llm_provider"]["status"] == "configured", "provider env presence should be reported as configured")
         assert_true(configured_payload["llm_provider"]["auth_env_present"] is True, "health should expose env presence as boolean")
         assert_true(configured_payload["llm_provider"]["remote_call_attempted"] is False, "health should not pretend to make a remote model call")
+        assert_true(configured_payload["cv_inspection_capability"]["status"] == "not_configured", "CV auth absence should not degrade configured LLM health when not explicitly requested")
+        assert_true(configured_payload["cv_inspection_capability"]["explicit_check_requested"] is False, "CV check should be optional without --cv-provider or --cv-auth-env")
         assert_true("placeholder-roster-health-token" not in configured.stdout, "health output must not print provider secrets")
         assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "roster-health should clean smoke registry after provider checks")
+
+        cv_missing = run_brain(
+            ws,
+            "roster-health",
+            "--path",
+            str(folder),
+            "--id",
+            "roster-health-cv-missing-auth",
+            "--provider",
+            "local-test",
+            "--auth-env",
+            "ROSTER_TEST_API_KEY",
+            "--cv-provider",
+            "openai",
+            "--json",
+            extra_env={"ROSTER_TEST_API_KEY": "placeholder-roster-test-token", "OPENAI_API_KEY": "", "ROSTER_LLM_PROVIDER": ""},
+        )
+        assert_true(cv_missing.returncode == 2, f"explicit CV provider check should degrade when auth is missing, got {cv_missing.returncode}, stderr={cv_missing.stderr}")
+        cv_missing_payload = json.loads(cv_missing.stdout)
+        assert_true(cv_missing_payload["overall_status"] == "degraded", "missing explicit CV auth should degrade health")
+        assert_true(cv_missing_payload["cv_inspection_capability"]["status"] == "missing_auth", "explicit CV provider check should report missing auth")
+        assert_true(cv_missing_payload["cv_inspection_capability"]["auth_env_var"] == "OPENAI_API_KEY", "CV provider default auth env should be named")
+        assert_true(cv_missing_payload["cv_inspection_capability"]["remote_call_attempted"] is False, "CV missing-auth check should stay local-only")
+        assert_true("placeholder-roster-test-token" not in cv_missing.stdout, "CV health output must not print provider secrets")
 
 
 def test_roster_health_missing_target_json_refusal_is_parseable() -> None:
@@ -3922,6 +4086,11 @@ def main() -> int:
         test_packet_route_keyword_routes_to_artifact_harness,
         test_packet_route_natural_artifact_missions_are_create_ready,
         test_packet_route_roster_aliases_route_to_artifact_harness,
+        test_packet_route_roster_quality_direction_is_plain_self_check,
+        test_packet_route_roster_quality_attached_artifact_is_spec_first,
+        test_packet_route_roster_visual_quality_loop_attaches_to_production,
+        test_packet_route_roster_visual_quality_only_uses_quality_direction,
+        test_packet_route_visual_cv_create_carries_request_into_packet_scaffolds,
         test_packet_route_pm_alias_requires_artifact_context,
         test_packet_route_underspecified_artifact_hint_refuses_create,
         test_packet_route_front_door_hr_artifact_is_spec_first,

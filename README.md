@@ -55,6 +55,87 @@ You should not need to remember or type `brain.sh`, `packet-route`, or
 `artifact-harness` during ordinary work. The current verified command fallback
 is documented separately below.
 
+## Quality Direction
+
+Quality is built into Roster as direction-setting and self-check behavior. It
+helps Codex decide what to check now, what to improve later, and how to turn the
+accepted task contract into practical review steps.
+
+When a user asks for Quality, Codex should infer the likely quality direction
+from the artifact and task context. If the direction is ambiguous, ask one short
+question about the quality bar before changing files.
+
+For ordinary first-touch Quality replies, keep the answer short and
+human-facing:
+
+```text
+我會把 Quality 分成兩層：
+
+短期先看這次 unit 能不能交付：
+- 內容是否講得清楚
+- slide / scene / video 是否一致
+- 有沒有明顯漏掉的步驟
+
+長期則看這個 Lecture1 team 是否需要固定檢查流程：
+- 每個 unit 完成後都做 playback check
+- 每次修改 scene 後確認 slide 對應
+- 最後輸出前做一次完整驗收
+
+我會先用短期檢查幫你把這次任務穩住，再把重複出現的問題記成長期改善項目。
+```
+
+Quality has two working layers:
+
+- Short-term correction: stabilize the current artifact, unit, scene, render,
+  table, draft, or output so it can be delivered.
+- Long-term improvement: record repeated issues as process, team, checklist, or
+  template improvements for future work.
+
+For visual artifact production, Roster should attach a short Quality loop before
+delivery. This applies to slides, scenes, renders, videos, screenshots, images,
+UIs, and presentations:
+
+1. produce the first artifact
+2. inspect the visible output
+3. catch text or key-element occlusion, layout overlap, unreadable scale, poor
+   contrast, missing expected content, and slide/render/video mismatch
+4. make a focused correction
+5. repeat for 2-3 bounded iterations, or stop earlier when no material issue
+   remains
+
+If playback, screenshot, OCR, render, or Computer Use inspection is needed,
+Roster treats that as tool access governed by the Capability Access Packet.
+Quality plans the check; it does not own tool authorization.
+
+In ordinary user-facing language, Roster can phrase the visual/CV loop like
+this:
+
+```text
+我會把這個當成需要看畫面的任務：先產出第一版，擷取畫面或播放片段，檢查文字有沒有被遮住、重點元素是否清楚，再修 1-2 輪。
+
+需要截圖、播放、OCR 或 vision review 時，我會把它當成工具能力處理。
+
+我會先嘗試自動取得畫面證據，例如 render/export、截圖、播放片段或抽 frame；如果環境拿不到畫面，再請你提供截圖。
+
+沒有畫面證據時，我只能做非視覺品質檢查，不能把畫面驗收當成完成。
+```
+
+Internally, CV inspection follows an activation ladder: prefer existing visual
+evidence, render/export an inspection artifact when safe, use CAP-governed
+local capture or playback when needed, request CAP-governed OCR/readability or
+vision-model review when available, and ask the user for a screenshot or frame
+only as the final fallback. CAP authorizes those tools; it does not accept the
+artifact or make the runtime adapter the governance owner.
+
+When visual evidence is inspected, findings should name the artifact,
+slide/frame/timecode when available, region, issue type, severity, evidence
+source, suggested fix owner, suggested correction, and recheck condition.
+
+When an Artifact Harness SPEC exists, its acceptance checks remain the source of
+truth. Quality consumes those checks and turns them into self-check behavior; it
+does not replace the SPEC, authorize tools, choose runtime execution, or own
+final acceptance.
+
 ## Workspace And Output
 
 The active Codex workspace is the default output root.

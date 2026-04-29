@@ -82,6 +82,24 @@ Important human factors:
 - Right-sized scaffolding: small one-step work should not trigger a heavy packet
   chain. The kit should recognize when a lightweight note or direct action is
   enough.
+- Quality as normal coordination: when the user asks how Quality should be set,
+  answer with immediate delivery checks and durable improvement checks before
+  exposing internal packet names.
+- Visual artifact quality loop: for slide, scene, render, video, screenshot,
+  image, UI, or presentation production, Roster should plan 2-3 bounded
+  inspect-and-correct passes before delivery. The loop checks visible output for
+  occlusion, overlap, readability, contrast, missing expected content, and
+  slide/render/video mismatch. CV inspection follows an activation ladder:
+  prefer existing rendered/exported visual evidence, render/export inspectable
+  images or frames when safe, request CAP-governed screenshot capture,
+  playback/frame sampling, Computer Use/app playback, OCR/readability, or
+  vision-model review when needed, and ask the user for a screenshot or frame
+  only as the final fallback. Without inspected visual evidence, only
+  non-visual checks can be complete; visual acceptance remains limited. These
+  remain tool capabilities governed by CAP, not Quality-owned governance.
+  Visual findings should be actionable: artifact, slide/frame/timecode, region,
+  issue type, severity, evidence source, suggested fix owner, suggested
+  correction, and recheck condition.
 - Bilingual tolerance: English aliases and Chinese task phrases should both
   feel native. The user should not need to switch language to activate the
   workflow.

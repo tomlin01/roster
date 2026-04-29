@@ -160,6 +160,172 @@ PACKET_ROUTE_NATURAL_QUALITY_CUES = (
     "可用",
     "整理好",
 )
+ROSTER_QUALITY_DIRECTION_TERMS = (
+    "quality loop",
+    "Quality",
+    "quality direction",
+    "quality setting",
+    "quality settings",
+    "self-check",
+    "self check",
+    "selfcheck",
+    "QA",
+    "品質",
+    "品質方向",
+    "品保",
+    "自檢",
+    "自我檢查",
+    "檢核",
+    "驗收",
+)
+ROSTER_QUALITY_DIRECTION_ACTION_TERMS = (
+    "loop",
+    "iteration",
+    "iterations",
+    "check",
+    "set",
+    "setting",
+    "settings",
+    "define",
+    "configure",
+    "direction",
+    "review",
+    "inspect",
+    "run",
+    "CV檢查",
+    "用CV檢查",
+    "vision review",
+    "做",
+    "設定",
+    "怎麼",
+    "如何",
+    "要怎麼",
+    "檢查",
+    "檢視",
+    "幫我看",
+    "看",
+    "安排",
+    "規劃",
+    "循環",
+    "迭代",
+)
+ROSTER_VISUAL_ARTIFACT_TERMS = (
+    "visual artifact",
+    "visual",
+    "slide deck",
+    "lecture slides",
+    "lecture video",
+    "slides",
+    "slide",
+    "deck",
+    "presentation",
+    "video",
+    "scene",
+    "render",
+    "screenshot",
+    "image",
+    "frame",
+    "ui",
+    "interface",
+    "dashboard",
+    "figure",
+    "chart",
+    "plot",
+    "視覺",
+    "投影片",
+    "簡報",
+    "影片",
+    "場景",
+    "渲染",
+    "截圖",
+    "圖片",
+    "圖像",
+    "畫面",
+    "介面",
+    "圖表",
+)
+ROSTER_VISUAL_QUALITY_LOOP_TERMS = (
+    "CV",
+    "computer vision",
+    "vision review",
+    "vision-model review",
+    "quality loop",
+    "visual quality",
+    "visual check",
+    "quality check",
+    "playback check",
+    "render check",
+    "screenshot check",
+    "occlusion",
+    "overlap",
+    "readability",
+    "contrast",
+    "mismatch",
+    "畫面品質",
+    "播放檢查",
+    "截圖檢查",
+    "遮住",
+    "遮擋",
+    "重疊",
+    "可讀",
+    "對比",
+    "不一致",
+    "CV檢查",
+    "視覺檢查",
+)
+ROSTER_CV_INSPECTION_ROUTE_INPUTS = (
+    "rendered image",
+    "screenshot",
+    "exported video frame",
+    "video frame",
+)
+ROSTER_CV_INSPECTION_SUPPORTED_LOCAL_INPUT_MODES = (
+    "existing rendered/exported visual file",
+    "local render/export",
+    "screenshot",
+    "image",
+    "rendered frame",
+    "video frame",
+    "playback/frame sampling",
+    "OCR/readability review",
+)
+ROSTER_CV_INSPECTION_CHECKS = (
+    "text occlusion",
+    "key element occlusion",
+    "layout overlap",
+    "contrast/readability",
+    "missing expected content",
+    "slide/render/video mismatch",
+)
+ROSTER_CV_INSPECTION_CAPABILITY_REQUESTS = (
+    "render_export_visual_evidence",
+    "screenshot_capture",
+    "playback_or_frame_sampling",
+    "computer_use_or_app_playback",
+    "ocr_text_readability",
+    "vision_model_review",
+)
+ROSTER_CV_NO_VISUAL_EVIDENCE_POLICY = "visual quality is limited until a screenshot, render, frame, or playback evidence is inspected"
+ROSTER_CV_VISUAL_EVIDENCE_ACQUISITION = (
+    "use existing rendered images, screenshots, exported frames, or video frames when present",
+    "render or export local artifacts into inspectable images or frames when safe",
+    "request CAP-governed screenshot capture, playback, frame sampling, Computer Use, or app playback only when needed",
+    "request CAP-governed OCR/readability or vision-model review when available",
+    "ask the user for a screenshot or frame only after local evidence acquisition is unavailable",
+)
+ROSTER_CV_FINDING_SHAPE = {
+    "artifact": "path or artifact label",
+    "slide": "slide number/title when available",
+    "frame": "frame id when available",
+    "timecode": "timecode when available",
+    "region": "visible region or location when possible",
+    "issue_type": "occlusion|overlap|readability|contrast|missing_content|mismatch|other",
+    "severity": "P0|P1|P2|P3",
+    "evidence_source": "render|screenshot|frame|playback|ocr|vision_model|user_provided",
+    "suggested_fix_owner": "role or owner responsible for correction",
+    "suggested_correction": "specific correction to apply",
+    "recheck_condition": "visible condition that must pass after correction",
+}
 PACKET_ROUTE_NATURAL_PROCESS_CUES = (
     "task",
     "workflow",
@@ -597,6 +763,8 @@ def parse_args() -> argparse.Namespace:
     roster_health.add_argument("--id", default=None, help="Optional health-check packet id. Defaults to a generated roster-health-smoke id.")
     roster_health.add_argument("--provider", default=None, help="Optional LLM/provider name to validate from local environment state.")
     roster_health.add_argument("--auth-env", default=None, help="Optional environment variable name that should contain provider credentials.")
+    roster_health.add_argument("--cv-provider", default=None, help="Optional CV/vision provider name to validate from local environment state.")
+    roster_health.add_argument("--cv-auth-env", default=None, help="Optional environment variable name that should contain CV/vision provider credentials.")
     roster_health.add_argument("--codex-home", default=None, help="Optional Codex home whose `skills/roster` install should be verified.")
     roster_health.add_argument("--skills-root", default=None, help="Optional explicit skills root whose `roster` skill install should be verified.")
     roster_health.add_argument("--keep-artifacts", action="store_true", help="Keep the health-check packet output instead of cleaning it up after verification.")
@@ -5230,7 +5398,161 @@ def do_skill_discover(config: HubConfig, query: str) -> int:
     return 0 if payload["status"] == "healthy" else 2
 
 
-def render_artifact_harness_spec_packet(mission: str, target: Path, expected_artifact: str, packet_paths: dict[str, str]) -> str:
+def roster_cv_activation_ladder() -> list[dict[str, Any]]:
+    return [
+        {
+            "step": "use_existing_visual_evidence",
+            "preference": 1,
+            "inputs": ["rendered image", "screenshot", "exported video frame"],
+            "fallback": False,
+        },
+        {
+            "step": "render_or_export_inspection_artifact",
+            "preference": 2,
+            "capability_requests": ["render_export_visual_evidence"],
+            "capability_owner": "Capability Access Packet",
+            "fallback": False,
+        },
+        {
+            "step": "local_capture_or_playback",
+            "preference": 3,
+            "capability_requests": ["screenshot_capture", "playback_or_frame_sampling", "computer_use_or_app_playback"],
+            "capability_owner": "Capability Access Packet",
+            "fallback": False,
+        },
+        {
+            "step": "ocr_or_vision_model_review",
+            "preference": 4,
+            "capability_requests": ["ocr_text_readability", "vision_model_review"],
+            "capability_owner": "Capability Access Packet",
+            "fallback": False,
+        },
+        {
+            "step": "ask_user_for_screenshot_or_frame",
+            "preference": 5,
+            "fallback": True,
+        },
+    ]
+
+
+def roster_cv_inspection_request(requested: bool) -> dict[str, Any]:
+    if not requested:
+        return {
+            "requested": False,
+            "mode": None,
+            "inputs": [],
+            "checks": [],
+            "capability_requests": [],
+            "authorization_owner": None,
+            "execution_boundary": None,
+            "activation_ladder": [],
+            "no_visual_evidence_policy": None,
+            "evidence_required_for_visual_acceptance": False,
+            "finding_shape": None,
+        }
+    return {
+        "requested": True,
+        "mode": "activation_ladder",
+        "inputs": list(ROSTER_CV_INSPECTION_ROUTE_INPUTS),
+        "checks": list(ROSTER_CV_INSPECTION_CHECKS),
+        "capability_requests": list(ROSTER_CV_INSPECTION_CAPABILITY_REQUESTS),
+        "authorization_owner": "Capability Access Packet",
+        "execution_boundary": "advisory until CAP authorizes the needed tools",
+        "activation_ladder": roster_cv_activation_ladder(),
+        "no_visual_evidence_policy": ROSTER_CV_NO_VISUAL_EVIDENCE_POLICY,
+        "evidence_required_for_visual_acceptance": True,
+        "finding_shape": dict(ROSTER_CV_FINDING_SHAPE),
+    }
+
+
+def artifact_harness_quality_loop_for_mission(mission: str) -> dict[str, Any]:
+    natural_details = packet_route_natural_artifact_details(mission)
+    front_doors = ["roster"] if match_artifact_harness_keywords(mission, ["Roster", "@roster"]) else []
+    quality_details = packet_route_roster_quality_details(mission, front_doors)
+    return packet_route_visual_quality_loop_details(mission, natural_details, quality_details)
+
+
+def artifact_harness_cv_requested(quality_loop: dict[str, Any] | None) -> bool:
+    if not isinstance(quality_loop, dict):
+        return False
+    cv_inspection = quality_loop.get("cv_inspection")
+    return bool(isinstance(cv_inspection, dict) and cv_inspection.get("requested") is True)
+
+
+def render_spec_cv_inspection_section(quality_loop: dict[str, Any] | None) -> str:
+    if not artifact_harness_cv_requested(quality_loop):
+        return ""
+    return """
+## Visual / CV Inspection Targets
+
+- visual inspection request [source: mission keywords]: yes
+- inspection inputs [source: Roster visual Quality loop]: rendered image, screenshot, video frame
+- acceptance targets [source: Roster visual Quality loop]: text occlusion; key element occlusion; layout overlap; contrast/readability; missing expected content; slide/render/video mismatch
+- visual acceptance rule [source: Roster CV activation ladder]: when visual output is part of the artifact, visual acceptance requires inspected visual evidence from a screenshot, render, frame, or playback sample
+- no visual evidence rule [source: Roster CV activation ladder]: without inspected visual evidence, only non-visual, text, or structure checks can be marked complete; visual quality remains limited
+- activation ladder [source: Roster CV activation ladder]: use existing visual evidence; render/export an inspection artifact; use CAP-governed local capture or playback; use CAP-governed OCR or vision-model review; ask the user for a screenshot or frame only as the final fallback
+- capability boundary [source: CAP policy]: screenshot capture, playback/frame sampling, OCR/readability, and vision-model review require Capability Access Packet authorization before use
+- actionable visual finding shape [source: Quality output contract]: artifact, slide/frame/timecode, region, issue type, severity, evidence source, suggested fix owner, suggested correction, and recheck condition
+- pass condition [source: verification/review]: visible output has no material occlusion, overlap, unreadable text, missing expected content, or slide/render/video mismatch before delivery
+"""
+
+
+def render_team_cv_inspection_section(quality_loop: dict[str, Any] | None) -> str:
+    if not artifact_harness_cv_requested(quality_loop):
+        return ""
+    return """
+## Visual Inspect-And-Correct Loop
+
+- detected from mission: visual artifact production or visual Quality request
+- recommended iterations: 2-3 bounded passes, stopping earlier when no material issue remains
+- quality reviewer / visual inspector: assign when the Team Operating Packet needs an explicit review role
+- activation ladder task procedure: first use existing rendered/exported visual files; if absent, render/export inspectable images or frames; if local GUI state is needed, request CAP-governed screenshot capture, playback, frame sampling, Computer Use, or app playback; if available, request CAP-governed OCR/readability or vision-model review; ask the user for a screenshot or frame only as the final fallback
+- inspect -> finding -> fix -> recheck loop: produce first output; inspect visible evidence; record a structured finding; apply a focused correction by the fix owner; re-inspect the same evidence condition before delivery
+- structured finding shape: artifact, slide/frame/timecode, region, issue type, severity, evidence source, suggested fix owner, suggested correction, and recheck condition
+- no visual evidence rule: if no screenshot, render, frame, or playback evidence is inspected, visual quality remains limited and only non-visual checks can be considered complete
+- capability source: Capability Access Packet must authorize render/export evidence, screenshot capture, playback/frame sampling, OCR/readability, vision-model review, and Computer Use/app playback only when needed
+- boundary: this loop attaches to production and does not replace Artifact Harness acceptance or CAP authorization
+"""
+
+
+def render_cap_cv_inspection_section(quality_loop: dict[str, Any] | None) -> str:
+    if not artifact_harness_cv_requested(quality_loop):
+        return ""
+    return """
+## CV Inspection Capability Request
+
+- request status: requested by Roster visual Quality loop
+- intended use: inspect rendered images, screenshots, rendered frames, or video frames for visible defects before artifact delivery
+- activation ladder authorization: prefer existing visual evidence without extra access; request render/export evidence, local capture/playback, OCR/readability, vision-model review, Computer Use, or app playback only when the previous ladder step cannot supply enough visual evidence
+- capability requests:
+  - render_export_visual_evidence: render or export the artifact into an inspectable image or frame when safe and local
+  - screenshot_capture: capture still output for review
+  - playback_or_frame_sampling: inspect video playback or selected frames when video is involved
+  - computer_use_or_app_playback: use local GUI/app playback only when the artifact state cannot be inspected from files
+  - ocr_text_readability: check whether visible text can be read at delivery scale
+  - vision_model_review: review screenshot, frame, or image for occlusion, overlap, contrast/readability, missing expected content, and slide/render/video mismatch
+- user evidence fallback: ask the user for a screenshot or frame only after local evidence acquisition is unavailable
+- approval gate: user or local policy approval before exposing external services, Computer Use, playback, screenshot capture, OCR, or vision-model review tools
+- authorization boundary: CAP authorizes tools and gates only; it does not accept the artifact, own Quality, or make runtime adapters governance owners
+"""
+
+
+def render_runtime_cv_inspection_section(quality_loop: dict[str, Any] | None) -> str:
+    if not artifact_harness_cv_requested(quality_loop):
+        return ""
+    return """
+## CV Inspection Runtime Trace
+
+- CAP-derived capability request: CV inspection / agent vision review
+- visual inspection runtime steps: render/export evidence, screenshot capture, playback/frame sampling, OCR/readability, vision-model review, and Computer Use/app playback
+- expose visual inspection steps to runtime only if CAP explicitly authorizes the needed render/export, screenshot, playback/frame sampling, OCR/readability, vision-model review, or Computer Use/app playback tools
+- runtime task graph source: Team Operating Packet visual inspect-and-correct loop
+- runtime boundary: this mapping may wire authorized capabilities for execution, but it does not own authorization, verification, artifact acceptance, or governance
+"""
+
+
+def render_artifact_harness_spec_packet(mission: str, target: Path, expected_artifact: str, packet_paths: dict[str, str], quality_loop: dict[str, Any] | None = None) -> str:
+    cv_section = render_spec_cv_inspection_section(quality_loop)
     return f"""# Artifact Harness SPEC
 
 ## Metadata
@@ -5285,6 +5607,7 @@ def render_artifact_harness_spec_packet(mission: str, target: Path, expected_art
   - owner [source: verification/review]: verification/review
   - pass condition [source: user phrase or open question]: open question
   - failure action [source: workflow default]: revise packet or artifact before promotion
+{cv_section}
 
 ## Boundaries
 
@@ -5382,7 +5705,8 @@ def render_hr_staffing_packet_scaffold(mission: str, packet_paths: dict[str, str
 """
 
 
-def render_team_operating_packet_scaffold(mission: str, packet_paths: dict[str, str]) -> str:
+def render_team_operating_packet_scaffold(mission: str, packet_paths: dict[str, str], quality_loop: dict[str, Any] | None = None) -> str:
+    cv_section = render_team_cv_inspection_section(quality_loop)
     return f"""# Team Operating Packet
 
 ## Metadata
@@ -5430,6 +5754,7 @@ def render_team_operating_packet_scaffold(mission: str, packet_paths: dict[str, 
   - purpose:
   - handoff target:
   - promotion rule:
+{cv_section}
 
 ## Capability Access
 
@@ -5485,7 +5810,8 @@ def render_team_operating_packet_scaffold(mission: str, packet_paths: dict[str, 
 """
 
 
-def render_capability_access_packet_scaffold(mission: str, packet_paths: dict[str, str]) -> str:
+def render_capability_access_packet_scaffold(mission: str, packet_paths: dict[str, str], quality_loop: dict[str, Any] | None = None) -> str:
+    cv_section = render_cap_cv_inspection_section(quality_loop)
     return f"""# Capability Access Packet
 
 ## Metadata
@@ -5526,6 +5852,7 @@ def render_capability_access_packet_scaffold(mission: str, packet_paths: dict[st
   - scope:
   - output expected:
   - approval gate:
+{cv_section}
 
 ## Runtime Allowlist
 
@@ -5594,7 +5921,8 @@ This section supplies evidence to verification/review. It does not decide artifa
 """
 
 
-def render_runtime_mapping_scaffold(mission: str, packet_paths: dict[str, str]) -> str:
+def render_runtime_mapping_scaffold(mission: str, packet_paths: dict[str, str], quality_loop: dict[str, Any] | None = None) -> str:
+    cv_section = render_runtime_cv_inspection_section(quality_loop)
     return f"""# open-multi-agent runTasks Mapping
 
 ## Metadata
@@ -5635,6 +5963,7 @@ def render_runtime_mapping_scaffold(mission: str, packet_paths: dict[str, str]) 
 - runtime exposure rule:
   - expose only capabilities listed above
   - withhold any capability not authorized by CAP
+{cv_section}
 
 ## TeamConfig
 
@@ -8647,12 +8976,13 @@ def build_artifact_harness_packet_chain(
 
     generated_at = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
     artifact_label = (expected_artifact or "").strip()
+    quality_loop = artifact_harness_quality_loop_for_mission(mission)
     packet_payloads = {
-        "artifact_harness_spec": render_artifact_harness_spec_packet(mission, target, artifact_label, paths),
+        "artifact_harness_spec": render_artifact_harness_spec_packet(mission, target, artifact_label, paths, quality_loop),
         "hr_staffing_packet": render_hr_staffing_packet_scaffold(mission, paths),
-        "team_operating_packet": render_team_operating_packet_scaffold(mission, paths),
-        "capability_access_packet": render_capability_access_packet_scaffold(mission, paths),
-        "runtime_mapping": render_runtime_mapping_scaffold(mission, paths),
+        "team_operating_packet": render_team_operating_packet_scaffold(mission, paths, quality_loop),
+        "capability_access_packet": render_capability_access_packet_scaffold(mission, paths, quality_loop),
+        "runtime_mapping": render_runtime_mapping_scaffold(mission, paths, quality_loop),
     }
     for key, content in packet_payloads.items():
         packet_paths[key].write_text(content, encoding="utf-8")
@@ -8693,6 +9023,7 @@ def build_artifact_harness_packet_chain(
             "contract_policy": "policy/ARTIFACT_HARNESS_SCHEMA_V0.md",
             "command_json_schema_version": ARTIFACT_HARNESS_COMMAND_SCHEMA_VERSION,
         },
+        "quality_loop": quality_loop if quality_loop.get("detected") else None,
     }
     dump_json(packet_paths["manifest"], manifest)
     status_payload = artifact_harness_lifecycle_payload(
@@ -8829,6 +9160,77 @@ def packet_route_natural_artifact_details(utterance: str) -> dict[str, Any]:
         "underspecified_refs": underspecified_refs,
         "matched_terms": matched_terms,
         "clarifying_questions": clarifying_questions,
+        "reason": reason,
+    }
+
+
+def packet_route_roster_quality_details(utterance: str, front_doors: list[str]) -> dict[str, Any]:
+    def dedupe(items: list[str]) -> list[str]:
+        result: list[str] = []
+        for item in items:
+            if item not in result:
+                result.append(item)
+        return result
+
+    quality_terms = dedupe(match_artifact_harness_keywords(utterance, list(ROSTER_QUALITY_DIRECTION_TERMS)))
+    action_terms = dedupe(match_artifact_harness_keywords(utterance, list(ROSTER_QUALITY_DIRECTION_ACTION_TERMS)))
+    detected = "roster" in front_doors and bool(quality_terms) and bool(action_terms)
+    return {
+        "detected": detected,
+        "quality_terms": quality_terms,
+        "action_terms": action_terms,
+        "short_term_focus": [
+            "current artifact or unit can be delivered",
+            "content, media, and steps are internally consistent",
+            "obvious omissions are caught before handoff",
+        ],
+        "long_term_focus": [
+            "repeated issues become team or template improvements",
+            "recurring checks become a stable review habit",
+            "final output gets one full acceptance pass before delivery",
+        ],
+        "self_check_source": "Harness SPEC acceptance remains the source of truth when a packet exists.",
+    }
+
+
+def packet_route_visual_quality_loop_details(
+    utterance: str,
+    natural_details: dict[str, Any],
+    quality_details: dict[str, Any],
+) -> dict[str, Any]:
+    def dedupe(items: list[str]) -> list[str]:
+        result: list[str] = []
+        for item in items:
+            if item not in result:
+                result.append(item)
+        return result
+
+    visual_terms = dedupe(match_artifact_harness_keywords(utterance, list(ROSTER_VISUAL_ARTIFACT_TERMS)))
+    loop_terms = dedupe(match_artifact_harness_keywords(utterance, list(ROSTER_VISUAL_QUALITY_LOOP_TERMS)))
+    visual_production = bool(visual_terms and natural_details.get("create_ready"))
+    explicit_visual_quality = bool(visual_terms and (quality_details.get("detected") or loop_terms))
+    detected = visual_production or explicit_visual_quality
+    reason = None
+    if visual_production:
+        reason = "visual artifact production should include a bounded quality loop before delivery"
+    elif explicit_visual_quality:
+        reason = "visual quality request should use the Roster quality loop guidance"
+    return {
+        "detected": detected,
+        "artifact_mode": "visual" if detected else None,
+        "recommended_iterations": "2-3" if detected else None,
+        "inspection_targets": list(ROSTER_CV_INSPECTION_CHECKS) if detected else [],
+        "process_steps": [
+            "produce initial artifact",
+            "inspect visible output",
+            "detect material visual defects",
+            "apply focused correction",
+            "repeat until no material issue remains or the bounded iteration limit is reached",
+        ] if detected else [],
+        "matched_visual_terms": visual_terms,
+        "matched_loop_terms": loop_terms,
+        "capability_boundary": "visual inspection tools require CAP authorization when used" if detected else None,
+        "cv_inspection": roster_cv_inspection_request(detected),
         "reason": reason,
     }
 
@@ -9222,7 +9624,13 @@ def do_packet_route(
     candidate_routes, recognized_front_doors, matched_keywords = packet_route_candidate_routes(config, utterance)
     matched = bool(candidate_routes)
     natural_details = packet_route_natural_artifact_details(utterance)
+    quality_details = packet_route_roster_quality_details(utterance, recognized_front_doors)
+    quality_loop = packet_route_visual_quality_loop_details(utterance, natural_details, quality_details)
     artifact_intent = packet_route_artifact_intent(utterance, recognized_front_doors, natural_details)
+    roster_quality_direction_detected = bool(
+        quality_details.get("detected")
+        or (quality_loop.get("detected") and "roster" in recognized_front_doors and not artifact_intent)
+    )
     downstream_front_doors = [front_door for front_door in recognized_front_doors if front_door in {"team_architect_packet", "capability_access_packet", "runtime_mapping"}]
     packet_id = explicit_id.strip() if isinstance(explicit_id, str) and explicit_id.strip() else None
     recommended_route = "none"
@@ -9265,6 +9673,13 @@ def do_packet_route(
             chain_start = "Artifact Harness SPEC"
             handoff_target = packet_route_handoff_for_front_doors(recognized_front_doors)
             reason = "artifact-production intent uses the SPEC-first Artifact Harness workflow" if create_allowed else "artifact request needs clarification before packet creation"
+        elif roster_quality_direction_detected:
+            recommended_route = "roster_quality_direction"
+            recommended_command = None
+            create_allowed = False
+            chain_start = None
+            handoff_target = None
+            reason = "Roster Quality direction request; answer directly with short-term and long-term self-check guidance"
         elif "human_resources" in recognized_front_doors:
             recommended_route = "human_resources"
             recommended_command = None
@@ -9300,6 +9715,9 @@ def do_packet_route(
     elif recommended_route in {"team_architect_packet", "capability_access_packet", "runtime_mapping"} or downstream_front_doors:
         user_intent = "downstream_packet_reference"
         confidence = "medium"
+    elif recommended_route == "roster_quality_direction":
+        user_intent = "quality_direction"
+        confidence = "high"
     elif not matched:
         user_intent = "ordinary"
         confidence = "none"
@@ -9316,6 +9734,10 @@ def do_packet_route(
         next_step_label = "Use HR staffing surface"
         user_message = "This looks like a staffing or role-design question, not a full artifact-production packet run."
         visible_next_action = "Use the HR team surface directly; do not create Artifact Harness packets."
+    elif recommended_route == "roster_quality_direction":
+        next_step_label = "Set Quality direction"
+        user_message = "This is a Quality direction question. Answer with short-term delivery checks first, then long-term workflow improvements."
+        visible_next_action = "Separate this-task fixes from reusable team, process, or template improvements."
     elif downstream_front_doors:
         next_step_label = "Inspect or start upstream packet chain"
         user_message = "This names a downstream packet surface. Use an existing packet id for inspection, or start from the artifact task first."
@@ -9357,6 +9779,8 @@ def do_packet_route(
             "deliverables": natural_details.get("deliverables", []),
             "underspecified_refs": natural_details.get("underspecified_refs", []),
         },
+        "quality_direction": quality_details,
+        "quality_loop": quality_loop,
         "next_step_label": next_step_label,
         "user_message": user_message,
         "visible_next_action": visible_next_action,
@@ -9619,6 +10043,89 @@ def build_roster_provider_check(provider_arg: str | None, auth_env_arg: str | No
     }
 
 
+def build_roster_cv_capability_check(cv_provider_arg: str | None, cv_auth_env_arg: str | None) -> dict[str, Any]:
+    explicit_check_requested = bool((cv_provider_arg or "").strip() or (cv_auth_env_arg or "").strip())
+    provider = (cv_provider_arg or os.getenv("ROSTER_CV_PROVIDER") or "").strip()
+    auth_env = (cv_auth_env_arg or os.getenv("ROSTER_CV_AUTH_ENV") or roster_provider_auth_env(provider, None) or "").strip()
+    source = "none"
+    if (cv_provider_arg or "").strip() or (cv_auth_env_arg or "").strip():
+        source = "cli_args"
+    elif os.getenv("ROSTER_CV_PROVIDER") or os.getenv("ROSTER_CV_AUTH_ENV"):
+        source = "environment"
+
+    base = {
+        "supported_local_input_modes": list(ROSTER_CV_INSPECTION_SUPPORTED_LOCAL_INPUT_MODES),
+        "supported_checks": list(ROSTER_CV_INSPECTION_CHECKS),
+        "capability_requests": list(ROSTER_CV_INSPECTION_CAPABILITY_REQUESTS),
+        "activation_ladder": roster_cv_activation_ladder(),
+        "visual_evidence_acquisition": {
+            "status": "available_as_capability_plan",
+            "modes": list(ROSTER_CV_VISUAL_EVIDENCE_ACQUISITION),
+            "capability_owner": "Capability Access Packet",
+        },
+        "user_evidence_fallback": {
+            "status": "last_fallback",
+            "requested_only_after": "existing evidence, local render/export, local capture/playback, and OCR/vision review are unavailable or unauthorized",
+            "accepted_inputs": ["screenshot", "frame", "rendered image"],
+        },
+        "no_visual_evidence_policy": ROSTER_CV_NO_VISUAL_EVIDENCE_POLICY,
+        "evidence_required_for_visual_acceptance": True,
+        "finding_shape": dict(ROSTER_CV_FINDING_SHAPE),
+        "authorization_owner": "Capability Access Packet",
+        "execution_boundary": "local-only diagnostic; no remote calls; advisory until CAP authorizes tools",
+        "remote_call_attempted": False,
+        "verification_method": "local_configuration_only",
+        "secret_material": "not_read_or_reported",
+        "explicit_check_requested": explicit_check_requested,
+        "default_health_blocked": False,
+        "configuration_source": source,
+    }
+    if not provider:
+        return {
+            **base,
+            "status": "not_configured",
+            "diagnostic_code": "cv_provider_not_configured",
+            "provider": None,
+            "auth_env_var": auth_env or None,
+            "auth_env_present": False,
+            "health_blocking": explicit_check_requested,
+            "message": "CV inspection is available as a local capability request; set --cv-provider or ROSTER_CV_PROVIDER to check provider auth.",
+        }
+    if not auth_env:
+        return {
+            **base,
+            "status": "missing_auth",
+            "diagnostic_code": "cv_auth_env_mapping_missing",
+            "provider": provider,
+            "auth_env_var": None,
+            "auth_env_present": False,
+            "health_blocking": explicit_check_requested,
+            "message": "CV provider was specified, but no auth environment variable is known; pass --cv-auth-env for this machine.",
+        }
+    auth_present = bool(os.getenv(auth_env))
+    if not auth_present:
+        return {
+            **base,
+            "status": "missing_auth",
+            "diagnostic_code": "cv_auth_missing",
+            "provider": provider,
+            "auth_env_var": auth_env,
+            "auth_env_present": False,
+            "health_blocking": explicit_check_requested,
+            "message": f"Set {auth_env} in the local environment before relying on CV/vision provider inspection.",
+        }
+    return {
+        **base,
+        "status": "configured",
+        "diagnostic_code": "cv_auth_env_present_remote_call_not_attempted",
+        "provider": provider,
+        "auth_env_var": auth_env,
+        "auth_env_present": True,
+        "health_blocking": False,
+        "message": "CV provider credential variable is present locally; the health check does not print secrets or make a remote vision call.",
+    }
+
+
 def roster_health_route_command(config: HubConfig, utterance: str, target: Path, *, create: bool = False, packet_id: str | None = None) -> list[str]:
     command = [
         "bash",
@@ -9778,6 +10285,8 @@ def build_roster_health_report(
     packet_id_arg: str | None,
     provider: str | None,
     auth_env: str | None,
+    cv_provider: str | None,
+    cv_auth_env: str | None,
     keep_artifacts: bool = False,
     codex_home: str | None = None,
     skills_root: str | None = None,
@@ -9835,6 +10344,7 @@ def build_roster_health_report(
     elif visible and packet_output.get("status") == "success":
         packet_output["cleanup"] = {"attempted": False, "status": "kept", "reason": "keep_artifacts_requested"}
     provider_check = build_roster_provider_check(provider, auth_env)
+    cv_capability = build_roster_cv_capability_check(cv_provider, cv_auth_env)
     installed_skill = roster_skill_install_check(codex_home, skills_root, requested=bool(codex_home or skills_root))
     dependency_check = {
         "persistent_server_required": False,
@@ -9851,9 +10361,10 @@ def build_roster_health_report(
         blocking.append("packet_output_failed")
     if installed_skill.get("requested") and installed_skill.get("status") != "installed":
         blocking.append("roster_skill_not_installed")
+    cv_health_degraded = bool(cv_capability.get("health_blocking") and cv_capability.get("status") != "configured")
     if blocking:
         overall_status = "failed"
-    elif provider_check.get("status") in {"missing_provider", "missing_auth"}:
+    elif provider_check.get("status") in {"missing_provider", "missing_auth"} or cv_health_degraded:
         overall_status = "degraded"
     else:
         overall_status = "healthy"
@@ -9887,6 +10398,7 @@ def build_roster_health_report(
         "installed_skill": installed_skill,
         "packet_output": packet_output,
         "llm_provider": provider_check,
+        "cv_inspection_capability": cv_capability,
         "runtime_dependency_check": dependency_check,
         "portable_setup": [
             "repo files: scripts/brain.sh, scripts/system_hub.py, policy/system_hub.toml, contexts/team_alias_registry.json, skills/roster, templates/",
@@ -9919,12 +10431,13 @@ def render_roster_health_markdown(payload: dict[str, Any]) -> str:
         f"- Target path: `{payload.get('target_path')}`",
         f"- Packet output: `{payload.get('packet_output', {}).get('status')}`",
         f"- LLM/provider: `{payload.get('llm_provider', {}).get('status')}`",
+        f"- CV inspection: `{payload.get('cv_inspection_capability', {}).get('status')}`",
         "",
         "## Boundaries",
         "",
         "- `@roster` remains the product target; this check does not prove an installed Codex mention.",
         "- No persistent server, daemon, database, separate UI, or external control plane is required.",
-        "- Provider secrets are checked only for presence and are not printed.",
+        "- Provider and CV secrets are checked only for presence and are not printed.",
         "",
     ]
     if payload.get("blocking_findings"):
@@ -9940,12 +10453,14 @@ def do_roster_health(
     packet_id: str | None,
     provider: str | None,
     auth_env: str | None,
+    cv_provider: str | None,
+    cv_auth_env: str | None,
     codex_home: str | None,
     skills_root: str | None,
     keep_artifacts: bool = False,
     emit_json: bool = False,
 ) -> int:
-    code, payload, errors = build_roster_health_report(config, target_arg, packet_id, provider, auth_env, keep_artifacts, codex_home, skills_root)
+    code, payload, errors = build_roster_health_report(config, target_arg, packet_id, provider, auth_env, cv_provider, cv_auth_env, keep_artifacts, codex_home, skills_root)
     for line in errors:
         print(line, file=sys.stderr)
     if emit_json:
@@ -10902,7 +11417,7 @@ def main() -> int:
         if args.command == "roster-install":
             return do_roster_install(config, args.codex_home, args.skills_root, args.force, args.json)
         if args.command == "roster-health":
-            return do_roster_health(config, args.path, args.id, args.provider, args.auth_env, args.codex_home, args.skills_root, args.keep_artifacts, args.json)
+            return do_roster_health(config, args.path, args.id, args.provider, args.auth_env, args.cv_provider, args.cv_auth_env, args.codex_home, args.skills_root, args.keep_artifacts, args.json)
         if args.command == "overlay":
             return do_overlay(config, args.path)
         if args.command == "closeout":
