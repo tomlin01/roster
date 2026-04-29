@@ -411,6 +411,7 @@ DEFAULT_BRAIN_COMMANDS = (
     "artifact-harness",
     "packet-route",
     "roster-install",
+    "roster-uninstall",
     "roster-health",
     "roster-preferences",
     "overlay",
@@ -762,6 +763,11 @@ def parse_args() -> argparse.Namespace:
     roster_install.add_argument("--skills-root", default=None, help="Explicit skills root to install into. Overrides --codex-home.")
     roster_install.add_argument("--force", "--overwrite", action="store_true", dest="force", help="Overwrite an existing installed roster skill.")
     roster_install.add_argument("--json", action="store_true", help="Emit a machine-readable JSON install result instead of Markdown.")
+    roster_uninstall = sub.add_parser("roster-uninstall", help="Remove a repo-installed Roster skill from a Codex skills root.")
+    roster_uninstall.add_argument("--codex-home", default=None, help="Codex home whose `skills/` directory should lose the roster skill. Defaults to CODEX_HOME or ~/.codex.")
+    roster_uninstall.add_argument("--skills-root", default=None, help="Explicit skills root to uninstall from. Overrides --codex-home.")
+    roster_uninstall.add_argument("--force", action="store_true", help="Remove an existing roster skill even when the install manifest is missing or not owned by this kit.")
+    roster_uninstall.add_argument("--json", action="store_true", help="Emit a machine-readable JSON uninstall result instead of Markdown.")
     roster_health = sub.add_parser("roster-health", help="Check the repo-native Roster invocation, packet output, and local provider wiring.")
     roster_health.add_argument("--path", default=".", help="Target workspace folder for the health-check packet output. Defaults to the current directory.")
     roster_health.add_argument("--id", default=None, help="Optional health-check packet id. Defaults to a generated roster-health-smoke id.")
@@ -10373,6 +10379,112 @@ def do_roster_install(config: HubConfig, codex_home: str | None, skills_root: st
     return code
 
 
+def roster_installed_skill_owned_by_this_kit(config: HubConfig, installed_skill: dict[str, Any]) -> tuple[bool, str | None]:
+    manifest = installed_skill.get("install_manifest")
+    if not isinstance(manifest, dict):
+        return False, "missing_install_manifest"
+    if manifest.get("skill_name") != ROSTER_SKILL_NAME:
+        return False, "manifest_skill_name_mismatch"
+    manifest_kit_root = str(manifest.get("kit_root") or "")
+    if not manifest_kit_root:
+        return False, "manifest_kit_root_missing"
+    try:
+        if Path(manifest_kit_root).expanduser().resolve() != config.workspace_root.resolve():
+            return False, "manifest_kit_root_mismatch"
+    except OSError:
+        return False, "manifest_kit_root_invalid"
+    return True, None
+
+
+def build_roster_uninstall_result(config: HubConfig, codex_home_arg: str | None = None, skills_root_arg: str | None = None, force: bool = False) -> tuple[int, dict[str, Any], list[str]]:
+    skills_root = roster_skills_root(codex_home_arg, skills_root_arg)
+    skill_path = skills_root / ROSTER_SKILL_NAME
+    installed_before = roster_skill_install_check(codex_home_arg, skills_root_arg, requested=True)
+    payload_base = {
+        "schema_version": 1,
+        "report_type": "roster_skill_uninstall",
+        "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "skill_name": ROSTER_SKILL_NAME,
+        "kit_root": str(config.workspace_root),
+        "skills_root": str(skills_root),
+        "skill_path": str(skill_path),
+        "current_user_invocation": ROSTER_CURRENT_USER_INVOCATION,
+        "future_product_target": ROSTER_PRODUCT_TARGET,
+        "server_required": False,
+        "daemon_required": False,
+        "database_required": False,
+        "separate_ui_required": False,
+        "next_human_command": "Run `roster-install` again when you want to reinstall Roster on this Codex home.",
+    }
+    if not skill_path.exists():
+        return 0, {
+            **payload_base,
+            "uninstalled": False,
+            "refused": False,
+            "reason": "not_installed",
+            "installed_before": installed_before,
+            "installed_after": roster_skill_install_check(codex_home_arg, skills_root_arg, requested=True),
+        }, []
+    if not skill_path.is_dir() and not force:
+        return 1, {
+            **payload_base,
+            "uninstalled": False,
+            "refused": True,
+            "reason": "skill_path_not_directory",
+            "installed_before": installed_before,
+        }, [f"Roster skill path exists but is not a directory: {skill_path}; use --force to remove it."]
+    owned, reason = roster_installed_skill_owned_by_this_kit(config, installed_before)
+    if not owned and not force:
+        return 1, {
+            **payload_base,
+            "uninstalled": False,
+            "refused": True,
+            "reason": reason or "install_manifest_not_owned_by_this_kit",
+            "installed_before": installed_before,
+        }, [f"Refusing to remove {skill_path}: {reason or 'install manifest is not owned by this kit'}; use --force only if this is the Roster install to remove."]
+    if skill_path.is_dir():
+        shutil.rmtree(skill_path)
+    else:
+        skill_path.unlink()
+    return 0, {
+        **payload_base,
+        "uninstalled": True,
+        "refused": False,
+        "reason": None,
+        "forced": force,
+        "installed_before": installed_before,
+        "installed_after": roster_skill_install_check(codex_home_arg, skills_root_arg, requested=True),
+    }, []
+
+
+def render_roster_uninstall_markdown(payload: dict[str, Any]) -> str:
+    lines = [
+        "# Roster Skill Uninstall",
+        "",
+        f"- Uninstalled: `{payload.get('uninstalled')}`",
+        f"- Refused: `{payload.get('refused')}`",
+        f"- Reason: `{payload.get('reason')}`",
+        f"- Skill path: `{payload.get('skill_path')}`",
+        "",
+        "## Next",
+        "",
+        str(payload.get("next_human_command") or "Run `roster-install` again when needed."),
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def do_roster_uninstall(config: HubConfig, codex_home: str | None, skills_root: str | None, force: bool = False, emit_json: bool = False) -> int:
+    code, payload, errors = build_roster_uninstall_result(config, codex_home, skills_root, force)
+    for line in errors:
+        print(line, file=sys.stderr)
+    if emit_json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print(render_roster_uninstall_markdown(payload), end="")
+    return code
+
+
 def roster_provider_auth_env(provider: str | None, auth_env: str | None) -> str | None:
     if isinstance(auth_env, str) and auth_env.strip():
         return auth_env.strip()
@@ -11808,6 +11920,8 @@ def main() -> int:
             return do_packet_route(config, args.utterance, args.path, args.id, args.create, args.artifact, args.force, args.json)
         if args.command == "roster-install":
             return do_roster_install(config, args.codex_home, args.skills_root, args.force, args.json)
+        if args.command == "roster-uninstall":
+            return do_roster_uninstall(config, args.codex_home, args.skills_root, args.force, args.json)
         if args.command == "roster-health":
             return do_roster_health(config, args.path, args.id, args.provider, args.auth_env, args.cv_provider, args.cv_auth_env, args.codex_home, args.skills_root, args.keep_artifacts, args.json)
         if args.command == "roster-preferences":

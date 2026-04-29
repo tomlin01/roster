@@ -50,6 +50,7 @@
   - `./scripts/brain.sh packet-route "<utterance>" --path <workspace-folder> --id <packet-id> --json`
 - Roster skill install / health check:
   - `./scripts/brain.sh roster-install --codex-home <codex-home> --json`
+  - `./scripts/brain.sh roster-uninstall --codex-home <codex-home> --json`
   - `./scripts/brain.sh roster-health --codex-home <codex-home> --path <workspace-folder> --json`
 - Roster preference memory is explicit and workspace-local only:
   - `./scripts/brain.sh roster-preferences remember "<preference>" --path <workspace-folder> --json`

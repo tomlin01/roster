@@ -9,10 +9,45 @@ It does not require a persistent server, daemon, database, or separate
 orchestration UI. You use it from ordinary Codex CLI or Codex GUI sessions.
 `codex-cns` remains the internal repository and historical name.
 
+## Install
+
+Install the repo-owned `roster` skill into the local Codex home from this kit
+folder:
+
+```bash
+./scripts/brain.sh roster-install --codex-home ~/.codex --json
+```
+
+Then verify the installed skill and same-workspace packet output against the
+workspace where you will actually use Roster:
+
+```bash
+./scripts/brain.sh roster-health --codex-home ~/.codex --path <workspace-folder> --json
+```
+
+If a provider-backed path is needed, configure local Codex auth or a provider
+environment variable, then include it in health:
+
+```bash
+./scripts/brain.sh roster-health --codex-home ~/.codex --path <workspace-folder> --provider openai --auth-env OPENAI_API_KEY --json
+```
+
+`roster-health` checks local setup only. It does not print secrets and does not
+make a remote model call.
+
+To remove the installed skill:
+
+```bash
+./scripts/brain.sh roster-uninstall --codex-home ~/.codex --json
+```
+
+The uninstall command removes only a Roster skill installed by this kit. If a
+different same-name skill exists, it refuses unless `--force` is explicit.
+
 ## Basic Use
 
-In ordinary Codex chat, name `Roster` and describe the artifact task in natural
-language:
+After install, use ordinary Codex chat in the target workspace. Name `Roster`
+and describe the artifact task in natural language:
 
 ```text
 Roster, 幫我把這個 slide 任務安排好。
@@ -34,26 +69,24 @@ For a first team setup, Codex should answer briefly:
 我會照這個隊形把任務分下去，該改 slide、scene、render 或影片時再進到對應步驟。
 ```
 
-Future install target:
+Current truthful invocation:
 
 ```text
-@roster 幫我把這個 slide 任務安排好。
+Roster, <your task>
 ```
 
-Current status: `@roster` is a product target, not a verified installed Codex
-mention, plugin/app mention, or slash command. The repo-owned `roster` skill is
-installable, and the repo-native `packet-route` adapter recognizes `Roster`,
-literal `@roster`, and artifact-context `PM`, but those are Codex/reviewer-called
-route helpers, not automatic Codex GUI or CLI mention interception. Do not rely
-on `@roster` as the current user invocation until a real Codex mention layer
-proves it.
+`@roster` remains a product target, not a verified installed Codex mention,
+plugin/app mention, or slash command. The installed `roster` skill and
+repo-native route helper recognize the literal text `@roster`, but that is not
+the same as Codex mention interception. Do not rely on `@roster` until a real
+Codex mention layer proves it.
 
 Specialized aliases exist for review, staffing, and debugging, but ordinary use
 should start with `Roster`.
 
 You should not need to remember or type `brain.sh`, `packet-route`, or
-`artifact-harness` during ordinary work. The current verified command fallback
-is documented separately below.
+`artifact-harness` during ordinary work. Shell commands are for install,
+uninstall, health checks, reviewers, and debugging.
 
 ## Roster Preferences
 
@@ -308,6 +341,21 @@ On a new machine:
 8. Treat `configured`, `missing_provider`, and `missing_auth` as setup status,
    not artifact acceptance.
 
+Minimum machine setup:
+
+```bash
+git clone https://github.com/tomlin01/roster.git
+cd roster
+./scripts/brain.sh roster-install --codex-home ~/.codex --json
+./scripts/brain.sh roster-health --codex-home ~/.codex --path <workspace-folder> --json
+```
+
+Removal:
+
+```bash
+./scripts/brain.sh roster-uninstall --codex-home ~/.codex --json
+```
+
 Repo-portable setup is limited to the files in this repo: `scripts/brain.sh`,
 `scripts/system_hub.py`, `policy/system_hub.toml`,
 `contexts/team_alias_registry.json`, `skills/roster`, templates, and policy
@@ -324,6 +372,7 @@ Current setup health check:
 
 ```bash
 ./scripts/brain.sh roster-install --codex-home ~/.codex --json
+./scripts/brain.sh roster-uninstall --codex-home ~/.codex --json
 ./scripts/brain.sh roster-health --path <workspace-folder> --json
 ./scripts/brain.sh roster-health --codex-home ~/.codex --path <workspace-folder> --json
 ./scripts/brain.sh roster-health --path <workspace-folder> --provider openai --auth-env OPENAI_API_KEY --json
@@ -331,6 +380,8 @@ Current setup health check:
 
 `roster-install` copies the repo-owned `skills/roster` skill into the requested
 Codex skills root and writes an install manifest that points back to this kit.
+`roster-uninstall` removes only a manifest-owned Roster install by default and
+refuses to delete an unknown same-name skill unless `--force` is explicit.
 `roster-health` verifies that the repo can see the Roster route through
 `packet-route`, optionally sees the installed `roster` skill when `--codex-home`
 or `--skills-root` is supplied, creates a smoke packet under the target
