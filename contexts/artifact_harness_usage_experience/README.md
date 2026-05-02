@@ -280,6 +280,71 @@ Expanded member view:
   - 可用性檢查人員：檢查報告是否清楚、欄位是否容易看錯；交付可用性問題
 ```
 
+## Agent Work Card Direction
+
+Expanded members should be actionable work units, not display-only names. The
+first reply should still stay short; full work cards appear only when the user
+asks who does what, asks to expand work, asks for each agent's responsibility,
+the task moves into implementation planning, risk or authority clarity matters,
+or an added role carries review, sign-off, domain, tool, or quality
+responsibility.
+
+Each Agent Work Card should include:
+
+- `role_name`: role or member name.
+- `group`: group or layer this role belongs to.
+- `responsibility`: what this role owns.
+- `perspective`: what this role watches for.
+- `inputs`: what this role needs before starting.
+- `outputs_or_deliverables`: what this role produces.
+- `done_condition`: how Roster knows this role has completed its part.
+- `handoff_target`: who receives the output next.
+- `tool_or_capability_need`: likely skill, plugin, tool, data, screenshot, OCR,
+  filesystem, runtime, or model need.
+- `agent_assignment`: `separate_agent`, `merged_with`,
+  `simulated_perspective`, `reviewer_only`, or `approval_gate_candidate`.
+- `open_questions`: ambiguity that must be resolved before execution.
+
+Assignment rules:
+
+- A work card can map to a separate agent, but does not have to.
+- A small task may use one agent to carry several work cards.
+- A simulated perspective is valid when separation is useful but runtime
+  subagents are unnecessary or unavailable.
+- Reviewer-only roles check outputs but do not own production.
+- Approval-gate candidates do not approve or block delivery unless the user or
+  policy gives explicit authority.
+- Capability needs are not authorization; CAP still owns tool, plugin, approval,
+  and runtime allowlist decisions.
+- Handoff target is a next receiver, not the full v0.9 role interaction-edge
+  model.
+
+BCQ_III work-card example:
+
+```text
+統計方法人員
+- role_name: 統計方法人員
+- group: 統計與計分組
+- responsibility: 定義填答轉分數、構面分數和門檻
+- perspective: 分數是否可解釋、可重現，是否符合 BCQ_III 題目與構面
+- inputs: BCQ_III 題目、構面定義、填答資料格式、使用者端與醫師端顯示需求
+- outputs_or_deliverables: 計分規格與分數解釋規則
+- done_condition: 每一題都能追到構面與計分規則，使用者端和醫師端分數定義一致
+- handoff_target: 資料處理人員、分數驗證人員、使用者端組、醫師端組
+- tool_or_capability_need: 試算表或統計腳本；若要執行程式，必須走工具授權
+- agent_assignment: merged_with 分數驗證人員 for small tasks; separate_agent for high-risk validation
+- open_questions: 是否已有正式 BCQ_III 計分規則與門檻來源
+```
+
+Short user-facing version:
+
+```text
+統計方法人員會交付「計分規格」：把每題如何轉成構面分數、門檻和解讀寫清楚。完成條件是使用者端和醫師端看到的是同一套可追蹤分數。小任務可和分數驗證合併；高風險時再拆成獨立 agent。
+```
+
+Work cards do not replace the Team Operating Packet, Capability Access Packet,
+runtime policy, verification, approval evidence, or final artifact acceptance.
+
 ## Install Semantics
 
 `Install` should not mean deploying a server, daemon, database, or separate

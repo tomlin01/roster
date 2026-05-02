@@ -112,6 +112,46 @@ Expanded members should include responsibility, perspective, and deliverable.
 Do not imply every expanded member is a separate agent. Do not treat group
 expansion as full role interaction-edge modeling.
 
+When expanded members need to become executable rather than only visible, offer
+or emit Agent Work Cards. Do not dump full work cards in ordinary first-touch
+replies. Use them when the user asks `誰做什麼`, `展開工作`, `工作卡`,
+`每個 agent 的職責`, or equivalent; when the task moves into implementation
+planning; when risk or authority clarity matters; or when an added role has
+review, sign-off, domain, tool, or quality responsibility.
+
+Each work card should include:
+
+- role_name
+- group
+- responsibility
+- perspective
+- inputs
+- outputs_or_deliverables
+- done_condition
+- handoff_target
+- tool_or_capability_need
+- agent_assignment: `separate_agent`, `merged_with`,
+  `simulated_perspective`, `reviewer_only`, or `approval_gate_candidate`
+- open_questions
+
+Assignment guidance:
+
+- a work card can become a separate agent, but does not have to
+- one agent may carry several cards for small tasks
+- simulated perspectives are valid when runtime separation is unnecessary or
+  unavailable
+- reviewer-only roles check outputs but do not own production
+- approval-gate candidates do not approve or block delivery unless the user or
+  policy gives explicit authority
+- tool_or_capability_need is not authorization; CAP still owns tool, plugin,
+  approval, and runtime allowlist decisions
+- handoff_target is only the next receiver, not the full v0.9 interaction-edge
+  model
+
+Do not ask the user to choose assignment modes unless they ask for design
+detail. Work cards do not replace review, final acceptance, approval evidence,
+CAP, runtime policy, or the Team Operating Packet.
+
 Example first touch:
 
 ```text

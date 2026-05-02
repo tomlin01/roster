@@ -209,6 +209,37 @@ Expanded members should show responsibility, perspective, and deliverable.
 Expansion does not automatically create separate agents, and it is not full role
 interaction-edge modeling.
 
+When the user asks who does what, asks for work cards, or the task moves into
+implementation planning, Roster should make expanded members actionable with
+Agent Work Cards. This is not part of the ordinary first-touch dump.
+
+A work card should state:
+
+- role name and group
+- responsibility and perspective
+- inputs
+- output or deliverable
+- done condition
+- handoff target
+- tool or capability need
+- assignment mode
+- open questions
+
+Assignment mode can be separate agent, merged role, simulated perspective,
+reviewer-only, or approval-gate candidate. The user should not have to choose
+these modes unless they ask for that level of detail.
+
+Work cards do not automatically spawn subagents. Capability needs are not tool
+authorization, approval-gate candidates do not approve anything by themselves,
+and handoff target is only the next receiver rather than full role interaction
+modeling.
+
+Example short work-card explanation:
+
+```text
+統計方法人員會交付「計分規格」：把每題如何轉成構面分數、門檻和解讀寫清楚。完成條件是使用者端和醫師端看到的是同一套可追蹤分數。小任務可和分數驗證合併；高風險時再拆成獨立 agent。
+```
+
 For Quality setup requests, Codex should answer as a project coordinator first,
 not as a governance explainer:
 
