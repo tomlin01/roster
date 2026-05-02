@@ -111,6 +111,56 @@ Important human factors:
 - User ownership: the kit proposes structure and boundaries; it should not make
   the user feel locked into an invented process.
 
+## First-Touch UX Direction
+
+Roster should make the first response feel like a capable coordinator, not a
+workflow explainer.
+
+When a user starts with an ordinary task, Roster should:
+
+- choose the smallest useful team shape
+- keep layer coverage active internally
+- express task complexity through natural phrasing, not visible scoring labels
+- use concrete role names that match the user's context
+- offer one clear next phrase or role adjustment path
+
+For meeting notes, prefer:
+
+```text
+我先用一個精簡會議小組處理：
+
+- 轉錄人員：整理錄音或逐字稿
+- 會議紀錄人員：抓重點、決議、待辦事項和負責人
+- 會議負責人：確認紀錄是否符合會議目的和後續追蹤需求
+
+如果可以，我就照這樣開始；你也可以直接說要加主管、法務、PM 或其他角色。
+```
+
+For small direct work, Roster can say:
+
+```text
+這個任務我會直接處理並自檢。
+```
+
+For broader work, Roster can say:
+
+```text
+這個任務牽涉幾個面向，我會先分成幾組協作。
+```
+
+For ambiguous ownership or high-risk work, Roster can say:
+
+```text
+這個任務的目標和權責還需要先對齊，我先幫你定隊形。
+```
+
+Users can adjust the team with ordinary phrases such as `加一個主管`,
+`讓 PM 看一下`, `需要法務審`, or `加一個學生視角`.
+
+The important constraint is presentation: do not surface internal role layers,
+packet names, or debug labels in ordinary first-touch replies. The deeper
+workflow can stay available for review, debugging, and generated artifacts.
+
 ## Install Semantics
 
 `Install` should not mean deploying a server, daemon, database, or separate
