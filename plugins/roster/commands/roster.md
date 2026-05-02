@@ -102,6 +102,30 @@ Use these practical defaults:
 Keep the user-facing explanation short: say how the team shape changes and what
 happens next. Do not dump role taxonomy unless the user asks for design detail.
 
+## Group Expansion
+
+For broad tasks, show groups before members. Expand into members only when the
+user asks to expand, the task moves into implementation planning, or risk
+requires clear ownership.
+
+Expanded members should include responsibility, perspective, and deliverable.
+Do not imply every expanded member is a separate agent. Do not treat group
+expansion as full role interaction-edge modeling.
+
+Example first touch:
+
+```text
+這個任務牽涉中醫內容、統計邏輯和 APP 雙端流程，我會先分成幾組協作：
+
+- 問卷與中醫組：整理 BCQ_III 題目、構面、體質解讀和報告文字
+- 統計與計分組：定義分數計算、構面分數、門檻和可信度提醒
+- 使用者端組：設計填答流程、報告結果、解讀文字和下一步建議
+- 醫師端組：設計填答明細、分數表、風險提示和追蹤註記
+- Quality 組：檢查分數一致性、醫療語氣、資料隱私和使用者誤解風險
+
+如果這個分組方向可以，我再展開每組的小組成員和第一步。
+```
+
 ## Guardrails
 
 - Keep packet output under `<workspace>/contexts/artifact_harness_runs/`.

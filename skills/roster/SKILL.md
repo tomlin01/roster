@@ -323,6 +323,43 @@ For common shorthand:
 - `需要法務審`: add a legal review position and treat blocking authority as
   likely; confirm if the action would delay or prevent delivery.
 
+## Group Expansion
+
+For broad tasks, first show group-level collaboration rather than a long member
+list. Multi-group collaboration is expandable, but the first touch should stay
+short unless the user asks for detail or the task risk requires owner clarity.
+
+Expand groups into concrete members when:
+
+- the user says `展開`, `細分`, `小組成員`, `誰負責什麼`, or equivalent;
+- the task moves from planning into implementation;
+- risk or complexity requires responsibility, perspective, and deliverable to be
+  explicit.
+
+Expanded members should carry:
+
+- responsibility: what this member owns;
+- perspective: what this member watches for;
+- deliverable: what this member produces or verifies.
+
+Expansion does not automatically mean every member is a separate agent. It also
+does not replace full role interaction modeling; handoff, peer alignment,
+review challenge, and quality-loop edges remain deeper planning work.
+
+Good broad first-touch shape:
+
+```text
+這個任務牽涉中醫內容、統計邏輯和 APP 雙端流程，我會先分成幾組協作：
+
+- 問卷與中醫組：整理 BCQ_III 題目、構面、體質解讀和報告文字
+- 統計與計分組：定義分數計算、構面分數、門檻和可信度提醒
+- 使用者端組：設計填答流程、報告結果、解讀文字和下一步建議
+- 醫師端組：設計填答明細、分數表、風險提示和追蹤註記
+- Quality 組：檢查分數一致性、醫療語氣、資料隱私和使用者誤解風險
+
+如果這個分組方向可以，我再展開每組的小組成員和第一步。
+```
+
 Good first-touch shape:
 
 ```text

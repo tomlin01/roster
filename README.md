@@ -162,6 +162,26 @@ The default four-role shape is a compact layer model, not a maximum team size.
 Small tasks can merge layers into one pass; larger tasks can split one layer
 into several domain or review perspectives.
 
+### Expanding Groups
+
+For broad tasks, Roster should show groups first and keep the first response
+short. If you ask to `展開`, `細分`, or show `小組成員`, Roster should expand
+each group into members with responsibility, perspective, and deliverable.
+中文使用時，展開後應該能看出每個成員的責任、觀點和交付物。
+
+Expansion does not mean every member becomes a separate agent. It is a planning
+view first; execution may still stay compact when that is enough.
+
+Example:
+
+```text
+Roster, 用 BCQ_III 做一個問卷 APP，使用者端看報告，醫師端看分數和填答明細。
+```
+
+Roster should first show groups such as 問卷與中醫組, 統計與計分組, 使用者端組,
+醫師端組, and Quality 組. If you then ask it to expand, it should list the
+members under each group and what they produce or verify.
+
 ## What Roster Does
 
 For a non-trivial artifact task, Roster helps Codex:

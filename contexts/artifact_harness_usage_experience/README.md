@@ -212,6 +212,74 @@ Roster, 加一個學生視角。
 Treat this as a counter-perspective role: add a clarity and comprehension check
 before finalizing the artifact.
 
+## Group Expansion UX Direction
+
+For broad tasks, Roster should first show group-level collaboration. The first
+response should not dump every possible member unless the user asks for that
+level of detail or risk requires it.
+
+Expansion triggers:
+
+- the user says `展開`, `細分`, `小組成員`, `誰負責什麼`, or equivalent;
+- the task moves from planning into implementation;
+- risk or complexity requires explicit responsibility and perspective.
+
+Expanded members should include:
+
+- responsibility: what the member owns;
+- perspective: what the member watches for;
+- deliverable: what the member produces or verifies.
+
+中文使用時，展開後也應該能看出每個成員的責任、觀點和交付物。
+
+Expansion does not automatically create separate agents. It also does not
+replace full role interaction-edge modeling.
+
+BCQ_III first-touch group preview:
+
+```text
+這個任務牽涉中醫內容、統計邏輯和 APP 雙端流程，我會先分成幾組協作：
+
+- 問卷與中醫組：整理 BCQ_III 題目、構面、體質解讀和報告文字
+- 統計與計分組：定義分數計算、構面分數、門檻和可信度提醒
+- 使用者端組：設計填答流程、報告結果、解讀文字和下一步建議
+- 醫師端組：設計填答明細、分數表、風險提示和追蹤註記
+- Quality 組：檢查分數一致性、醫療語氣、資料隱私和使用者誤解風險
+
+如果這個分組方向可以，我再展開每組的小組成員和第一步。
+```
+
+Expanded member view:
+
+```text
+我會把 BCQ_III APP 的小組展開成這樣：
+
+- 問卷與中醫組
+  - 中醫內容負責人：確認構面和體質解讀；交付可用的中醫內容規則
+  - 報告文字整理人：把中醫概念轉成使用者看得懂的說明；交付報告文案
+  - 醫師審核人：檢查文字是否過度診斷或誤導；交付醫療語氣修正
+
+- 統計與計分組
+  - 統計方法人員：確認計分規則、構面分數和門檻；交付計分規格
+  - 資料處理人員：把問卷答案轉成可計算資料；交付資料欄位和轉換規則
+  - 分數驗證人員：檢查分數可重現且對應題目；交付分數驗證結果
+
+- 使用者端組
+  - UX 人員：設計填答流程和報告閱讀順序；交付使用者流程
+  - APP 前端人員：實作填答畫面和結果頁；交付前端畫面
+  - 使用者代表：檢查結果是否看得懂、會不會誤解；交付可讀性回饋
+
+- 醫師端組
+  - 臨床使用者代表：確認醫師需要哪些分數和原始填答；交付醫師端需求
+  - 後台產品人員：設計分數表、填答明細和追蹤紀錄；交付後台流程
+  - 權限與隱私人員：確認誰能看哪些資料；交付權限規則
+
+- Quality 組
+  - 醫療風險檢查人員：檢查診斷、建議和免責語氣；交付風險清單
+  - 計分一致性檢查人員：核對使用者端和醫師端分數一致；交付一致性檢查
+  - 可用性檢查人員：檢查報告是否清楚、欄位是否容易看錯；交付可用性問題
+```
+
 ## Install Semantics
 
 `Install` should not mean deploying a server, daemon, database, or separate
