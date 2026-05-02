@@ -124,6 +124,44 @@ For ambiguous ownership or risk:
 You can adjust the team in normal language: `加一個主管`, `讓 PM 看一下`,
 `需要法務審`, or `加一個學生視角`.
 
+### Adjusting Roles
+
+Roster treats roles as responsibilities and viewpoints, not fixed job labels.
+Adding a role does not automatically mean adding a new agent.
+
+Examples:
+
+```text
+Roster, 技術人員加入金融 domain。
+```
+
+Roster should treat this as one integrated technical role unless the work is
+risky enough to separate the domains.
+
+```text
+Roster, 新增一位金融技術人員，跟原本技術人員同級。
+```
+
+Roster should add a peer role and an alignment step, not a sign-off gate by
+default.
+
+```text
+Roster, 金融技術人員要核准模型結果才能交付。
+```
+
+Roster should place that role before delivery as a reviewer or approver.
+
+```text
+Roster, 加一個學生視角。
+```
+
+Roster should add a counter-perspective that checks clarity, pacing, examples,
+and audience fit.
+
+The default four-role shape is a compact layer model, not a maximum team size.
+Small tasks can merge layers into one pass; larger tasks can split one layer
+into several domain or review perspectives.
+
 ## What Roster Does
 
 For a non-trivial artifact task, Roster helps Codex:

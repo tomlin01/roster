@@ -110,6 +110,51 @@ The user can add roles by status, domain, or review perspective, for example
 fold the role into the team and continue the task without exposing the internal
 coordination model.
 
+Role additions should be interpreted in context:
+
+```text
+Roster, 技術人員加入金融 domain。
+```
+
+Response shape:
+
+```text
+我會先把技術人員改成「工程 + 金融」的整合視角：一邊處理資料和工具，一邊確認金融定義沒有被處理流程扭曲。
+```
+
+```text
+Roster, 新增一位金融技術人員，跟原本技術人員同級。
+```
+
+Response shape:
+
+```text
+我會把它拆成兩個同級視角：工程技術人員負責資料和工具流程，金融技術人員確認指標定義和解讀。兩邊先對齊，再交給產出角色。
+```
+
+```text
+Roster, 金融技術人員要核准模型結果才能交付。
+```
+
+Response shape:
+
+```text
+我會把金融技術人員放在交付前審核位置：模型結果先由他確認定義和風險，通過後再交付。
+```
+
+```text
+Roster, 加一個學生視角。
+```
+
+Response shape:
+
+```text
+我會加入學生視角來挑出哪裡太難、太快或缺例子；教師角色再根據這個回饋調整講解順序。
+```
+
+Adding a role does not automatically mean adding a new agent. The default
+four-role shape is a compact layer model, not a maximum team size.
+
 For Quality setup requests, Codex should answer as a project coordinator first,
 not as a governance explainer:
 

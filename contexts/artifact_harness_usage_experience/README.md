@@ -161,6 +161,57 @@ The important constraint is presentation: do not surface internal role layers,
 packet names, or debug labels in ordinary first-touch replies. The deeper
 workflow can stay available for review, debugging, and generated artifacts.
 
+## Role Contextualization Direction
+
+Roster should treat user-added roles as contextual responsibilities and
+perspectives. The user should be able to name a title, rank, function,
+shorthand, or domain, and Roster should decide the practical team effect.
+
+Internal distinctions:
+
+- Role: the named responsibility in the team.
+- Perspective: what that role watches for.
+- Layer: planning, production, domain judgment, or quality coverage.
+- Agent instance: the execution resource that may carry one or more roles.
+
+Important UX rules:
+
+- Adding a role does not automatically add a new agent.
+- The default four-role shape is a layer compression, not a hard maximum.
+- Peer roles add alignment by default, not approval authority.
+- Review or sign-off authority must come from user wording, task risk, or an
+  explicit approval boundary.
+
+Examples:
+
+```text
+Roster, 技術人員加入金融 domain。
+```
+
+Treat this as domain extension: one integrated technical role with an added
+financial-definition perspective.
+
+```text
+Roster, 新增一位金融技術人員，跟原本技術人員同級。
+```
+
+Treat this as a peer domain role: add same-level alignment between engineering
+technical handling and financial technical interpretation.
+
+```text
+Roster, 金融技術人員要核准模型結果才能交付。
+```
+
+Treat this as a reviewer or approver role: add a pre-delivery review or
+sign-off position.
+
+```text
+Roster, 加一個學生視角。
+```
+
+Treat this as a counter-perspective role: add a clarity and comprehension check
+before finalizing the artifact.
+
 ## Install Semantics
 
 `Install` should not mean deploying a server, daemon, database, or separate

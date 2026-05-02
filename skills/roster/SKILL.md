@@ -253,6 +253,76 @@ Let users adjust the team with normal phrases such as `加一個主管`, `讓 PM
 `需要法務審`, or `加一個學生視角`. Treat these as role-shape adjustments, then
 continue the task without forcing the user to learn the internal model.
 
+## Role Contextualization
+
+Treat user-named roles as context-shaped responsibilities and perspectives, not
+fixed labels. A role is the named responsibility, a perspective is what it
+watches for, a layer is the planning/production/domain/quality coverage it
+helps satisfy, and an agent instance is only the execution resource that may
+carry one or more roles.
+
+Important rules:
+
+- adding a role does not automatically add a new agent
+- the default four-role shape is layer compression, not a hard maximum
+- peer roles add alignment by default, not approval authority
+- reviewer or approver authority must come from the user, task risk, or an
+  explicit approval boundary
+- capability implications should be surfaced as access needs, not silently
+  assumed
+
+When a user adds or changes a role, infer:
+
+- responsibility: what the role contributes
+- perspective: what the role watches for
+- workflow position: when the role acts
+- authority boundary: advises, challenges, requests revision, blocks, or signs
+  off
+- capability implication: whether it may need data, tools, plugins, models,
+  filesystem access, screenshots, playback, OCR, or runtime access
+
+Common role-context cases:
+
+```text
+User: 技術人員加入金融 domain
+Roster: 我會先把技術人員改成「工程 + 金融」的整合視角：一邊處理資料和工具，一邊確認金融定義沒有被處理流程扭曲。
+```
+
+Use this as a domain extension: keep one role with a multi-domain perspective
+unless risk or user wording requires separation.
+
+```text
+User: 新增一位金融技術人員，跟原本技術人員同級
+Roster: 我會把它拆成兩個同級視角：工程技術人員負責資料和工具流程，金融技術人員確認指標定義和解讀。兩邊先對齊，再交給產出角色。
+```
+
+Use this as a peer domain role: add an alignment step, not a sign-off gate by
+default.
+
+```text
+User: 金融技術人員要核准模型結果才能交付
+Roster: 我會把金融技術人員放在交付前審核位置：模型結果先由他確認定義和風險，通過後再交付。
+```
+
+Use this as a reviewer or approver role: add the review/sign-off position while
+preserving existing tool and approval boundaries.
+
+```text
+User: 加一個學生視角
+Roster: 我會加入學生視角來挑出哪裡太難、太快或缺例子；教師角色再根據這個回饋調整講解順序。
+```
+
+Use this as a counter-perspective role: add a friction or comprehension check,
+not approval authority unless the user says so.
+
+For common shorthand:
+
+- `加一個主管`: add a direction, priority, or final-fit perspective; ask only if
+  approval authority is unclear and consequential.
+- `讓 PM 看一下`: add scope, sequencing, dependency, and handoff review.
+- `需要法務審`: add a legal review position and treat blocking authority as
+  likely; confirm if the action would delay or prevent delivery.
+
 Good first-touch shape:
 
 ```text
