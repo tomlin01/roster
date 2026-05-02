@@ -215,6 +215,44 @@ prepared a roster, say that directly and make clear that future Roster runs can
 assign document, planning, data, code, presentation, visual, media, QA, or
 other artifact work to the relevant roles.
 
+Choose the smallest useful team shape. Keep the layer coverage in mind
+internally, but do not show labels such as `Level 1`, `Level 2`, `complexity
+score`, or similar debug terms to ordinary users.
+
+Use plain handling phrases:
+
+```text
+這個任務我會直接處理並自檢。
+```
+
+```text
+這個任務我先用一個精簡小組處理。
+```
+
+```text
+這個任務牽涉幾個面向，我會先分成幾組協作。
+```
+
+```text
+這個任務的目標和權責還需要先對齊，我先幫你定隊形。
+```
+
+For meeting-note or transcript work, prefer natural role names:
+
+```text
+我先用一個精簡會議小組處理：
+
+- 轉錄人員：整理錄音或逐字稿
+- 會議紀錄人員：抓重點、決議、待辦事項和負責人
+- 會議負責人：確認紀錄是否符合會議目的和後續追蹤需求
+
+如果可以，我就照這樣開始；你也可以直接說要加主管、法務、PM 或其他角色。
+```
+
+Let users adjust the team with normal phrases such as `加一個主管`, `讓 PM 看一下`,
+`需要法務審`, or `加一個學生視角`. Treat these as role-shape adjustments, then
+continue the task without forcing the user to learn the internal model.
+
 Good first-touch shape:
 
 ```text

@@ -77,6 +77,53 @@ If the current Codex UI does not surface the plugin immediately, use the stable
 fallback `Roster, <your task>` and run `roster-health --codex-home ~/.codex` to
 inspect the local registration state.
 
+### First Reply
+
+Roster should not make you learn its internal workflow on the first turn. It
+should choose the smallest useful team shape and explain it in plain language.
+
+For a simple task:
+
+```text
+這個任務我會直接處理並自檢。
+我會先整理出第一版，再檢查是否漏掉重點。
+```
+
+For meeting notes:
+
+```text
+我先用一個精簡會議小組處理：
+
+- 轉錄人員：整理錄音或逐字稿
+- 會議紀錄人員：抓重點、決議、待辦事項和負責人
+- 會議負責人：確認紀錄是否符合會議目的和後續追蹤需求
+
+如果可以，我就照這樣開始；你也可以直接說要加主管、法務、PM 或其他角色。
+```
+
+For a broader project:
+
+```text
+這個任務牽涉幾個面向，我會先分成幾組協作：
+
+- 內容組：整理主軸和交付物
+- 技術組：處理資料、工具或轉換流程
+- 審核組：檢查正確性、風險和品質
+
+如果這個分組方向可以，我就展開每組的角色和第一步。
+```
+
+For ambiguous ownership or risk:
+
+```text
+這個任務的目標、權責或風險還需要先對齊。
+我先幫你定隊形：先確認交付物、誰能決定方向、哪些地方需要審核。
+確認後我再把它轉成工作小組和任務圖。
+```
+
+You can adjust the team in normal language: `加一個主管`, `讓 PM 看一下`,
+`需要法務審`, or `加一個學生視角`.
+
 ## What Roster Does
 
 For a non-trivial artifact task, Roster helps Codex:
