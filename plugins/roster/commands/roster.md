@@ -78,6 +78,30 @@ Natural role edits such as `加一個主管`, `讓 PM 看一下`, `需要法務�
 `加一個學生視角` should adjust the team shape without exposing internal planning
 mechanics.
 
+## Role Context
+
+Interpret role edits before replying. A user-added role can be a domain
+extension, a peer role, a reviewer/approver, or a counter-perspective. Adding a
+role does not automatically add a new agent.
+
+Use these practical defaults:
+
+- `技術人員加入金融 domain`: merge into one engineering + finance technical
+  perspective unless the task risk or user wording requires separation.
+- `新增一位金融技術人員，跟原本技術人員同級`: add a peer role and an alignment
+  step; do not make the peer an approver by default.
+- `金融技術人員要核准模型結果才能交付`: add a pre-delivery review or sign-off
+  position.
+- `加一個學生視角`: add a counter-perspective that challenges clarity,
+  pacing, examples, and audience fit.
+- `加一個主管`: add direction, priority, and final-fit review.
+- `讓 PM 看一下`: add scope, sequencing, dependency, and handoff review.
+- `需要法務審`: add legal review and confirm blocking authority when the
+  consequence matters.
+
+Keep the user-facing explanation short: say how the team shape changes and what
+happens next. Do not dump role taxonomy unless the user asks for design detail.
+
 ## Guardrails
 
 - Keep packet output under `<workspace>/contexts/artifact_harness_runs/`.

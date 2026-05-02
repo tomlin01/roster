@@ -30,9 +30,35 @@
 
 - role:
   - mission:
+  - perspective:
+  - layer: planning/production/domain_judgment/quality
+  - agent_instance: merged/single/peer/reviewer/approver/counter_perspective
+  - workflow_position:
+  - authority_boundary: advises/challenges/requests_revision/blocks/signs_off
+  - capability_implication:
   - owns:
   - must_produce:
   - must_not_do:
+
+## Role Context Notes
+
+- role_context_rule: domain_extension/peer_domain_role/reviewer_approver/counter_perspective/other
+- merged_roles:
+- split_roles:
+- peer_alignment_needed: yes/no
+- review_or_signoff_needed: yes/no
+- user_wording_that_set_authority:
+- ambiguity_to_confirm:
+
+Fill notes:
+
+- A user-added role is not automatically a new agent instance.
+- The default four-role shape is layer compression, not a maximum team size.
+- Peer roles add alignment by default; they become approvers only when user
+  wording, task risk, or approval boundaries require it.
+- Capability implications should feed the Capability Access Packet when they
+  require skills, plugins, tools, model/provider access, filesystem access,
+  screenshots, playback, OCR, or runtime exposure.
 
 ## Inputs From Staffing
 
