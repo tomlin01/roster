@@ -269,6 +269,81 @@ User-facing roles become agent perspectives in the task graph, not just labels.
 Role contextualization changes task execution, not governance ownership.
 ```
 
+## Agent Work Cards
+
+Expanded roles and members should be convertible into actionable work cards.
+The purpose is execution clarity: each visible member should know what it owns,
+what it needs, what it produces, when it is done, and where the output goes.
+
+Work cards should not appear in ordinary first-touch replies. They should appear
+or be offered when:
+
+- the user asks who does what, asks to expand work, asks for work cards, or asks
+  for each agent's responsibility;
+- the task moves from planning into implementation;
+- risk, authority, review, sign-off, domain, tool, or quality responsibility
+  requires owner and completion clarity.
+
+Each work card records:
+
+- role name;
+- group;
+- responsibility;
+- perspective;
+- inputs;
+- output or deliverable;
+- done condition;
+- handoff target;
+- tool or capability need;
+- agent assignment mode;
+- open questions.
+
+Agent assignment mode should distinguish:
+
+- separate agent;
+- merged role;
+- simulated perspective;
+- reviewer-only;
+- approval-gate candidate.
+
+The assignment mode is Roster's coordination decision. Do not ask the user to
+choose it unless the user asks for implementation-design detail.
+
+Important boundaries:
+
+- A work card can become a separate agent, but does not have to.
+- One agent can carry several work cards when the task is small.
+- Capability need is not capability authorization; CAP still owns tool, plugin,
+  approval, and runtime allowlist decisions.
+- Approval-gate candidates do not approve or block anything without user or
+  policy authority.
+- Handoff target is the next receiver, not the full v0.9 role interaction-edge
+  model.
+- Work cards do not replace Team Operating Packet, CAP, runtime policy,
+  verification, approval evidence, or final artifact acceptance.
+
+BCQ_III example:
+
+```text
+統計方法人員
+- group: 統計與計分組
+- responsibility: 定義填答轉分數、構面分數和門檻
+- perspective: 分數是否可解釋、可重現，是否符合 BCQ_III 題目與構面
+- inputs: BCQ_III 題目、構面定義、填答資料格式、使用者端與醫師端顯示需求
+- outputs_or_deliverables: 計分規格與分數解釋規則
+- done_condition: 每一題都能追到構面與計分規則，使用者端和醫師端分數定義一致
+- handoff_target: 資料處理人員、分數驗證人員、使用者端組、醫師端組
+- tool_or_capability_need: 試算表或統計腳本；若要執行程式，必須走工具授權
+- agent_assignment: merged_with 分數驗證人員 for small tasks; separate_agent for high-risk validation
+- open_questions: 是否已有正式 BCQ_III 計分規則與門檻來源
+```
+
+Working principle:
+
+```text
+Expanded members become work units before they become runtime agents.
+```
+
 ## Role Splitting And Merging
 
 The same role name does not always mean the same role. Roster should decide

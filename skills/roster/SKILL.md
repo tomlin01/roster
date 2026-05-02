@@ -342,9 +342,46 @@ Expanded members should carry:
 - perspective: what this member watches for;
 - deliverable: what this member produces or verifies.
 
-Expansion does not automatically mean every member is a separate agent. It also
-does not replace full role interaction modeling; handoff, peer alignment,
-review challenge, and quality-loop edges remain deeper planning work.
+When expanded members need to become actionable, turn each relevant member into
+an Agent Work Card. Do not show full work cards in ordinary first-touch replies.
+Offer or emit work cards when the user asks `誰做什麼`, `展開工作`, `工作卡`,
+`每個 agent 的職責`, or equivalent; when planning moves into implementation;
+when risk or authority clarity matters; or when the user adds a role with
+review, sign-off, domain, tool, or quality responsibility.
+
+Each work card should include:
+
+- role_name: role or member name;
+- group: group or layer this role belongs to;
+- responsibility: what this role owns;
+- perspective: what this role watches for;
+- inputs: what this role needs before starting;
+- outputs_or_deliverables: what this role produces;
+- done_condition: how Roster knows this role has completed its part;
+- handoff_target: who receives the output next;
+- tool_or_capability_need: likely skill, plugin, tool, data, screenshot, OCR,
+  filesystem, runtime, or model need;
+- agent_assignment: `separate_agent`, `merged_with`,
+  `simulated_perspective`, `reviewer_only`, or `approval_gate_candidate`;
+- open_questions: ambiguity that must be resolved before execution.
+
+Assignment rules:
+
+- A work card can map to a separate agent, but it does not have to.
+- A small task may use one agent to carry several work cards.
+- A role can be a simulated perspective when separation is useful but runtime
+  subagents are not needed or unavailable.
+- Reviewer-only roles check outputs but do not own production.
+- Approval-gate candidates may block delivery only when the user or policy gives
+  explicit authority. They do not approve anything by themselves.
+- Capability needs are not tool authorization. They are inputs for CAP and
+  approval gates.
+- Handoff target means the next receiver; it is not the full v0.9 role
+  interaction-edge model.
+
+Do not ask ordinary users to choose assignment modes unless they ask for that
+level of detail. Work cards do not replace Team Operating Packet, CAP, runtime
+policy, verification, approval evidence, or final artifact acceptance.
 
 Good broad first-touch shape:
 

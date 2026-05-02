@@ -46,6 +46,37 @@ Fill notes:
 - Expanded members do not automatically become separate agents.
 - Group/member expansion is not the same as full role interaction-edge
   modeling.
+- When expanded members need execution clarity, fill Agent Work Cards or link
+  `templates/team_architect/agent_work_card.template.md`.
+
+## Agent Work Cards
+
+- work_card:
+  - role_name:
+  - group:
+  - responsibility:
+  - perspective:
+  - inputs:
+  - outputs_or_deliverables:
+  - done_condition:
+  - handoff_target:
+  - tool_or_capability_need:
+  - agent_assignment: separate_agent/merged_with/simulated_perspective/reviewer_only/approval_gate_candidate
+  - open_questions:
+
+Fill notes:
+
+- Work cards are actionable handoff units for expanded roles and members.
+- Do not fill work cards for ordinary short first-touch previews unless risk or
+  authority clarity requires it.
+- `agent_assignment` records the handling mode; it does not spawn runtime
+  agents by itself.
+- `tool_or_capability_need` is not authorization. Capability authorization stays
+  with CAP and approval gates.
+- `approval_gate_candidate` records possible gate authority only; it does not
+  approve or block delivery without user or policy authority.
+- `handoff_target` is the next receiver, not full role interaction-edge
+  modeling.
 
 ## Roles
 

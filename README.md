@@ -182,6 +182,27 @@ Roster should first show groups such as 問卷與中醫組, 統計與計分組, 
 醫師端組, and Quality 組. If you then ask it to expand, it should list the
 members under each group and what they produce or verify.
 
+### Work Cards
+
+When you ask who does what, ask to expand the work, or move into implementation
+planning, Roster can turn expanded members into Agent Work Cards.
+
+A work card states what the role owns, what it needs, what it produces, how its
+part is done, who receives the handoff, what capability it may need, and whether
+the role should be a separate agent, merged role, simulated perspective,
+reviewer-only role, or approval-gate candidate.
+
+Work cards do not automatically spawn separate agents. Capability needs are not
+tool authorization, and approval-gate candidates do not approve delivery unless
+the user or policy gives them that authority. A handoff target is only the next
+receiver; full role interaction modeling is a later planning layer.
+
+Short version:
+
+```text
+統計方法人員會交付「計分規格」：把每題如何轉成構面分數、門檻和解讀寫清楚。完成條件是使用者端和醫師端看到的是同一套可追蹤分數。小任務可和分數驗證合併；高風險時再拆成獨立 agent。
+```
+
 ## What Roster Does
 
 For a non-trivial artifact task, Roster helps Codex:

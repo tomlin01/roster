@@ -114,6 +114,79 @@ Risk:
 - Role inference can overstep if authority or approval boundaries are not
   clearly separated.
 
+### v0.8.1: Group Expansion UX Patch
+
+Goal:
+
+- Let broad multi-group plans expand into concrete group members when useful,
+  without overloading first-touch replies.
+
+User-facing behavior:
+
+- First touch shows group-level structure for broad tasks.
+- When the user asks to expand, or the task moves into implementation planning,
+  Roster can list group members with short responsibilities, perspectives, and
+  deliverables.
+- Roster states that expanded members do not automatically become separate
+  agents.
+
+Internal behavior:
+
+- Group expansion reuses the v0.8.0 role contextualization model.
+- Expansion stays below the full role interaction-edge model.
+
+Acceptance signal:
+
+- BCQ_III-style examples can show a group preview first, then expand each group
+  into members.
+- Added roles can be placed into an existing group, promoted to a peer role, or
+  treated as reviewer/approver when authority is explicit.
+
+Risk:
+
+- Expanded lists can become decorative if members do not carry executable work.
+
+### v0.8.2: Agent Work Card Contract
+
+Goal:
+
+- Make expanded roles and members actionable work units rather than display-only
+  roster labels.
+
+User-facing behavior:
+
+- Ordinary first-touch replies stay short.
+- When the user asks who does what, asks for implementation planning, or the
+  task is high risk, Roster can expand members into compact work cards.
+- Work cards make clear what each agent or simulated perspective needs, produces,
+  and hands off.
+
+Internal behavior:
+
+- Each work card records role name, group, responsibility, perspective, input,
+  output, done condition, handoff target, capability need, assignment mode, and
+  open questions.
+- Assignment mode distinguishes separate agent, merged role, simulated
+  perspective, reviewer-only, and approval-gate candidate.
+- Capability need is only a need signal; CAP still authorizes tools, plugins,
+  approvals, and runtime allowlists.
+- Approval-gate candidates do not approve anything by themselves.
+- Handoff target is a next receiver, not the full v0.9 role interaction-edge
+  model.
+
+Acceptance signal:
+
+- A BCQ_III statistics member can be turned into a work card with a concrete
+  scoring-spec deliverable, completion condition, handoff target, and capability
+  need.
+- Docs do not imply every work card spawns a separate subagent.
+- Docs do not treat work cards as full v0.9 role interaction edges.
+
+Risk:
+
+- Too much work-card detail can make Roster feel heavy if shown before the user
+  asks for planning depth.
+
 ### v0.9.0: Role Interaction Patterns
 
 Goal:
