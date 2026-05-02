@@ -195,13 +195,28 @@ reviewer-only role, or approval-gate candidate.
 Work cards do not automatically spawn separate agents. Capability needs are not
 tool authorization, and approval-gate candidates do not approve delivery unless
 the user or policy gives them that authority. A handoff target is only the next
-receiver; full role interaction modeling is a later planning layer.
+receiver; the deeper planning layer records how roles actually work together.
 
 Short version:
 
 ```text
 統計方法人員會交付「計分規格」：把每題如何轉成構面分數、門檻和解讀寫清楚。完成條件是使用者端和醫師端看到的是同一套可追蹤分數。小任務可和分數驗證合併；高風險時再拆成獨立 agent。
 ```
+
+### How Roles Work Together
+
+For complex rosters, Roster can also record how roles coordinate after their
+work cards exist. The public reply should stay plain:
+
+```text
+我會讓會議紀錄先交給簡報企劃，再由 Quality 回頭檢查是否漏掉決議。
+```
+
+Internally, the plan can distinguish handoffs, peer alignment, productive
+friction, review challenges, parallel contributions, Quality loops, and
+sign-off checks. These interactions do not grant tool access, do not spawn
+agents by themselves, and do not make a sign-off blocking unless the user or
+policy gives that role blocking authority.
 
 ## What Roster Does
 

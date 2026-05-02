@@ -78,6 +78,54 @@ Fill notes:
 - `handoff_target` is the next receiver, not full role interaction-edge
   modeling.
 
+## Role Interaction Edges
+
+- interaction_edge:
+  - source_role:
+  - target_roles:
+  - interaction_type: handoff/dialogue_friction_loop/peer_alignment/review_challenge/approval_signoff/parallel_contribution/quality_loop
+  - direction: one-way/two-way/parallel/loop
+  - trigger:
+  - shared_artifact:
+  - expected_output_or_decision:
+  - done_condition:
+  - revision_or_escalation_rule:
+  - authority_boundary: advises/challenges/requests_revision/blocks/signs_off
+  - capability_implication:
+  - fallback_owner:
+
+Fill notes:
+
+- Fill this section after roles, groups, or work cards need explicit
+  role-to-role coordination. For a standalone edge file, use
+  `templates/team_architect/role_interaction_edge.template.md`.
+- Role interaction edges are task-graph edges. They do not change governance
+  ownership, grant capability authorization, approve work, or execute runtime
+  adapters.
+- Capability implications feed the Capability Access Packet only; they are not
+  tool, plugin, model, screenshot, OCR, filesystem, or runtime authorization.
+- Interaction edges do not automatically spawn subagents.
+- `approval_signoff` blocks delivery only when user wording, task policy, or an
+  explicit approval boundary grants blocking authority. Otherwise use
+  `review_challenge` or reviewer-only advice.
+- `handoff_target` in an Agent Work Card records the next receiver only; this
+  section records how roles coordinate, revise, align, review, integrate, sign
+  off, or fall back.
+- Pattern definitions:
+  - `handoff`: one role passes a prepared artifact to the next role.
+  - `dialogue_friction_loop`: a counter-perspective role creates productive
+    friction before production.
+  - `peer_alignment`: same-level roles align assumptions, definitions, or
+    boundaries before handoff.
+  - `review_challenge`: one role checks another role's output and may request
+    revision without blocking by default.
+  - `approval_signoff`: one role can approve or block only when authority is
+    explicitly granted.
+  - `parallel_contribution`: multiple roles produce separate parts that later
+    integrate.
+  - `quality_loop`: Quality findings return to the responsible producer or
+    upstream owner for correction and recheck.
+
 ## Roles
 
 - role:

@@ -345,6 +345,95 @@ Short user-facing version:
 Work cards do not replace the Team Operating Packet, Capability Access Packet,
 runtime policy, verification, approval evidence, or final artifact acceptance.
 
+## Role Interaction Pattern Direction
+
+`v0.9.0` adds the next planning layer after work cards:
+
+```text
+roles -> group/member expansion -> work cards -> interaction edges
+```
+
+Role Interaction Patterns are role-to-role edges inside the team task graph.
+They record how roles coordinate around a shared artifact or decision. They are
+not governance ownership, tool authorization, runtime execution, or automatic
+subagent spawning.
+
+Use this layer when the team needs to know:
+
+- who hands off to whom;
+- who aligns as peers before handoff;
+- who challenges, reviews, or requests revision;
+- where Quality findings return for correction;
+- where sign-off may block only if authority was granted;
+- what shared artifact or decision anchors the interaction;
+- how the interaction completes, revises, escalates, or falls back.
+
+Keep ordinary user-facing wording natural:
+
+```text
+我會讓會議紀錄先交給簡報企劃，再由 Quality 回頭檢查是否漏掉決議。
+```
+
+Full pattern vocabulary:
+
+- `handoff`: one-way transfer of a prepared or completed artifact to the next
+  role. The authority boundary is work transfer, not approval.
+- `dialogue_friction_loop`: a counter-perspective role challenges a primary
+  role's clarity, assumptions, audience fit, or comprehension before
+  production. The default authority is advisory or revision-triggering.
+- `peer_alignment`: same-level roles align assumptions, definitions,
+  interfaces, or boundaries before handoff. This adds coordination, not approval
+  authority by default.
+- `review_challenge`: one role checks another role's output and may request
+  revision. It blocks only when user wording, task policy, or explicit approval
+  boundaries grant blocking authority.
+- `approval_signoff`: a sign-off gate that can approve or block the next step
+  only when the user or policy grants that authority.
+- `parallel_contribution`: multiple roles create separate parts that later
+  integrate through an integration owner or shared interface.
+- `quality_loop`: Quality findings return to the responsible producer or
+  upstream role for correction and recheck.
+
+Each detailed edge should record source role, target role or roles,
+interaction type, direction, trigger, shared artifact, expected output or
+decision, done condition, revision or escalation rule, authority boundary,
+capability implication, and fallback owner.
+
+Boundary rules:
+
+- Interaction edges alter task graph behavior, not governance ownership.
+- Capability implications are inputs to the Capability Access Packet only; they
+  do not authorize tools, plugins, models, screenshots, OCR, filesystem, or
+  runtime access.
+- Interaction edges do not automatically spawn subagents.
+- `approval_signoff` is blocking only when the user, task policy, or explicit
+  approval boundary grants blocking authority.
+
+Core examples:
+
+- Teacher + Student -> `dialogue_friction_loop`.
+- Engineering Technical Staff + Financial Technical Staff -> `peer_alignment`.
+- Producer + Quality Reviewer -> `quality_loop`.
+- Manager sign-off -> `approval_signoff` only when granted.
+
+Meeting notes to executive slides examples:
+
+- 原始內容整理人 -> 會議紀錄人員: `handoff`.
+- 會議紀錄人員 <-> 內容一致性檢查人員: `review_challenge`.
+- 主管視角整理人 <-> 簡報架構人員: `peer_alignment`.
+- 簡報製作人員 <-> 視覺整理人員: `quality_loop`.
+- 交付前檢查人員 -> 使用者: `approval_signoff` only if granted.
+
+BCQ_III examples:
+
+- 中醫內容負責人 -> 統計方法人員: `handoff`.
+- 統計方法人員 <-> 模型驗證人員: `peer_alignment` or `review_challenge`,
+  depending on authority.
+- 使用者端產品人員 + 醫師端產品人員: `parallel_contribution` followed by
+  integration.
+- APP 前端人員 <-> Quality 檢查人員: `quality_loop`.
+- 法務與隱私審查人員 -> 專案協調人: `approval_signoff` only if granted.
+
 ## Install Semantics
 
 `Install` should not mean deploying a server, daemon, database, or separate

@@ -240,6 +240,33 @@ Example short work-card explanation:
 統計方法人員會交付「計分規格」：把每題如何轉成構面分數、門檻和解讀寫清楚。完成條件是使用者端和醫師端看到的是同一套可追蹤分數。小任務可和分數驗證合併；高風險時再拆成獨立 agent。
 ```
 
+When the user asks how the team should collaborate, or when implementation
+planning needs more than next receivers, Roster should record role interaction
+patterns. Keep the first explanation plain:
+
+```text
+我會先讓會議紀錄人員整理決議和待辦，再交給簡報企劃壓成主管看的 6 頁架構。
+簡報初稿完成後，Quality 會回頭檢查是否漏掉決議、待辦是否有負責人、頁面是否能快速讀懂。
+```
+
+The detailed plan may record:
+
+- handoff: one role passes a prepared artifact to another role
+- dialogue friction loop: a counter-perspective challenges clarity before
+  production
+- peer alignment: same-level roles align assumptions or definitions before
+  handoff
+- review challenge: one role checks output and may request revision
+- approval sign-off: blocking only when the user or policy grants authority
+- parallel contribution: separate parts are produced in parallel and then
+  integrated
+- quality loop: Quality findings return to the responsible producer for
+  correction and recheck
+
+These interactions change the task graph, not tool access or governance
+ownership. They do not automatically create subagents, and capability needs
+remain authorization inputs rather than authorization itself.
+
 For Quality setup requests, Codex should answer as a project coordinator first,
 not as a governance explainer:
 

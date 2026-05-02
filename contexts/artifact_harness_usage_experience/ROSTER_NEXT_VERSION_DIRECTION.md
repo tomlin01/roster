@@ -344,6 +344,91 @@ Working principle:
 Expanded members become work units before they become runtime agents.
 ```
 
+## Role Interaction Patterns
+
+After roles are contextualized, groups are expanded, and work cards make each
+member actionable, Roster still needs to record how roles work together. This is
+the `v0.9.0` layer:
+
+```text
+roles -> work cards -> interaction edges
+```
+
+Role Interaction Patterns are task-graph edges between roles. They are not
+governance owners, tool authorization, runtime execution, approval execution, or
+automatic subagent spawning.
+
+Each interaction edge should record:
+
+- source role;
+- target role or roles;
+- interaction type;
+- direction: one-way, two-way, parallel, or loop;
+- trigger;
+- shared artifact;
+- expected output or decision;
+- done condition;
+- revision or escalation rule;
+- authority boundary;
+- capability implication;
+- fallback owner.
+
+Pattern types:
+
+- `handoff`: one role passes a completed or prepared artifact to another role.
+- `dialogue_friction_loop`: a counter-perspective role creates productive
+  friction with a primary role before production.
+- `peer_alignment`: same-level roles align assumptions, definitions,
+  interfaces, or boundaries before handoff.
+- `review_challenge`: one role checks another role's output and may request
+  revision without blocking by default.
+- `approval_signoff`: one role can approve or block the next step only when the
+  user or policy grants that authority.
+- `parallel_contribution`: multiple roles produce separate parts that later
+  integrate.
+- `quality_loop`: Quality findings return to the responsible producer or
+  upstream owner for correction and recheck.
+
+Boundaries:
+
+- Interaction edges alter task graph behavior, not governance ownership.
+- Capability implications are inputs to CAP only; they do not authorize tools,
+  plugins, model access, screenshots, OCR, filesystem access, or runtime access.
+- Approval signoff blocks only when user wording, policy, or an explicit
+  approval boundary grants blocking authority.
+- Interaction edges do not automatically spawn subagents.
+
+Common mappings:
+
+- Teacher + Student: `dialogue_friction_loop`.
+- Engineering Technical Staff + Financial Technical Staff: `peer_alignment`.
+- Producer + Quality Reviewer: `quality_loop`.
+- Manager sign-off: `approval_signoff` only when granted.
+
+BCQ_III examples:
+
+- 中醫內容負責人 -> 統計方法人員: `handoff`.
+- 統計方法人員 <-> 模型驗證人員: `peer_alignment` or `review_challenge`,
+  depending on authority.
+- 使用者端產品人員 + 醫師端產品人員: `parallel_contribution` followed by
+  integration.
+- APP 前端人員 <-> Quality 檢查人員: `quality_loop`.
+- 法務與隱私審查人員 -> 專案協調人: `approval_signoff` only if granted.
+
+Meeting notes to executive slides examples:
+
+- 原始內容整理人 -> 會議紀錄人員: `handoff`.
+- 會議紀錄人員 <-> 內容一致性檢查人員: `review_challenge`.
+- 主管視角整理人 <-> 簡報架構人員: `peer_alignment`.
+- 簡報製作人員 <-> 視覺整理人員: `quality_loop`.
+- 交付前檢查人員 -> 使用者: `approval_signoff` only if granted.
+
+Ordinary user-facing wording should stay natural:
+
+```text
+我會讓會議紀錄先交給簡報企劃，再由 Quality 回頭檢查是否漏掉決議。
+```
+
 ## Role Splitting And Merging
 
 The same role name does not always mean the same role. Roster should decide
@@ -633,7 +718,7 @@ Role interaction pattern answers:
 - Do two roles align as peers before production?
 - Does one role challenge another before production?
 - Does one role review and request revisions?
-- Does one role approve or block the next step?
+- Does one role approve or block the next step when authority was granted?
 - Do several roles contribute in parallel and then integrate?
 - Does Quality loop back to the producer or to an earlier role?
 
@@ -667,7 +752,8 @@ Suggested vocabulary:
   definitions before handoff.
 - `review_challenge`: one role reviews another role's output and may request
   revision, without final approval authority by default.
-- `approval_signoff`: a role can block or approve the next step.
+- `approval_signoff`: a role can approve or block the next step only when the
+  user or policy grants that authority.
 - `parallel_contribution`: roles produce separate parts that later integrate.
 - `quality_loop`: quality findings return to the responsible producer or
   upstream role for correction.
@@ -693,9 +779,10 @@ Pattern details:
   - Use when one role checks another role's output but does not hold final
     sign-off by default.
 - `approval_signoff`
-  - Direction: producer to approver, with blocking authority.
-  - Use only when the user gives sign-off authority or risk requires explicit
-    gate tracking.
+  - Direction: producer to approver, with blocking authority only when granted.
+  - Use only when the user, task policy, or explicit approval boundary gives
+    sign-off authority. If authority is not granted, record reviewer-only advice
+    or `review_challenge` instead.
 - `parallel_contribution`
   - Direction: parallel branches into integration.
   - Use when roles produce separate components that must be combined.

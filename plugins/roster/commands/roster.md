@@ -152,6 +152,66 @@ Do not ask the user to choose assignment modes unless they ask for design
 detail. Work cards do not replace review, final acceptance, approval evidence,
 CAP, runtime policy, or the Team Operating Packet.
 
+## Role Interactions
+
+When the roster needs more than `who does what`, explain how roles work together
+in plain language first. Keep ordinary replies practical:
+
+```text
+我會讓會議紀錄先交給簡報企劃，再由 Quality 回頭檢查是否漏掉決議。
+```
+
+Use internal interaction patterns only when creating or reviewing the detailed
+team plan. Keep the layers separate:
+
+- role list: visible team roles
+- group/member expansion: concrete members inside broad groups
+- Agent Work Cards: ownership, inputs, outputs, completion, and next receiver
+- Role Interaction Patterns: role-to-role edges for coordination, revision,
+  review, alignment, sign-off, and fallback
+
+Supported interaction types:
+
+- `handoff`: one role passes a prepared artifact to another role
+- `dialogue_friction_loop`: a counter-perspective challenges a primary role
+  before production
+- `peer_alignment`: same-level roles align assumptions, definitions, or
+  boundaries before handoff
+- `review_challenge`: one role checks another role's output and may request
+  revision without blocking by default
+- `approval_signoff`: blocks only when the user or policy grants blocking
+  authority
+- `parallel_contribution`: multiple roles create separate parts that later
+  integrate
+- `quality_loop`: Quality findings return to the responsible producer or
+  upstream owner for correction and recheck
+
+For each detailed edge, record source role, target role or roles, interaction
+type, direction, trigger, shared artifact, expected output or decision, done
+condition, revision or escalation rule, authority boundary, capability
+implication, and fallback owner.
+
+Boundaries:
+
+- interaction edges change task graph behavior, not governance ownership
+- interaction edges do not grant tools, plugins, model access, screenshots,
+  OCR, filesystem access, or runtime authority
+- capability implications are inputs for CAP only
+- interaction edges do not automatically spawn subagents
+- manager, legal, or final checks block delivery only when user wording or
+  policy grants that authority
+
+Example mappings:
+
+- Teacher + Student -> `dialogue_friction_loop`
+- Engineering Technical Staff + Financial Technical Staff -> `peer_alignment`
+- Producer + Quality Reviewer -> `quality_loop`
+- 原始內容整理人 -> 會議紀錄人員 -> `handoff`
+- 會議紀錄人員 <-> 內容一致性檢查人員 -> `review_challenge`
+- 主管視角整理人 <-> 簡報架構人員 -> `peer_alignment`
+- 簡報製作人員 <-> 視覺整理人員 -> `quality_loop`
+- 交付前檢查人員 -> 使用者 -> `approval_signoff` only if granted
+
 Example first touch:
 
 ```text

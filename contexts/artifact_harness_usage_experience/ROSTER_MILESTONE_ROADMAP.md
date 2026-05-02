@@ -203,6 +203,10 @@ Internal behavior:
 
 - Team Operating Packet records interaction edges.
 - Role interaction edges alter task graph behavior, not governance ownership.
+- Work-card `handoff_target` remains a next receiver; interaction edges record
+  direction, shared artifact, authority boundary, revision/escalation, and
+  fallback behavior.
+- Capability implications from edges are CAP inputs only, not authorization.
 
 In scope:
 
@@ -234,6 +238,11 @@ Acceptance signal:
 Risk:
 
 - Too much vocabulary can leak into user-facing replies if not constrained.
+
+Packet:
+
+- `contexts/task_runs/roster-v0_9-role-interaction-patterns-2026-05-02/`
+- `contexts/artifact_harness_usage_experience/developer_reports/prompt_v0_9_role_interaction_patterns.prompt.md`
 
 ### v0.10.0: Perspective Separation And Subagent Policy
 

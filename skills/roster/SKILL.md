@@ -383,6 +383,120 @@ Do not ask ordinary users to choose assignment modes unless they ask for that
 level of detail. Work cards do not replace Team Operating Packet, CAP, runtime
 policy, verification, approval evidence, or final artifact acceptance.
 
+## Role Interaction Patterns
+
+Use Role Interaction Patterns when a roster has moved beyond visible roles,
+expanded members, or Agent Work Cards and needs to record how roles work
+together inside the task graph.
+
+Keep these layers distinct:
+
+- role list: who is in the team and what broad layer each role covers
+- group/member expansion: which concrete members sit inside broad groups
+- Agent Work Cards: what each role owns, needs, produces, and hands off next
+- Role Interaction Patterns: how two or more roles coordinate, revise, align,
+  review, sign off, or fall back around a shared artifact or decision
+
+Do not dump interaction-edge fields in ordinary first-touch replies. First tell
+the user the practical collaboration in plain language, for example:
+
+```text
+我會先讓會議紀錄人員整理決議和待辦，再交給簡報企劃壓成主管看的 6 頁架構。
+簡報初稿完成後，Quality 會回頭檢查是否漏掉決議、待辦是否有負責人、頁面是否能快速讀懂。
+```
+
+Record an interaction edge with:
+
+- source role
+- target role or roles
+- interaction type
+- direction: one-way, two-way, parallel, or loop
+- trigger
+- shared artifact
+- expected output or decision
+- done condition
+- revision or escalation rule
+- authority boundary
+- capability implication
+- fallback owner
+
+Pattern vocabulary:
+
+- `handoff`: one-way. Use when one role passes a prepared or completed artifact
+  to the next role. Authority is transfer of work, not approval. Shared
+  artifact is the handoff object. If the target cannot use it, return to the
+  source role for clarification or assign the fallback owner.
+- `dialogue_friction_loop`: two-way loop. Use when a counter-perspective role
+  challenges clarity, assumptions, audience fit, or comprehension before
+  production. Authority is advisory or revision-triggering by default. Shared
+  artifact is the draft idea, explanation, or decision being tested. Escalate
+  only when the conflict changes scope, authority, or acceptance.
+- `peer_alignment`: two-way. Use when same-level roles must align definitions,
+  assumptions, boundaries, or interfaces before handoff. Authority is shared
+  alignment, not review or approval by default. Shared artifact is the aligned
+  definition, interface, or decision note. If peers disagree, escalate to the
+  role named as fallback owner or to the user when the decision changes the
+  deliverable.
+- `review_challenge`: one-way or two-way review loop. Use when one role checks
+  another role's output and may request revision. Authority is challenge or
+  revision request unless user or policy grants blocking power. Shared artifact
+  is the reviewed output plus findings. Done when findings are resolved,
+  accepted as non-blocking, or escalated.
+- `approval_signoff`: one-way gate. Use when a role can approve or block the
+  next step only because the user, task contract, or policy grants that
+  authority. Shared artifact is the sign-off decision and evidence. If authority
+  is not granted, treat the role as reviewer-only or advisory.
+- `parallel_contribution`: parallel. Use when multiple roles produce separate
+  parts that must later integrate. Authority remains with each role's own part
+  unless otherwise granted. Shared artifact is the integration plan, interface,
+  or combined output. Escalate when parts conflict or the integration owner
+  cannot reconcile them.
+- `quality_loop`: loop. Use when Quality findings return to the responsible
+  producer or upstream owner for correction and recheck. Authority is bounded
+  Quality review; blocking delivery requires user or policy authority. Shared
+  artifact is the inspected output and Quality findings. Done when material
+  issues are corrected or explicitly accepted as remaining risk.
+
+Boundary rules:
+
+- Interaction edges alter task graph behavior, not governance ownership.
+- Interaction edges do not automatically spawn subagents.
+- Capability implications from an edge are only inputs to CAP; they are not
+  tool, plugin, model, screenshot, OCR, runtime, or filesystem authorization.
+- Approval signoff blocks delivery only when user wording, task policy, or an
+  explicit approval boundary grants blocking authority.
+- Runtime adapters remain execution layers only.
+
+Required pattern mappings:
+
+- Teacher + Student: `dialogue_friction_loop`.
+- Engineering Technical Staff + Financial Technical Staff: `peer_alignment`.
+- Producer + Quality Reviewer: `quality_loop`.
+- Manager sign-off: `approval_signoff` only when the user or policy grants
+  blocking authority.
+
+BCQ_III interaction examples:
+
+- 中醫內容負責人 -> 統計方法人員: `handoff` around questionnaire constructs and
+  scoring inputs.
+- 統計方法人員 <-> 模型驗證人員: `peer_alignment` for shared assumptions, or
+  `review_challenge` when validation is checking a completed scoring output.
+- 使用者端產品人員 + 醫師端產品人員: `parallel_contribution` followed by an
+  integration step.
+- APP 前端人員 <-> Quality 檢查人員: `quality_loop` for UI/readability/product
+  corrections.
+- 法務與隱私審查人員 -> 專案協調人: `approval_signoff` only if granted; otherwise
+  reviewer-only risk advice.
+
+Meeting notes to executive slides interaction examples:
+
+- 原始內容整理人 -> 會議紀錄人員: `handoff`.
+- 會議紀錄人員 <-> 內容一致性檢查人員: `review_challenge`.
+- 主管視角整理人 <-> 簡報架構人員: `peer_alignment`.
+- 簡報製作人員 <-> 視覺整理人員: `quality_loop`.
+- 交付前檢查人員 -> 使用者: `approval_signoff` only if the user grants final
+  sign-off authority.
+
 Good broad first-touch shape:
 
 ```text
