@@ -185,3 +185,7 @@ recorded.
 First in-thread behavior run:
 
 - `BCQ_III_GROUP_EXPANSION_RUN_2026-05-02.md`
+
+Work-card completion run after `v0.8.2`:
+
+- `BCQ_III_AGENT_WORK_CARD_RUN_2026-05-02.md`
