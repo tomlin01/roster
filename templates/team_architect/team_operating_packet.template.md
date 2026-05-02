@@ -26,6 +26,27 @@
 - chosen collaboration pattern:
 - why this pattern fits:
 
+## Groups
+
+- group:
+  - purpose:
+  - when_to_expand:
+  - members:
+    - member:
+      - responsibility:
+      - perspective:
+      - deliverable:
+      - agent_instance: merged/single/peer/reviewer/approver/counter_perspective
+
+Fill notes:
+
+- Broad first-touch replies may show groups first and defer member expansion.
+- Expand groups when the user asks, implementation planning begins, or risk
+  requires explicit responsibility and perspective.
+- Expanded members do not automatically become separate agents.
+- Group/member expansion is not the same as full role interaction-edge
+  modeling.
+
 ## Roles
 
 - role:
