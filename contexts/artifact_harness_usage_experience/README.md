@@ -301,6 +301,8 @@ Each Agent Work Card should include:
 - `handoff_target`: who receives the output next.
 - `tool_or_capability_need`: likely skill, plugin, tool, data, screenshot, OCR,
   filesystem, runtime, or model need.
+- `capability_needs`: detailed Capability-Aware Role Execution entries with
+  capability, purpose, availability, evidence expected, and fallback.
 - `agent_assignment`: `separate_agent`, `merged_with`,
   `simulated_perspective`, `reviewer_only`, or `approval_gate_candidate`.
 - `open_questions`: ambiguity that must be resolved before execution.
@@ -344,6 +346,41 @@ Short user-facing version:
 
 Work cards do not replace the Team Operating Packet, Capability Access Packet,
 runtime policy, verification, approval evidence, or final artifact acceptance.
+
+## Capability-Aware Role Execution Direction
+
+`v0.10.0` adds execution awareness after work cards and interaction edges:
+
+```text
+role -> work -> interaction -> capability need -> availability -> fallback
+```
+
+Roster plans capability needs; CAP authorizes access; runtime executes.
+
+The initial capability vocabulary is `reasoning_only`, `filesystem_read`,
+`filesystem_write`, `code_execution`, `web_search`, `browser`,
+`visual_capture`, `vision_review`, `specialist_skill`, `plugin_or_connector`,
+and `subagent_execution`. Availability is one of `available`,
+`available_after_reload`, `available_if_approved`, `unknown`, or
+`unavailable`.
+
+This layer should stay internal unless the user asks for planning detail,
+review, debug, or governance explanation. Ordinary first-touch replies should
+say what the role will do and what fallback applies, not show a capability
+matrix.
+
+Examples:
+
+- Research Reviewer: web/browser evidence with source summaries; fallback to
+  user-provided sources or local files.
+- Visual QA: screenshot/render/frame/OCR/CV evidence; fallback to limited
+  visual acceptance until evidence exists.
+- Slide Producer: specialist skill/plugin/filesystem write; fallback to outline
+  or HTML draft.
+- Skill Reviewer: filesystem read and optional patch; fallback to diagnosis
+  without patch.
+- Statistical Reviewer: code execution/statistics skill; fallback to conceptual
+  review only.
 
 ## Role Interaction Pattern Direction
 

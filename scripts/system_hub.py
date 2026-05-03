@@ -106,6 +106,28 @@ ROSTER_HEALTH_PACKET_UTTERANCE = "@roster make a review-ready Roster health-chec
 ROSTER_PREFERENCES_FILENAME = "roster_preferences.json"
 ROSTER_PREFERENCES_SCHEMA_VERSION = 1
 ROSTER_PREFERENCES_MAX_ACTIVE = 12
+ROSTER_CAPABILITY_EXECUTION_CHAIN = "role -> work -> interaction -> capability need -> availability -> fallback"
+ROSTER_CAPABILITY_BOUNDARY = "Roster plans capability needs; CAP authorizes access; runtime executes."
+ROSTER_CAPABILITY_CATEGORIES = (
+    "reasoning_only",
+    "filesystem_read",
+    "filesystem_write",
+    "code_execution",
+    "web_search",
+    "browser",
+    "visual_capture",
+    "vision_review",
+    "specialist_skill",
+    "plugin_or_connector",
+    "subagent_execution",
+)
+ROSTER_CAPABILITY_AVAILABILITY_STATES = (
+    "available",
+    "available_after_reload",
+    "available_if_approved",
+    "unknown",
+    "unavailable",
+)
 ROSTER_PROVIDER_AUTH_ENV_DEFAULTS = {
     "openai": "OPENAI_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
@@ -10982,6 +11004,162 @@ def build_roster_cv_capability_check(cv_provider_arg: str | None, cv_auth_env_ar
     }
 
 
+def roster_capability_record(
+    availability: str,
+    purpose: str,
+    evidence: str,
+    fallback: str,
+    *,
+    scope: str = "active host/runtime capability",
+) -> dict[str, Any]:
+    return {
+        "availability": availability,
+        "purpose": purpose,
+        "scope": scope,
+        "evidence": evidence,
+        "fallback": fallback,
+        "authorization_owner": "Capability Access Packet",
+        "runtime_owner": "active runtime/host",
+    }
+
+
+def build_roster_capability_summary(
+    *,
+    visible: bool,
+    packet_output: dict[str, Any],
+    provider_check: dict[str, Any],
+    cv_capability: dict[str, Any],
+    installed_skill: dict[str, Any],
+    installed_plugin: dict[str, Any],
+) -> dict[str, Any]:
+    packet_output_verified = bool(
+        packet_output.get("status") == "success"
+        and packet_output.get("under_target_workspace") is True
+        and packet_output.get("expected_paths_exist") is True
+    )
+    skill_requested = bool(installed_skill.get("requested"))
+    plugin_requested = bool(installed_plugin.get("requested"))
+    plugin_installed = installed_plugin.get("status") == "installed"
+    skill_installed = installed_skill.get("status") == "installed"
+    provider_configured = provider_check.get("status") == "configured"
+    cv_status = cv_capability.get("status")
+    if cv_status == "configured":
+        vision_availability = "available_if_approved"
+        vision_evidence = "CV/vision provider credential variable is present; no remote vision call was attempted."
+    elif cv_status == "missing_auth":
+        vision_availability = "unavailable"
+        vision_evidence = "A CV/vision provider check was requested, but required local auth evidence is missing."
+    else:
+        vision_availability = "unknown"
+        vision_evidence = "No CV/vision provider capability was proven by the local health check."
+
+    plugin_availability = "unknown"
+    plugin_evidence = "roster-health did not inspect external plugins or connectors."
+    if plugin_installed:
+        plugin_availability = "available_after_reload"
+        plugin_evidence = "The local Roster plugin is installed; UI mention/slash visibility still requires Codex reload or host verification; external connectors remain unknown."
+    elif plugin_requested:
+        plugin_availability = "unavailable"
+        plugin_evidence = "A Roster plugin install check was requested and did not find an installed plugin."
+
+    specialist_availability = "unknown"
+    specialist_evidence = "roster-health verifies Roster install state only; it does not inventory unrelated specialist skills."
+    if skill_installed:
+        specialist_evidence = "The local Roster skill is installed; unrelated specialist skill availability remains unknown."
+    elif skill_requested:
+        specialist_availability = "unavailable"
+        specialist_evidence = "A Roster skill install check was requested and did not find the installed Roster skill."
+
+    categories = {
+        "reasoning_only": roster_capability_record(
+            "available",
+            "planning, critique, synthesis, simulated perspectives",
+            "The health command is running inside an active assistant/CLI planning surface.",
+            "Keep the role as an explicit simulated perspective in one agent.",
+        ),
+        "filesystem_read": roster_capability_record(
+            "available",
+            "inspect local packets, templates, source files, and repo state",
+            "roster-health read local config and route evidence through the repo CLI.",
+            "Ask the user for pasted content or a reachable local path.",
+        ),
+        "filesystem_write": roster_capability_record(
+            "available_if_approved" if packet_output_verified else "unknown",
+            "write or update workspace artifacts under the task boundary",
+            "Smoke packet output was created under the target workspace." if packet_output_verified else "No successful target-workspace write was verified.",
+            "Prepare a patch or handoff text instead of writing files.",
+        ),
+        "code_execution": roster_capability_record(
+            "available",
+            "run local scripts, checks, data processing, and validation",
+            "roster-health itself executed the repo Python/Bash adapter locally.",
+            "Use conceptual review only or ask for an execution-capable environment.",
+        ),
+        "web_search": roster_capability_record(
+            "unknown",
+            "verify current public sources or external claims",
+            "Repo-local health cannot prove whether the active LLM host exposes web search.",
+            "Ask the user for sources or proceed with local files only.",
+        ),
+        "browser": roster_capability_record(
+            "unknown",
+            "inspect rendered pages, docs, local apps, or interactive browser state",
+            "Repo-local health cannot prove browser automation or in-app browser availability.",
+            "Use static files, exported artifacts, or ask the user for the rendered evidence.",
+        ),
+        "visual_capture": roster_capability_record(
+            "unknown",
+            "capture screenshots, renders, playback frames, or screen evidence",
+            "Visual capture is represented as a CAP request plan; no host screenshot/browser capture was performed.",
+            "Use existing rendered files or ask the user for screenshot/frame evidence.",
+        ),
+        "vision_review": roster_capability_record(
+            vision_availability,
+            "OCR, image inspection, readability, overlap, and CV review",
+            vision_evidence,
+            "Limit acceptance to non-visual checks or ask for human-inspected visual evidence.",
+        ),
+        "specialist_skill": roster_capability_record(
+            specialist_availability,
+            "invoke an installed specialist skill as producer, verifier, or source reference",
+            specialist_evidence,
+            "Use ordinary role guidance or ask the user to confirm the specialist skill surface.",
+        ),
+        "plugin_or_connector": roster_capability_record(
+            plugin_availability,
+            "use an installed plugin, app connector, or external service integration",
+            plugin_evidence,
+            "Use local files, manual export/import, or ask the user to connect the service.",
+        ),
+        "subagent_execution": roster_capability_record(
+            "unknown",
+            "split bounded work into separate agents when runtime support and task risk justify it",
+            "Repo-local health cannot prove active host subagent support.",
+            "Keep roles as explicit perspectives inside one agent and preserve handoff checks.",
+        ),
+    }
+    if provider_configured:
+        categories["reasoning_only"]["evidence"] = "A provider credential variable is present for local configuration; no remote model call was attempted."
+
+    return {
+        "schema_version": 1,
+        "execution_model": "Capability-Aware Role Execution",
+        "planning_chain": ROSTER_CAPABILITY_EXECUTION_CHAIN,
+        "boundary": ROSTER_CAPABILITY_BOUNDARY,
+        "categories": list(ROSTER_CAPABILITY_CATEGORIES),
+        "availability_states": list(ROSTER_CAPABILITY_AVAILABILITY_STATES),
+        "host_capabilities": categories,
+        "conservative_reporting": True,
+        "visibility_route_proven": visible,
+        "remote_calls_attempted": False,
+        "notes": [
+            "Capability need is not authorization.",
+            "Use unknown when local health cannot prove active host support.",
+            "Subagent execution is one conditional capability category, not the default role model.",
+        ],
+    }
+
+
 def roster_health_route_command(config: HubConfig, utterance: str, target: Path, *, create: bool = False, packet_id: str | None = None) -> list[str]:
     command = [
         "bash",
@@ -11203,6 +11381,14 @@ def build_roster_health_report(
     cv_capability = build_roster_cv_capability_check(cv_provider, cv_auth_env)
     installed_skill = roster_skill_install_check(codex_home, skills_root, requested=bool(codex_home or skills_root))
     installed_plugin = roster_plugin_install_check(codex_home, requested=bool(codex_home))
+    capability_summary = build_roster_capability_summary(
+        visible=visible,
+        packet_output=packet_output,
+        provider_check=provider_check,
+        cv_capability=cv_capability,
+        installed_skill=installed_skill,
+        installed_plugin=installed_plugin,
+    )
     dependency_check = {
         "persistent_server_required": False,
         "daemon_required": False,
@@ -11260,6 +11446,7 @@ def build_roster_health_report(
         "packet_output": packet_output,
         "llm_provider": provider_check,
         "cv_inspection_capability": cv_capability,
+        "capability_summary": capability_summary,
         "runtime_dependency_check": dependency_check,
         "portable_setup": [
             "repo files: scripts/brain.sh, scripts/system_hub.py, policy/system_hub.toml, contexts/team_alias_registry.json, skills/roster, plugins/roster, templates/",
@@ -11282,6 +11469,11 @@ def build_roster_health_report(
 
 
 def render_roster_health_markdown(payload: dict[str, Any]) -> str:
+    capability_summary = payload.get("capability_summary", {}) if isinstance(payload.get("capability_summary"), dict) else {}
+    host_capabilities = capability_summary.get("host_capabilities", {}) if isinstance(capability_summary.get("host_capabilities"), dict) else {}
+    web_search_status = host_capabilities.get("web_search", {}).get("availability") if isinstance(host_capabilities.get("web_search"), dict) else None
+    browser_status = host_capabilities.get("browser", {}).get("availability") if isinstance(host_capabilities.get("browser"), dict) else None
+    subagent_status = host_capabilities.get("subagent_execution", {}).get("availability") if isinstance(host_capabilities.get("subagent_execution"), dict) else None
     lines = [
         "# Roster Health Check",
         "",
@@ -11296,9 +11488,12 @@ def render_roster_health_markdown(payload: dict[str, Any]) -> str:
         f"- Packet output: `{payload.get('packet_output', {}).get('status')}`",
         f"- LLM/provider: `{payload.get('llm_provider', {}).get('status')}`",
         f"- CV inspection: `{payload.get('cv_inspection_capability', {}).get('status')}`",
+        f"- Capability model: `{capability_summary.get('execution_model')}`",
+        f"- Web/browser/subagents: `{web_search_status}` / `{browser_status}` / `{subagent_status}`",
         "",
         "## Boundaries",
         "",
+        f"- {capability_summary.get('boundary') or ROSTER_CAPABILITY_BOUNDARY}",
         "- `@roster` and `/roster` require Codex to reload plugin state before UI verification.",
         "- No persistent server, daemon, database, separate UI, or external control plane is required.",
         "- Provider and CV secrets are checked only for presence and are not printed.",

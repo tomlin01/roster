@@ -361,6 +361,8 @@ Each work card should include:
 - handoff_target: who receives the output next;
 - tool_or_capability_need: likely skill, plugin, tool, data, screenshot, OCR,
   filesystem, runtime, or model need;
+- capability_needs: list of capability, purpose, availability,
+  evidence_expected, and fallback when execution planning needs detail;
 - agent_assignment: `separate_agent`, `merged_with`,
   `simulated_perspective`, `reviewer_only`, or `approval_gate_candidate`;
 - open_questions: ambiguity that must be resolved before execution.
@@ -382,6 +384,87 @@ Assignment rules:
 Do not ask ordinary users to choose assignment modes unless they ask for that
 level of detail. Work cards do not replace Team Operating Packet, CAP, runtime
 policy, verification, approval evidence, or final artifact acceptance.
+
+## Capability-Aware Role Execution
+
+Use Capability-Aware Role Execution when moving from visible roles or work
+cards toward execution planning. The planning chain is:
+
+```text
+role -> work -> interaction -> capability need -> availability -> fallback
+```
+
+Roster plans capability needs; CAP authorizes access; runtime executes.
+
+Treat subagents as one capability category, not the v0.10.0 headline. If a role
+is not split into a subagent, keep its perspective explicit in the main agent
+or work card.
+
+Capability categories:
+
+- `reasoning_only`
+- `filesystem_read`
+- `filesystem_write`
+- `code_execution`
+- `web_search`
+- `browser`
+- `visual_capture`
+- `vision_review`
+- `specialist_skill`
+- `plugin_or_connector`
+- `subagent_execution`
+
+Availability states:
+
+- `available`: current host/runtime can use it now.
+- `available_after_reload`: installed or registered, but the host likely needs
+  reload/restart.
+- `available_if_approved`: capability exists but should wait for CAP, approval
+  gate, or explicit user approval.
+- `unknown`: local evidence cannot prove active host/runtime support.
+- `unavailable`: current host/runtime does not expose this capability.
+
+When a work card needs execution detail, add capability planning fields:
+
+```text
+capability_needs:
+- capability:
+  purpose:
+  availability:
+  evidence_expected:
+  fallback:
+```
+
+Use `unknown` for host-dependent tools when the current environment has not
+proven them: web search, browser, screenshot/visual capture, CV/vision review,
+plugins/connectors, and subagent execution. Do not say Roster has those tools
+as universal built-ins.
+
+Role examples:
+
+- Research Reviewer: needs `web_search` and `browser`; expects URLs, dates, and
+  source summaries; falls back to user-provided sources or local files only.
+- Visual QA: needs `visual_capture`, `vision_review`, and possibly `browser`;
+  expects screenshot/render/frame/OCR/CV findings; falls back to limited visual
+  acceptance until evidence exists.
+- Slide Producer: needs `specialist_skill`, `plugin_or_connector`, and possibly
+  `filesystem_write`; expects generated slides plus verification; falls back to
+  an outline or HTML draft when deck tooling is unavailable.
+- Skill Reviewer: needs `filesystem_read`, optionally `filesystem_write` for a
+  patch; expects diagnosis, file-line findings, and optional diff; falls back
+  to diagnosis without patch.
+- Statistical Reviewer: needs `code_execution` and possibly `specialist_skill`;
+  expects reproducible checks, test cases, and assumption notes; falls back to
+  conceptual review only.
+
+Keep capability matrices out of ordinary first-touch replies. User-facing text
+should mention the practical behavior and fallback only when useful, for
+example:
+
+```text
+我會先用本機資料整理第一版；如果需要外部查證，我會讓查證角色去找來源並留下引用。
+如果目前環境不能查，我會改請你提供來源。
+```
 
 ## Role Interaction Patterns
 
@@ -547,6 +630,10 @@ skill and local plugin/slash surface:
 <brain_command> roster-uninstall --codex-home <codex-home> --json
 <brain_command> roster-health --codex-home <codex-home> --path <workspace> --json
 ```
+
+`roster-health --json` reports a conservative `capability_summary` for
+Capability-Aware Role Execution. Host-dependent capabilities should remain
+`unknown` unless local evidence proves availability.
 
 `roster-uninstall` should remove only a manifest-owned Roster install by
 default; use `--force` only when the user confirms an unknown same-name skill

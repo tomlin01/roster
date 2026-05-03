@@ -222,6 +222,8 @@ A work card should state:
 - done condition
 - handoff target
 - tool or capability need
+- detailed capability needs when execution planning needs availability,
+  expected evidence, and fallback
 - assignment mode
 - open questions
 
@@ -233,6 +235,19 @@ Work cards do not automatically spawn subagents. Capability needs are not tool
 authorization, approval-gate candidates do not approve anything by themselves,
 and handoff target is only the next receiver rather than full role interaction
 modeling.
+
+Capability-Aware Role Execution adds this internal chain:
+
+```text
+role -> work -> interaction -> capability need -> availability -> fallback
+```
+
+Roster plans capability needs; CAP authorizes access; runtime executes.
+
+Use `unknown` for web search, browser, visual capture, vision review,
+plugins/connectors, or subagent execution when the active host has not proven
+that capability. Keep this detail out of ordinary first-touch replies unless
+the user asks for execution planning or capability review.
 
 Example short work-card explanation:
 

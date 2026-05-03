@@ -3045,6 +3045,29 @@ def test_roster_health_smoke_json_reports_missing_provider_and_target_packet_out
         assert_true(payload["cv_inspection_capability"]["user_evidence_fallback"]["status"] == "last_fallback", "CV health should report user screenshots/frames as final fallback")
         assert_true(payload["cv_inspection_capability"]["no_visual_evidence_policy"], "CV health should include the no-visual-evidence policy")
         assert_true(payload["cv_inspection_capability"]["default_health_blocked"] is False, "default health should not be blocked by missing CV provider auth")
+        assert_true(payload["capability_summary"]["execution_model"] == "Capability-Aware Role Execution", "health should expose the v0.10 capability-aware execution model")
+        assert_true(payload["capability_summary"]["planning_chain"] == "role -> work -> interaction -> capability need -> availability -> fallback", "health should expose the v0.10 planning chain")
+        assert_true(payload["capability_summary"]["boundary"] == "Roster plans capability needs; CAP authorizes access; runtime executes.", "health should preserve Roster/CAP/runtime boundaries")
+        for category in (
+            "reasoning_only",
+            "filesystem_read",
+            "filesystem_write",
+            "code_execution",
+            "web_search",
+            "browser",
+            "visual_capture",
+            "vision_review",
+            "specialist_skill",
+            "plugin_or_connector",
+            "subagent_execution",
+        ):
+            assert_true(category in payload["capability_summary"]["host_capabilities"], f"health should report capability category {category}")
+        assert_true(payload["capability_summary"]["host_capabilities"]["web_search"]["availability"] == "unknown", "health should not overclaim host web search")
+        assert_true(payload["capability_summary"]["host_capabilities"]["browser"]["availability"] == "unknown", "health should not overclaim browser support")
+        assert_true(payload["capability_summary"]["host_capabilities"]["visual_capture"]["availability"] == "unknown", "health should not overclaim visual capture support")
+        assert_true(payload["capability_summary"]["host_capabilities"]["subagent_execution"]["availability"] == "unknown", "health should not overclaim subagent support")
+        assert_true(payload["capability_summary"]["host_capabilities"]["filesystem_write"]["availability"] == "available_if_approved", "successful packet smoke output should prove only approval-gated filesystem write capability")
+        assert_true(payload["capability_summary"]["remote_calls_attempted"] is False, "capability summary should not imply remote calls")
         assert_true(payload["runtime_dependency_check"]["persistent_server_required"] is False, "health should not require a persistent server")
         assert_true(payload["runtime_dependency_check"]["daemon_required"] is False, "health should not require a daemon")
         assert_true(payload["runtime_dependency_check"]["database_required"] is False, "health should not require a database")
@@ -3102,6 +3125,7 @@ def test_roster_health_provider_missing_auth_and_configured_auth_are_structured_
         assert_true(configured_payload["llm_provider"]["remote_call_attempted"] is False, "health should not pretend to make a remote model call")
         assert_true(configured_payload["cv_inspection_capability"]["status"] == "not_configured", "CV auth absence should not degrade configured LLM health when not explicitly requested")
         assert_true(configured_payload["cv_inspection_capability"]["explicit_check_requested"] is False, "CV check should be optional without --cv-provider or --cv-auth-env")
+        assert_true(configured_payload["capability_summary"]["host_capabilities"]["vision_review"]["availability"] == "unknown", "configured LLM auth should not imply configured vision review")
         assert_true("placeholder-roster-health-token" not in configured.stdout, "health output must not print provider secrets")
         assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "roster-health should clean smoke registry after provider checks")
 
@@ -3127,6 +3151,7 @@ def test_roster_health_provider_missing_auth_and_configured_auth_are_structured_
         assert_true(cv_missing_payload["cv_inspection_capability"]["status"] == "missing_auth", "explicit CV provider check should report missing auth")
         assert_true(cv_missing_payload["cv_inspection_capability"]["auth_env_var"] == "OPENAI_API_KEY", "CV provider default auth env should be named")
         assert_true(cv_missing_payload["cv_inspection_capability"]["remote_call_attempted"] is False, "CV missing-auth check should stay local-only")
+        assert_true(cv_missing_payload["capability_summary"]["host_capabilities"]["vision_review"]["availability"] == "unavailable", "explicit missing CV auth should not be reported as available")
         assert_true("placeholder-roster-test-token" not in cv_missing.stdout, "CV health output must not print provider secrets")
 
 
@@ -3206,6 +3231,8 @@ def test_roster_install_temp_codex_home_and_health_detects_skill() -> None:
         assert_true(health_payload["verified_invocation_mechanism"]["current_codex_surface"]["skill"] == "installed", "health surface should report skill installed")
         assert_true(health_payload["verified_invocation_mechanism"]["current_codex_surface"]["plugin"] == "installed", "health surface should report plugin installed")
         assert_true(health_payload["verified_invocation_mechanism"]["current_codex_surface"]["slash_invocation"] == "/roster", "health should report slash invocation")
+        assert_true(health_payload["capability_summary"]["host_capabilities"]["plugin_or_connector"]["availability"] == "available_after_reload", "installed plugin should be reported as reload-gated plugin availability")
+        assert_true("external connectors remain unknown" in health_payload["capability_summary"]["host_capabilities"]["plugin_or_connector"]["evidence"], "plugin capability evidence should not overclaim external connectors")
         assert_true(health_payload["packet_output"]["cleanup"]["status"] == "success", "health should clean smoke packet output")
         assert_true("placeholder-roster-test-token" not in health.stdout, "health output must not print provider secrets")
         assert_true(not (target / "contexts" / "artifact_harness_registry.json").exists(), "health should clean target registry")
