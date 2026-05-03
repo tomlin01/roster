@@ -978,27 +978,41 @@ Should not include:
 - message bus implementation;
 - automatic approval execution beyond existing approval evidence.
 
-### v0.10.0: Perspective Separation And Subagent Policy
+### v0.10.0: Capability-Aware Role Execution
 
 Goal:
 
-- Make layer coverage and perspective separation a Roster execution contract.
-- Use subagents only when useful and runtime-supported.
+- Let Roster plan which LLM platform capabilities each role needs to complete
+  its work.
+- Keep subagents as one capability inside the broader execution plan, not the
+  whole milestone.
 
 Should include:
 
-- `Force perspective separation; use subagents when useful`;
-- Level 1 single-agent full-layer pass;
-- Level 2 basic four-layer team, often still compressed;
-- Level 3 expanded specialist roster with possible subagent use;
-- Level 4 agent-led roster design with user discussion before execution;
-- health or capability reporting for whether subagent support exists in the
-  current runtime.
+- `role -> work -> interaction -> capability need -> availability -> fallback`;
+- capability categories such as web search, browser, filesystem read/write,
+  code execution, visual capture, vision review, specialist skill,
+  plugin/connector, and subagent execution;
+- work-card fields or fill notes for capability needs, evidence expected,
+  availability, and fallback;
+- first-touch behavior that keeps tool mechanics quiet unless useful or asked;
+- health or capability reporting for whether important platform capabilities
+  are known, available, unavailable, or approval-bound where practical;
+- subagent policy as a subsection:
+  use subagents when separation improves quality more than it adds coordination
+  cost, otherwise simulate separated perspectives in one agent.
 
 Should not include:
 
+- new web-search adapter shipped inside Roster;
+- automatic connector login or external actions;
+- replacing CAP with Roster;
 - forcing every role into a separate agent;
 - Rust rewrite or new runtime architecture.
+
+Direction note:
+
+- `ROSTER_V0_10_CAPABILITY_AWARE_ROLE_EXECUTION.md`
 
 ### v0.11.0: Project/Team Mode Candidate
 

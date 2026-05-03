@@ -244,49 +244,74 @@ Packet:
 - `contexts/task_runs/roster-v0_9-role-interaction-patterns-2026-05-02/`
 - `contexts/artifact_harness_usage_experience/developer_reports/prompt_v0_9_role_interaction_patterns.prompt.md`
 
-### v0.10.0: Perspective Separation And Subagent Policy
+### v0.10.0: Capability-Aware Role Execution
 
 Goal:
 
-- Make perspective separation a Roster execution contract.
-- Use subagents only when useful and runtime-supported.
+- Plan each role not only by responsibility and interaction, but also by the
+  LLM host capabilities it needs to do the work.
+- Treat subagents as one possible capability, not the whole milestone.
 
 User-facing behavior:
 
-- The user does not need to ask for subagents.
-- Roster's reply should make the chosen handling mode feel natural.
-- Roster should not announce internal subagent details unless useful or asked.
+- The user does not need to manually decide which role should use web search,
+  browser, screenshot/CV, filesystem/code execution, specialist skills,
+  plugins, or subagents.
+- Roster's reply should make capability use feel like part of the team doing
+  its job.
+- Roster should not expose capability matrices, CAP, runtime, or subagent
+  details unless useful or asked.
 
 Internal behavior:
 
-- Force layer coverage and perspective separation.
-- Prefer subagents only when separation improves quality more than it adds
-  coordination cost.
-- If subagents are unavailable or too costly, simulate separated perspectives
-  explicitly in one agent.
+- Extend role/work-card planning with capability needs, availability state,
+  evidence expected, and fallback.
+- Use the chain:
+  `role -> work -> interaction -> capability need -> availability -> fallback`.
+- Keep perspective separation active even when one agent simulates several
+  roles.
+- Use subagents only when runtime support exists and separation improves quality
+  more than it adds coordination cost.
 
 In scope:
 
-- subagent policy in skill/command docs
+- capability-aware role execution docs
+- work-card capability fields or fill notes
+- capability vocabulary for web, browser, visual capture, vision review,
+  filesystem/code execution, specialist skills, plugins/connectors, and
+  subagent execution
 - runtime capability reporting where practical
-- examples for Level 1 single-agent full-layer pass and Level 3 expanded
-  specialist roster
+- examples for Research Reviewer, Visual QA, Slide Producer, Skill Reviewer,
+  and Statistical Reviewer
+- subagent policy as a subsection
 
 Out of scope:
 
 - forcing every role into a separate agent
+- shipping a new web-search adapter inside Roster
+- automatic connector login or external actions
 - Rust rewrite
 - new runtime architecture
 
 Acceptance signal:
 
-- Docs state: `Force perspective separation; use subagents when useful.`
-- Health or capability reporting can tell whether current runtime support is
-  known, unknown, or unavailable.
+- Docs state: `Roster plans capability needs; CAP authorizes access; runtime
+  executes.`
+- Work cards can express needed platform capabilities and fallback behavior.
+- Health or capability reporting can tell whether important capability classes
+  are known, available, unavailable, or require approval where practical.
+- Subagents are described as conditional capability use, not as the default for
+  every role.
 
 Risk:
 
 - Runtime-specific behavior can drift across Codex, Claude, and other hosts.
+- Roster could overexpose tool mechanics in ordinary user replies if the first
+  touch contract is not preserved.
+
+Direction note:
+
+- `contexts/artifact_harness_usage_experience/ROSTER_V0_10_CAPABILITY_AWARE_ROLE_EXECUTION.md`
 
 ### v0.11.0: Project/Team Mode Candidate
 
