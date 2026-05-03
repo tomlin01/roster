@@ -35,6 +35,11 @@ Current target artifacts:
   defines the staged, safe rename plan and no-touch zones.
 - [`ROSTER_DEVELOPER_PROMPTS.md`](./ROSTER_DEVELOPER_PROMPTS.md)
   contains phased prompts for developer implementation and external review.
+- [`ROSTER_V0_11_1_ROLE_EXECUTION_RECEIPT.md`](./ROSTER_V0_11_1_ROLE_EXECUTION_RECEIPT.md)
+  defines the receipt shape for ordinary completion replies.
+- [`ROSTER_V0_11_2_RECEIPT_TRIGGER_CLARIFICATION.md`](./ROSTER_V0_11_2_RECEIPT_TRIGGER_CLARIFICATION.md)
+  clarifies receipt trigger semantics:
+  `Role Execution Receipt is part of the ordinary completion reply, not debug trace`.
 
 ## Core UX Principle
 

@@ -252,7 +252,7 @@ Availability states are `available`, `available_after_reload`,
 `available_if_approved`, `unknown`, and `unavailable`. Use `unknown` when local
 evidence cannot prove the active host exposes the capability.
 
-### Completion Reply (v0.11.1)
+### Completion Reply (v0.11.2 Receipt Trigger Clarification)
 
 After a non-trivial task is completed, Roster should keep first-touch minimal
 but make later completion replies auditable in a compact way:
@@ -269,6 +269,8 @@ Ordinary completion replies should include a lightweight Role Execution Receipt:
 
 Receipt behavior:
 
+- Role Execution Receipt is part of the ordinary completion reply, not debug
+  trace
 - list only roles/perspectives that actually contributed
 - state concrete actions each role performed
 - avoid role-title-only theater
@@ -277,6 +279,21 @@ Receipt behavior:
 - if required capability was unavailable, note the limitation briefly
 - keep full capability/source/assumption trace in review/debug/verification
   replies, not ordinary completion
+- No debug trace != no receipt
+  - if the user says `不要展開 debug trace`, keep the receipt short for a
+    qualifying task instead of removing it
+- Future role-summary feature != current-turn receipt
+  - future feature planning does not replace this answer's current-turn receipt
+- Simple qualifying task != no receipt
+  - simplicity affects receipt length, not the trigger
+
+Qualifying signals:
+
+- the user asks for multiple dimensions
+- the response uses multiple roles, perspectives, or checks
+- the result includes product, engineering, quality, domain, source, visual,
+  or risk judgment
+- the user needs to judge whether declared roles actually did work
 
 Example:
 
@@ -289,6 +306,25 @@ Example:
 - 品質視角：檢查是否有過度承諾，刪除沒有證據的執行宣告。
 
 最後收斂：先交付文件更新，執行層留待後續版本。
+```
+
+Trigger-clarification example (two-week plan prompt):
+
+```text
+我已經把使用者回饋收斂成 2 週內可執行的改善方案。
+
+本次分工執行：
+- 使用者痛點視角：整理高頻卡點並轉成可驗收需求。
+- 工程可行性視角：限定兩週內可落地改動，排除高風險重構。
+- 產品與品質視角：完成優先序與驗收條件，保留必要限制說明。
+
+最後收斂：先做入口指引與驗收一致性，後續再擴功能。
+```
+
+Bad trigger-miss example:
+
+```text
+以下是 2 週方案，角色摘要放到未來功能再做。
 ```
 
 ## What Roster Does

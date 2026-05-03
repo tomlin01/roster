@@ -78,7 +78,7 @@ Natural role edits such as `加一個主管`, `讓 PM 看一下`, `需要法務�
 `加一個學生視角` should adjust the team shape without exposing internal planning
 mechanics.
 
-## Completion Response (v0.11.1)
+## Completion Response (v0.11.2 Receipt Trigger Clarification)
 
 For non-trivial completed work, keep the public reply in this order:
 
@@ -94,6 +94,8 @@ Include a compact Role Execution Receipt section:
 
 Rules:
 
+- Role Execution Receipt is part of the ordinary completion reply, not debug
+  trace
 - include only roles or perspectives that actually contributed
 - describe concrete actions, not just titles
 - avoid internal governance terms in ordinary completion replies
@@ -102,6 +104,22 @@ Rules:
   `視角分工`
 - if a needed capability (web, browser, visual/CV, plugin/connector,
   subagent) was unavailable, note the limitation briefly
+- No debug trace != no receipt
+  - `不要展開 debug trace` means short receipt, not receipt removal for
+    qualifying tasks
+- Future role-summary feature != current-turn receipt
+  - if the response mentions future role-summary planning, still include this
+    answer's current-turn receipt when qualifying
+- Simple qualifying task != no receipt
+  - task simplicity can shorten the receipt, not remove the trigger
+
+Qualifying signals:
+
+- the user asked for multiple dimensions
+- the response used multiple roles, perspectives, or checks
+- the result includes product, engineering, quality, domain, source, visual,
+  or risk judgment
+- the user needs to judge whether declared roles actually did work
 
 Good pattern:
 
@@ -123,6 +141,15 @@ Bad pattern:
 ```
 
 If a multi-role task was declared, this bad pattern hides who did what.
+
+Bad trigger-miss pattern:
+
+```text
+以下是兩週規劃，角色摘要先放到未來功能。
+```
+
+If this answer used multiple perspectives, this is not acceptable. Keep a short
+current-turn receipt.
 
 ## Role Context
 

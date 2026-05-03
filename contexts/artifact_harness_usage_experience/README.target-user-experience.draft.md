@@ -363,12 +363,28 @@ Ordinary completion replies should include a short receipt label:
 
 Receipt expectations:
 
+- Role Execution Receipt is part of the ordinary completion reply, not debug
+  trace
 - include only roles or perspectives that actually contributed
 - describe concrete work each listed role performed
 - avoid role-title-only lines with no action
 - keep internal governance terms out of ordinary user-facing completions
 - do not claim separate runtime agents unless that execution actually happened
 - if capability was needed but unavailable, note the limitation briefly
+- No debug trace != no receipt
+  - `不要展開 debug trace` should shorten a qualifying receipt, not remove it
+- Future role-summary feature != current-turn receipt
+  - future planning language does not replace the current answer's receipt
+- Simple qualifying task != no receipt
+  - smaller tasks may use 2-3 receipt lines when they still qualify
+
+Qualifying signals:
+
+- the user asks for multiple dimensions
+- the response uses multiple roles, perspectives, or checks
+- the result includes product, engineering, quality, domain, source, visual,
+  or risk judgment
+- the user needs to judge whether declared roles actually did work
 
 Good later-response shape:
 
@@ -390,6 +406,14 @@ Bad later-response shape:
 ```
 
 For a declared multi-role task, this bad shape hides who did what.
+
+Bad trigger-miss shape:
+
+```text
+以下是 2 週方案，角色摘要放到未來功能再做。
+```
+
+If the answer used multiple perspectives, this is not acceptable.
 
 You should not need to remember or type `brain.sh`, `packet-route`, or
 `artifact-harness` during ordinary work. Those commands are internal adapters
