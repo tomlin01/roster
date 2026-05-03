@@ -411,6 +411,60 @@ Direction note:
 
 - `contexts/artifact_harness_usage_experience/ROSTER_V0_11_1_ROLE_EXECUTION_RECEIPT.md`
 
+### v0.11.2: Receipt Trigger Clarification
+
+Goal:
+
+- Tighten the `v0.11.1` receipt contract so Roster does not omit
+  `本次分工執行` when the user says not to expand debug trace.
+- Prevent Roster from treating role-action receipt only as a future product
+  feature when the current answer itself used multiple roles or perspectives.
+
+User-facing behavior:
+
+- `本次分工執行` is ordinary completion evidence, not debug trace.
+- If a non-trivial task uses multiple roles, perspectives, or quality checks,
+  include a short receipt even when debug trace is suppressed.
+- If the task discusses a future role-summary feature, still include a
+  current-turn receipt for the answer itself.
+- Simpler tasks may use shorter receipts, but qualifying tasks should not drop
+  the receipt entirely.
+
+Internal behavior:
+
+- Before finalizing a non-trivial completion reply, check whether more than one
+  role, perspective, or quality check contributed.
+- Treat `do not expand debug trace` as a request to suppress full trace, not a
+  request to suppress role-action receipt.
+- Keep receipts lightweight and separate from capability/source/assumption
+  traces.
+
+In scope:
+
+- Roster response-contract docs.
+- Skill and README wording that distinguishes ordinary receipt from debug trace.
+- Examples using the observed two-week product plan failure pattern.
+
+Out of scope:
+
+- runtime enforcement;
+- new subagent behavior;
+- debug/source/capability trace UI;
+- install, health, or slash invocation behavior changes.
+
+Acceptance signal:
+
+- A two-week product plan with UX, engineering, priority, and quality judgment
+  includes a short `本次分工執行`.
+- The receipt remains present when the user asks not to expand debug trace.
+- Role-summary can be discussed as a future feature, but the current answer also
+  shows current-turn role actions.
+- First-touch replies remain unaffected.
+
+Direction note:
+
+- `contexts/artifact_harness_usage_experience/ROSTER_V0_11_2_RECEIPT_TRIGGER_CLARIFICATION.md`
+
 ### v1.0.0: Stable Public Contract
 
 Goal:

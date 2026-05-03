@@ -3,6 +3,9 @@
 Date: `2026-05-03`
 Status: `direction`
 
+Compatibility note: `v0.11.2` adds Receipt Trigger Clarification and should be
+read together with this document for trigger semantics.
+
 ## Purpose
 
 `v0.11.1` defines the user-visible evidence layer after Roster has already

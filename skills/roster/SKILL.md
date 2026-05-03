@@ -253,7 +253,7 @@ Let users adjust the team with normal phrases such as `加一個主管`, `讓 PM
 `需要法務審`, or `加一個學生視角`. Treat these as role-shape adjustments, then
 continue the task without forcing the user to learn the internal model.
 
-## Completion Reply Contract (v0.11.1)
+## Completion Reply Contract (v0.11.2 Receipt Trigger Clarification)
 
 Use three reply layers:
 
@@ -262,8 +262,11 @@ Use three reply layers:
 - review/debug/verification reply: expanded role, capability, source,
   assumption, and execution-mode trace
 
-When a non-trivial task used multiple meaningful roles or perspectives, include
-a lightweight Role Execution Receipt in the ordinary completion reply.
+Role Execution Receipt is part of the ordinary completion reply, not debug
+trace.
+
+When a non-trivial task qualifies, include a lightweight Role Execution Receipt
+in the ordinary completion reply.
 
 Recommended label:
 
@@ -284,6 +287,23 @@ Receipt rules:
   `視角分工` and do not claim multiple agents ran in parallel
 - if a role needed web, browser, visual/CV, plugin/connector, or subagent
   capability but could not use it, surface that limitation briefly
+- No debug trace != no receipt
+  - if the user says `不要展開 debug trace`, keep the receipt short; do not
+    remove it when the task qualifies
+- Future role-summary feature != current-turn receipt
+  - if the response discusses future role-summary improvement, still include
+    this answer's current-turn receipt when qualifying
+- Simple qualifying task != no receipt
+  - simplicity can shorten receipt length to 2-3 lines, but does not remove
+    the trigger
+
+Qualifying signals:
+
+- the user asked for multiple dimensions
+- the response used multiple roles, perspectives, or checks
+- the result includes product, engineering, quality, domain, source, visual,
+  or risk judgment
+- the user needs to judge whether declared roles actually did work
 
 Good ordinary completion shape:
 
@@ -308,6 +328,15 @@ Bad ordinary completion shape:
 ```
 
 The bad pattern lists titles without role actions, evidence, or convergence.
+
+Bad trigger-miss shape:
+
+```text
+這次先不展開 debug trace，角色摘要放在未來版本規劃。
+```
+
+This is bad when the current answer used multiple perspectives. The receipt can
+be short, but should still be present.
 
 ## Role Contextualization
 
