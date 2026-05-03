@@ -40,7 +40,10 @@ Codex auth or a provider environment variable, then include it in health:
 ```
 
 `roster-health` checks local setup only. It does not print secrets and does not
-make a remote model call.
+make a remote model call. Its JSON output includes a conservative
+`capability_summary`; host-dependent capabilities such as web search, browser,
+visual capture, vision review, plugins/connectors, and subagents stay
+`unknown` unless local evidence proves otherwise.
 
 ## Use
 
@@ -217,6 +220,37 @@ friction, review challenges, parallel contributions, Quality loops, and
 sign-off checks. These interactions do not grant tool access, do not spawn
 agents by themselves, and do not make a sign-off blocking unless the user or
 policy gives that role blocking authority.
+
+### Capability-Aware Role Execution
+
+Roster v0.10.0 plans how each role can actually do its work:
+
+```text
+role -> work -> interaction -> capability need -> availability -> fallback
+```
+
+Roster plans capability needs; CAP authorizes access; runtime executes.
+
+This is broader than subagents. A role may need ordinary reasoning, filesystem
+read/write, code execution, web search, browser inspection, visual capture,
+vision review, a specialist skill, a plugin/connector, or a separate subagent.
+Roster should identify the need and fallback, but it must not claim that every
+host has those capabilities.
+
+Detailed work cards can carry capability planning fields:
+
+```text
+capability_needs:
+- capability: web_search
+  purpose: verify current public claims
+  availability: unknown
+  evidence_expected: URLs, dates, short source summaries
+  fallback: ask the user for sources or use local files only
+```
+
+Availability states are `available`, `available_after_reload`,
+`available_if_approved`, `unknown`, and `unavailable`. Use `unknown` when local
+evidence cannot prove the active host exposes the capability.
 
 ## What Roster Does
 

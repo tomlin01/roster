@@ -130,6 +130,8 @@ Each work card should include:
 - done_condition
 - handoff_target
 - tool_or_capability_need
+- capability_needs: capability, purpose, availability, evidence_expected, and
+  fallback when detailed execution planning is needed
 - agent_assignment: `separate_agent`, `merged_with`,
   `simulated_perspective`, `reviewer_only`, or `approval_gate_candidate`
 - open_questions
@@ -151,6 +153,51 @@ Assignment guidance:
 Do not ask the user to choose assignment modes unless they ask for design
 detail. Work cards do not replace review, final acceptance, approval evidence,
 CAP, runtime policy, or the Team Operating Packet.
+
+## Capability-Aware Role Execution
+
+Use Capability-Aware Role Execution when roles need an execution plan, not only
+a name and responsibility:
+
+```text
+role -> work -> interaction -> capability need -> availability -> fallback
+```
+
+Roster plans capability needs; CAP authorizes access; runtime executes.
+
+Capability categories are `reasoning_only`, `filesystem_read`,
+`filesystem_write`, `code_execution`, `web_search`, `browser`,
+`visual_capture`, `vision_review`, `specialist_skill`, `plugin_or_connector`,
+and `subagent_execution`.
+
+Availability states are `available`, `available_after_reload`,
+`available_if_approved`, `unknown`, and `unavailable`. Use `unknown` when the
+local environment has not proven host support, especially for web search,
+browser, visual capture, vision review, plugins/connectors, and subagents.
+
+Do not expose the capability matrix in ordinary first-touch replies. Mention
+only practical behavior and fallback:
+
+```text
+我會先用本機資料整理第一版；如果需要外部查證，我會讓查證角色去找來源並留下引用。
+如果目前環境不能查，我會改請你提供來源。
+```
+
+Examples for detailed planning:
+
+- Research Reviewer: `web_search`, `browser`; evidence is URLs, dates, source
+  summaries; fallback is user sources or local files.
+- Visual QA: `visual_capture`, `vision_review`, `browser`; evidence is
+  screenshot/render/frame/OCR/CV findings; fallback is limited visual
+  acceptance.
+- Slide Producer: `specialist_skill`, `plugin_or_connector`,
+  `filesystem_write`; evidence is deck/slide output plus verification;
+  fallback is outline or HTML draft.
+- Skill Reviewer: `filesystem_read`, optional `filesystem_write`; evidence is
+  diagnosis, file-line findings, optional patch; fallback is no-patch review.
+- Statistical Reviewer: `code_execution`, `specialist_skill`; evidence is
+  reproducible checks, test cases, assumption notes; fallback is conceptual
+  review.
 
 ## Role Interactions
 

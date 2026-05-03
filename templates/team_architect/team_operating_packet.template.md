@@ -18,6 +18,9 @@
   authorization.
 - Generate or link a Capability Access Packet when skills, plugins, tools, or
   runtime approval gates are needed.
+- Capability-Aware Role Execution uses:
+  `role -> work -> interaction -> capability need -> availability -> fallback`.
+- Roster plans capability needs; CAP authorizes access; runtime executes.
 
 ## Team Shape
 
@@ -61,6 +64,12 @@ Fill notes:
   - done_condition:
   - handoff_target:
   - tool_or_capability_need:
+  - capability_needs:
+    - capability: reasoning_only/filesystem_read/filesystem_write/code_execution/web_search/browser/visual_capture/vision_review/specialist_skill/plugin_or_connector/subagent_execution
+      purpose:
+      availability: available/available_after_reload/available_if_approved/unknown/unavailable
+      evidence_expected:
+      fallback:
   - agent_assignment: separate_agent/merged_with/simulated_perspective/reviewer_only/approval_gate_candidate
   - open_questions:
 
@@ -71,12 +80,36 @@ Fill notes:
   authority clarity requires it.
 - `agent_assignment` records the handling mode; it does not spawn runtime
   agents by itself.
-- `tool_or_capability_need` is not authorization. Capability authorization stays
-  with CAP and approval gates.
+- `tool_or_capability_need` is a short summary for older packets; use
+  `capability_needs` when the role needs explicit capability planning.
+- Capability need is not authorization. Capability authorization stays with CAP
+  and approval gates.
+- Use `unknown` when local packet evidence cannot prove the active host/runtime
+  exposes a capability such as web search, browser, visual capture, vision
+  review, plugins/connectors, or subagent execution.
+- Preserve perspective separation even when one agent carries several work
+  cards or simulates a role rather than spawning a subagent.
 - `approval_gate_candidate` records possible gate authority only; it does not
   approve or block delivery without user or policy authority.
 - `handoff_target` is the next receiver, not full role interaction-edge
   modeling.
+
+Example capability needs:
+
+- Research Reviewer: `web_search`, `browser`; evidence expected is URLs, dates,
+  and source summaries; fallback is user-provided sources or local files only.
+- Visual QA: `visual_capture`, `vision_review`, `browser`; evidence expected is
+  screenshot/render/frame/OCR/CV findings; fallback is visual acceptance marked
+  limited until evidence exists.
+- Slide Producer: `specialist_skill`, `plugin_or_connector`,
+  `filesystem_write`; evidence expected is a generated deck or slide artifact
+  plus verification result; fallback is outline or HTML draft.
+- Skill Reviewer: `filesystem_read`, optionally `filesystem_write`; evidence
+  expected is diagnosis, file-line findings, and optional patch; fallback is
+  plain-language diagnosis without patch.
+- Statistical Reviewer: `code_execution`, `specialist_skill`; evidence expected
+  is a reproducible check, test cases, and assumption notes; fallback is
+  conceptual review only.
 
 ## Role Interaction Edges
 

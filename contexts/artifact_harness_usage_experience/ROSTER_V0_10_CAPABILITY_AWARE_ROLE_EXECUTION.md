@@ -1,7 +1,7 @@
 # Roster v0.10.0 Capability-Aware Role Execution
 
 Date: `2026-05-03`
-Status: `direction draft`
+Status: `implemented surface`
 
 ## Purpose
 
@@ -256,6 +256,26 @@ tool.
 - Existing boundaries remain intact: Roster plans needs, CAP authorizes access,
   runtime executes.
 
+## Implemented Surface
+
+The v0.10.0 implementation surface is intentionally small:
+
+- Roster skill and plugin docs explain Capability-Aware Role Execution while
+  keeping first-touch replies short and non-mechanical.
+- Team Operating Packet work cards can record `capability_needs` with
+  capability, purpose, availability, evidence expected, and fallback.
+- `roster-health --json` reports a conservative `capability_summary` over the
+  v0.10 categories and uses `unknown` for host-dependent capabilities that the
+  repo-local health check cannot prove.
+- `roster-health` does not implement or invoke new web search, browser, visual
+  capture, CV, connector, or subagent adapters.
+
+The health summary follows the boundary:
+
+```text
+Roster plans capability needs; CAP authorizes access; runtime executes.
+```
+
 ## Out Of Scope
 
 Do not implement these in `v0.10.0`:
@@ -270,10 +290,8 @@ Do not implement these in `v0.10.0`:
 
 ## Open Questions
 
-- Should `roster-health` expose a compact capability summary for web, browser,
-  visual capture, vision review, skills, plugins, and subagents?
 - Should capability availability be recorded in packet artifacts, or remain a
-  runtime diagnostic?
+  runtime diagnostic beyond the current `roster-health --json` summary?
 - Should Roster ask the user before using web search for low-risk public lookup,
   or only disclose when it does so?
 - How much of this belongs in public README versus internal skill docs?
