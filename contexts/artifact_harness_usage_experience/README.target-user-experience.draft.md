@@ -348,6 +348,49 @@ I set up the task brief, role plan, tool-access note, and review checklist.
 The files are in your workspace under contexts/artifact_harness_runs/...
 ```
 
+For non-trivial completed tasks, later replies should preserve Roster's
+coordination identity with this compact order:
+
+```text
+outcome -> role actions -> convergence
+```
+
+Ordinary completion replies should include a short receipt label:
+
+```text
+本次分工執行
+```
+
+Receipt expectations:
+
+- include only roles or perspectives that actually contributed
+- describe concrete work each listed role performed
+- avoid role-title-only lines with no action
+- keep internal governance terms out of ordinary user-facing completions
+- do not claim separate runtime agents unless that execution actually happened
+- if capability was needed but unavailable, note the limitation briefly
+
+Good later-response shape:
+
+```text
+我已經把這次專案規劃收斂成可交付版本。
+
+本次分工執行：
+- 規劃視角：把目標拆成里程碑、責任和驗收。
+- 執行視角：核對現有檔案與命令，完成第一版文件更新。
+- 品質視角：檢查是否有缺漏或過度承諾，補上限制說明。
+
+最後收斂：先交付文件版，工具擴充留在下一版。
+```
+
+Bad later-response shape:
+
+```text
+以下是三點建議...
+```
+
+For a declared multi-role task, this bad shape hides who did what.
+
 You should not need to remember or type `brain.sh`, `packet-route`, or
 `artifact-harness` during ordinary work. Those commands are internal adapters
 for Codex, reviewers, and debugging.

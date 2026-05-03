@@ -78,6 +78,52 @@ Natural role edits such as `加一個主管`, `讓 PM 看一下`, `需要法務�
 `加一個學生視角` should adjust the team shape without exposing internal planning
 mechanics.
 
+## Completion Response (v0.11.1)
+
+For non-trivial completed work, keep the public reply in this order:
+
+```text
+outcome -> role actions -> convergence
+```
+
+Include a compact Role Execution Receipt section:
+
+```text
+本次分工執行
+```
+
+Rules:
+
+- include only roles or perspectives that actually contributed
+- describe concrete actions, not just titles
+- avoid internal governance terms in ordinary completion replies
+- do not claim multi-agent runtime execution unless that actually happened
+- when no separate runtime agent was spawned, describe as `角色分工` or
+  `視角分工`
+- if a needed capability (web, browser, visual/CV, plugin/connector,
+  subagent) was unavailable, note the limitation briefly
+
+Good pattern:
+
+```text
+我已經整理出可執行的三步修正方案。
+
+本次分工執行：
+- 規劃視角：把問題拆成入口、驗證、文件三段。
+- 技術視角：對照現有命令與文件，確認不擴張底層執行方式。
+- 品質視角：刪除超出範圍提案，保留最小可交付差異。
+
+最後收斂：先交付文件契約，執行層改動留在後續版本。
+```
+
+Bad pattern:
+
+```text
+以下是結論...
+```
+
+If a multi-role task was declared, this bad pattern hides who did what.
+
 ## Role Context
 
 Interpret role edits before replying. A user-added role can be a domain

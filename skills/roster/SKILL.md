@@ -253,6 +253,62 @@ Let users adjust the team with normal phrases such as `加一個主管`, `讓 PM
 `需要法務審`, or `加一個學生視角`. Treat these as role-shape adjustments, then
 continue the task without forcing the user to learn the internal model.
 
+## Completion Reply Contract (v0.11.1)
+
+Use three reply layers:
+
+- first-touch reply: short and natural team setup before execution
+- ordinary completion reply: `outcome -> role actions -> convergence`
+- review/debug/verification reply: expanded role, capability, source,
+  assumption, and execution-mode trace
+
+When a non-trivial task used multiple meaningful roles or perspectives, include
+a lightweight Role Execution Receipt in the ordinary completion reply.
+
+Recommended label:
+
+```text
+本次分工執行
+```
+
+Receipt rules:
+
+- list only roles that actually contributed
+- describe concrete behavior: checked, produced, compared, decided, inspected,
+  verified, challenged, corrected, or converged
+- avoid title theater such as `Reviewer participated` without review content
+- keep ordinary completion concise and user-facing; keep full trace for
+  review/debug/verification mode
+- separate role execution from runtime execution claims
+- if no separate runtime/subagent execution happened, describe as `角色分工` or
+  `視角分工` and do not claim multiple agents ran in parallel
+- if a role needed web, browser, visual/CV, plugin/connector, or subagent
+  capability but could not use it, surface that limitation briefly
+
+Good ordinary completion shape:
+
+```text
+我已經完成這次方法章節修訂，現在可直接進入 reviewer 回覆整合。
+
+本次分工執行：
+- 規劃視角：把修訂範圍收斂成術語一致性、結果敘述、限制段落三段。
+- 方法視角：逐段檢查統計假設與符號，修正兩處不一致寫法。
+- 品質視角：核對語氣是否過度宣稱，保留證據邊界並補一行限制說明。
+
+最後收斂：先交付保守版文字，review 模式再展開來源與假設追蹤。
+```
+
+Bad ordinary completion shape:
+
+```text
+以下是修訂結果：
+- Reviewer 已參與
+- Planner 已參與
+- Producer 已參與
+```
+
+The bad pattern lists titles without role actions, evidence, or convergence.
+
 ## Role Contextualization
 
 Treat user-named roles as context-shaped responsibilities and perspectives, not

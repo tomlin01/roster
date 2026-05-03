@@ -252,6 +252,45 @@ Availability states are `available`, `available_after_reload`,
 `available_if_approved`, `unknown`, and `unavailable`. Use `unknown` when local
 evidence cannot prove the active host exposes the capability.
 
+### Completion Reply (v0.11.1)
+
+After a non-trivial task is completed, Roster should keep first-touch minimal
+but make later completion replies auditable in a compact way:
+
+```text
+outcome -> role actions -> convergence
+```
+
+Ordinary completion replies should include a lightweight Role Execution Receipt:
+
+```text
+本次分工執行
+```
+
+Receipt behavior:
+
+- list only roles/perspectives that actually contributed
+- state concrete actions each role performed
+- avoid role-title-only theater
+- distinguish role/perspective execution from real runtime/subagent execution
+- if no separate runtime agent was spawned, use `角色分工` or `視角分工`
+- if required capability was unavailable, note the limitation briefly
+- keep full capability/source/assumption trace in review/debug/verification
+  replies, not ordinary completion
+
+Example:
+
+```text
+我已經把這次規劃收斂成可直接執行的三步。
+
+本次分工執行：
+- 規劃視角：收斂範圍與交付順序，先固定本版邊界。
+- 技術視角：核對可用命令與文件位置，避免超出既有介面。
+- 品質視角：檢查是否有過度承諾，刪除沒有證據的執行宣告。
+
+最後收斂：先交付文件更新，執行層留待後續版本。
+```
+
 ## What Roster Does
 
 For a non-trivial artifact task, Roster helps Codex:

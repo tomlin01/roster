@@ -351,6 +351,66 @@ Risk:
 
 - Team mode could overreach if it writes too much into target projects.
 
+### v0.11.1: Role Execution Receipt
+
+Goal:
+
+- Let users judge whether declared Roster roles actually did work after a
+  non-trivial task is completed.
+- Preserve the short first-touch UX while adding lightweight role-action
+  evidence to ordinary completion replies.
+- Keep later response style aligned with Roster's agent-coordination identity:
+  outcome, role actions, and convergence.
+
+User-facing behavior:
+
+- First-touch replies stay short and natural.
+- Ordinary completion replies include a compact `本次分工執行` section when
+  multiple meaningful roles or perspectives contributed.
+- Each listed role says what it checked, produced, compared, or decided.
+- Later replies should not collapse into generic single-agent summaries when a
+  multi-role task was declared.
+- Full capability/source/assumption traces appear only in review, debug, or
+  verification mode.
+
+Internal behavior:
+
+- Distinguish role execution evidence from runtime execution.
+- Do not imply separate subagents were spawned unless they actually were.
+- If work was performed as simulated perspectives inside one coordinating
+  agent, say so when the user asks for multi-agent evidence.
+- Surface missing web, browser, CV, plugin, connector, or subagent capability
+  when a role needed it and could not use it.
+
+In scope:
+
+- Roster response contract docs.
+- Skill and README guidance for role-action summaries.
+- Examples that show `who did what` without exposing internal packet chain
+  terms.
+- Review/debug trace guidance for capability, source, assumptions, and runtime
+  execution mode.
+
+Out of scope:
+
+- forcing every role into a separate runtime agent;
+- building a new message bus;
+- making ordinary replies into full audit logs;
+- replacing the Artifact Harness, Team Architect, CAP, runtime, or verification
+  boundaries.
+
+Acceptance signal:
+
+- Users can tell whether a named role was real work or just a label.
+- Ordinary completion replies stay readable.
+- First-touch replies do not get heavier.
+- Review/debug mode can expand to role, capability, source, and assumption
+  traces.
+
+Direction note:
+
+- `contexts/artifact_harness_usage_experience/ROSTER_V0_11_1_ROLE_EXECUTION_RECEIPT.md`
+
 ### v1.0.0: Stable Public Contract
 
 Goal:
