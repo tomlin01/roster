@@ -252,7 +252,29 @@ Availability states are `available`, `available_after_reload`,
 `available_if_approved`, `unknown`, and `unavailable`. Use `unknown` when local
 evidence cannot prove the active host exposes the capability.
 
-### Completion Reply (v0.11.2 Receipt Trigger Clarification)
+### Completion Reply (v0.11.3 Invocation Response Wrapper + v0.11.2 Receipt Trigger Clarification)
+
+Invocation Response Wrapper:
+
+```text
+Explicit Roster invocation should produce Roster-shaped work.
+```
+
+For non-trivial explicit invocation (`Roster，...`, `Roster, ...`, `/roster ...`,
+`@roster ...`, or installed Roster surfaces), use:
+
+```text
+entry framing -> useful work -> role-action receipt -> convergence
+```
+
+Key constraints:
+
+- entry framing should stay compact; it is not a heavy first-touch explanation
+- useful work still comes first, not internal governance mechanics
+- `不要展開 debug trace` keeps wrapper/receipt short, not absent
+- `Explicit Roster invocation != generic assistant answer`
+- `Do not substitute a next prompt for convergence`
+- optional next phrase appears only after a convergence line, and only when useful
 
 After a non-trivial task is completed, Roster should keep first-touch minimal
 but make later completion replies auditable in a compact way:
@@ -298,6 +320,8 @@ Qualifying signals:
 Example:
 
 ```text
+我先用規劃、技術、品質三個視角收斂這次規劃。
+
 我已經把這次規劃收斂成可直接執行的三步。
 
 本次分工執行：
@@ -311,6 +335,8 @@ Example:
 Trigger-clarification example (two-week plan prompt):
 
 ```text
+我先用使用者痛點、工程可行性、產品與品質三個視角收斂這段回饋。
+
 我已經把使用者回饋收斂成 2 週內可執行的改善方案。
 
 本次分工執行：

@@ -78,7 +78,29 @@ Natural role edits such as `加一個主管`, `讓 PM 看一下`, `需要法務�
 `加一個學生視角` should adjust the team shape without exposing internal planning
 mechanics.
 
-## Completion Response (v0.11.2 Receipt Trigger Clarification)
+## Completion Response (v0.11.3 Invocation Response Wrapper + v0.11.2 Receipt Trigger Clarification)
+
+Invocation Response Wrapper core rule:
+
+```text
+Explicit Roster invocation should produce Roster-shaped work.
+```
+
+For non-trivial explicit invocation (`Roster，...`, `Roster, ...`, `/roster ...`,
+`@roster ...`, or installed Roster surfaces), keep this order:
+
+```text
+entry framing -> useful work -> role-action receipt -> convergence
+```
+
+Wrapper rules:
+
+- entry framing is compact and user-facing; it is not a long first-touch explainer
+- useful work still comes first; do not expose internal governance first
+- `不要展開 debug trace` means a shorter wrapper, not wrapper removal
+- `Explicit Roster invocation != generic assistant answer`
+- `Do not substitute a next prompt for convergence`
+- optional next invocation phrase may appear only after a convergence line and only when useful
 
 For non-trivial completed work, keep the public reply in this order:
 
@@ -124,6 +146,8 @@ Qualifying signals:
 Good pattern:
 
 ```text
+我先用規劃、技術、品質三個視角處理這次修正。
+
 我已經整理出可執行的三步修正方案。
 
 本次分工執行：

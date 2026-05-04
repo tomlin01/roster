@@ -465,6 +465,64 @@ Direction note:
 
 - `contexts/artifact_harness_usage_experience/ROSTER_V0_11_2_RECEIPT_TRIGGER_CLARIFICATION.md`
 
+### v0.11.3: Invocation Response Wrapper
+
+Goal:
+
+- Ensure explicit Roster invocation produces Roster-shaped work instead of a
+  generic assistant answer.
+- Add a lightweight response wrapper for non-trivial Roster tasks:
+  `entry framing -> useful work -> role-action receipt -> convergence`.
+
+User-facing behavior:
+
+- When the user invokes `Roster，...`, `/roster`, or `@roster` for a
+  non-trivial task, the answer starts with a compact work frame such as
+  `我先用產品、工程、品質三個視角...`.
+- The useful artifact, plan, review, or decision still comes first; users should
+  not need to read internal governance before the answer.
+- Qualifying tasks still include `本次分工執行`.
+- The closeout should end with convergence, not only a generic suggested next
+  prompt.
+- `不要展開 debug trace` keeps the wrapper short but does not remove it.
+
+Internal behavior:
+
+- Treat explicit Roster invocation as a mode trigger for response style.
+- Compress the wrapper for smaller tasks instead of removing it.
+- Distinguish entry framing from full first-touch team explanation.
+- Do not expose internal packet, control-plane, CAP, or runtime details in
+  ordinary replies.
+
+In scope:
+
+- Roster response-contract docs.
+- Skill/plugin/README wording for explicit invocation behavior.
+- Examples based on the dashboard/product-plan failure pattern.
+- Good and bad examples for next-prompt substitution versus convergence.
+
+Out of scope:
+
+- runtime enforcement;
+- new subagent behavior;
+- slash routing behavior changes;
+- install or health behavior changes;
+- making every Roster reply long.
+
+Acceptance signal:
+
+- A fresh-thread non-trivial `Roster，...` prompt starts with compact
+  role/perspective framing.
+- The answer includes useful output plus `本次分工執行` when multiple
+  perspectives contributed.
+- The answer ends with a convergence line instead of only a suggested next
+  command.
+- First-touch remains short and does not leak internal governance.
+
+Direction note:
+
+- `contexts/artifact_harness_usage_experience/ROSTER_V0_11_3_INVOCATION_RESPONSE_WRAPPER.md`
+
 ### v1.0.0: Stable Public Contract
 
 Goal:
