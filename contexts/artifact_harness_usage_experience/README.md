@@ -40,6 +40,10 @@ Current target artifacts:
 - [`ROSTER_V0_11_2_RECEIPT_TRIGGER_CLARIFICATION.md`](./ROSTER_V0_11_2_RECEIPT_TRIGGER_CLARIFICATION.md)
   clarifies receipt trigger semantics:
   `Role Execution Receipt is part of the ordinary completion reply, not debug trace`.
+- [`ROSTER_V0_11_3_INVOCATION_RESPONSE_WRAPPER.md`](./ROSTER_V0_11_3_INVOCATION_RESPONSE_WRAPPER.md)
+  defines invocation wrapper semantics:
+  `Explicit Roster invocation should produce Roster-shaped work` and
+  `entry framing -> useful work -> role-action receipt -> convergence`.
 
 ## Core UX Principle
 

@@ -253,7 +253,36 @@ Let users adjust the team with normal phrases such as `加一個主管`, `讓 PM
 `需要法務審`, or `加一個學生視角`. Treat these as role-shape adjustments, then
 continue the task without forcing the user to learn the internal model.
 
-## Completion Reply Contract (v0.11.2 Receipt Trigger Clarification)
+## Completion Reply Contract (v0.11.3 Invocation Response Wrapper + v0.11.2 Receipt Trigger Clarification)
+
+Invocation Response Wrapper core rule:
+
+```text
+Explicit Roster invocation should produce Roster-shaped work.
+```
+
+Explicit invocation includes:
+
+- `Roster，...`
+- `Roster, ...`
+- `/roster ...`
+- `@roster ...`
+- installed Roster skill/plugin surfaces
+
+For non-trivial explicit invocation, use this wrapper:
+
+```text
+entry framing -> useful work -> role-action receipt -> convergence
+```
+
+Core guardrails:
+
+- Entry framing is compact handling stance, not a heavy first-touch team explanation.
+- Useful work still comes first; do not expose internal governance before the answer.
+- `不要展開 debug trace` means compress the wrapper, not remove it.
+- `Explicit Roster invocation != generic assistant answer`.
+- `Do not substitute a next prompt for convergence`.
+- Optional next phrase can appear only after a convergence line, and only when useful.
 
 Use three reply layers:
 
@@ -308,6 +337,8 @@ Qualifying signals:
 Good ordinary completion shape:
 
 ```text
+我先用規劃、方法、品質三個視角處理這次修訂。
+
 我已經完成這次方法章節修訂，現在可直接進入 reviewer 回覆整合。
 
 本次分工執行：
