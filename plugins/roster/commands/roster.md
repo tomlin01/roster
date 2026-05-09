@@ -78,7 +78,7 @@ Natural role edits such as `加一個主管`, `讓 PM 看一下`, `需要法務�
 `加一個學生視角` should adjust the team shape without exposing internal planning
 mechanics.
 
-## Completion Response (v0.11.3 Invocation Response Wrapper + v0.11.2 Receipt Trigger Clarification)
+## Completion Response (v0.11.4 Stable Team Status Receipt + v0.11.3 Invocation Response Wrapper + v0.11.2 Receipt Trigger Clarification)
 
 Invocation Response Wrapper core rule:
 
@@ -90,7 +90,7 @@ For non-trivial explicit invocation (`Roster，...`, `Roster, ...`, `/roster ...
 `@roster ...`, or installed Roster surfaces), keep this order:
 
 ```text
-entry framing -> useful work -> role-action receipt -> convergence
+agent count + workflow state -> useful work -> role-action receipt -> convergence
 ```
 
 Wrapper rules:
@@ -106,6 +106,30 @@ For non-trivial completed work, keep the public reply in this order:
 
 ```text
 outcome -> role actions -> convergence
+```
+
+Team status receipt rules:
+
+- declare active count with `本次啟用：<N> 個 agent`
+- one-agent tasks still declare one-agent workflow
+- declare stage with `目前階段：...`
+- for future-artifact prompts, use stage wording:
+  `目前階段：初步規劃；正式 artifact 這輪先不產出。`
+- do not claim parallel runtime execution unless actual subagents ran
+- if a future-artifact planning answer separates product, customer/support,
+  engineering, data/delivery, or quality responsibilities, count them as
+  role-agents instead of hiding them under `1 個 agent`
+
+Good status examples:
+
+```text
+本次啟用：1 個 agent（單一整合流程）
+Workflow：釐清目標 -> 整理資訊 -> 自我檢查 -> 收斂下一步
+```
+
+```text
+本次啟用：5 個 role-agents（使用者研究、客服分析、產品排序、工程評估、品質驗收；單一回覆中分工處理）
+目前階段：初步規劃；正式 artifact 這輪先不產出。
 ```
 
 Include a compact Role Execution Receipt section:
@@ -146,6 +170,9 @@ Qualifying signals:
 Good pattern:
 
 ```text
+本次啟用：3 個 role-agents（規劃、技術、品質；單一回覆中分工處理）
+目前階段：修正方案收斂
+
 我先用規劃、技術、品質三個視角處理這次修正。
 
 我已經整理出可執行的三步修正方案。

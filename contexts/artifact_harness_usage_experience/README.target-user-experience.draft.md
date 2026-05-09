@@ -353,7 +353,7 @@ For non-trivial explicit invocation (`Roster，...`, `Roster, ...`, `/roster ...
 Roster's coordination identity with this compact wrapper:
 
 ```text
-entry framing -> useful work -> role-action receipt -> convergence
+agent count + workflow state -> useful work -> role-action receipt -> convergence
 ```
 
 Invocation rule:
@@ -373,6 +373,30 @@ For qualifying non-trivial completion, keep this compact order:
 
 ```text
 outcome -> role actions -> convergence
+```
+
+Team status receipt expectations:
+
+- declare active count with `本次啟用：<N> 個 agent`
+- if one agent is enough, declare one-agent workflow explicitly
+- declare current stage with `目前階段：...`
+- for future-artifact prompts, state stage and turn scope:
+  `目前階段：初步規劃；正式 artifact 這輪先不產出。`
+- do not claim parallel runtime unless actual subagents ran
+- if a future-artifact planning answer separates product, customer/support,
+  engineering, data/delivery, or quality responsibilities, count them as
+  role-agents instead of hiding them under `1 個 agent`
+
+Good status examples:
+
+```text
+本次啟用：1 個 agent（單一整合流程）
+Workflow：釐清目標 -> 整理資訊 -> 自我檢查 -> 收斂下一步
+```
+
+```text
+本次啟用：5 個 role-agents（使用者研究、客服分析、產品排序、工程評估、品質驗收；單一回覆中分工處理）
+目前階段：初步規劃；正式 artifact 這輪先不產出。
 ```
 
 Ordinary completion replies should include a short receipt label:
@@ -409,6 +433,9 @@ Qualifying signals:
 Good later-response shape:
 
 ```text
+本次啟用：3 個 role-agents（規劃、執行、品質；單一回覆中分工處理）
+目前階段：專案規劃收斂
+
 我先用規劃、執行、品質三個視角處理這次專案規劃。
 
 我已經把這次專案規劃收斂成可交付版本。

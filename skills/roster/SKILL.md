@@ -253,7 +253,7 @@ Let users adjust the team with normal phrases such as `加一個主管`, `讓 PM
 `需要法務審`, or `加一個學生視角`. Treat these as role-shape adjustments, then
 continue the task without forcing the user to learn the internal model.
 
-## Completion Reply Contract (v0.11.3 Invocation Response Wrapper + v0.11.2 Receipt Trigger Clarification)
+## Completion Reply Contract (v0.11.4 Stable Team Status Receipt + v0.11.3 Invocation Response Wrapper + v0.11.2 Receipt Trigger Clarification)
 
 Invocation Response Wrapper core rule:
 
@@ -272,7 +272,7 @@ Explicit invocation includes:
 For non-trivial explicit invocation, use this wrapper:
 
 ```text
-entry framing -> useful work -> role-action receipt -> convergence
+agent count + workflow state -> useful work -> role-action receipt -> convergence
 ```
 
 Core guardrails:
@@ -290,6 +290,33 @@ Use three reply layers:
 - ordinary completion reply: `outcome -> role actions -> convergence`
 - review/debug/verification reply: expanded role, capability, source,
   assumption, and execution-mode trace
+
+Team status receipt rules for non-trivial explicit invocation:
+
+- declare active count with `本次啟用：<N> 個 agent`
+- if one agent is enough, still declare it and show one-agent workflow
+- declare current stage with `目前階段：...`
+- for future-artifact prompts, state turn scope as stage, not capability limit:
+  `目前階段：初步規劃；正式 artifact 這輪先不產出。`
+- do not claim parallel runtime execution unless it actually happened
+- when runtime is simulated in one reply, use neutral wording such as
+  `role-agents` or `分工處理`
+- do not collapse a multi-responsibility future-artifact plan into
+  `1 個 agent（內含多個視角）`; if the answer separates product, customer,
+  support, engineering, data, delivery, or quality responsibilities, count those
+  as role-agents and say they are handled in one reply
+
+Example status lines:
+
+```text
+本次啟用：1 個 agent（單一整合流程）
+Workflow：釐清目標 -> 整理資訊 -> 自我檢查 -> 收斂下一步
+```
+
+```text
+本次啟用：5 個 role-agents（使用者研究、客服分析、產品排序、工程評估、品質驗收；單一回覆中分工處理）
+目前階段：初步規劃；正式 artifact 這輪先不產出。
+```
 
 Role Execution Receipt is part of the ordinary completion reply, not debug
 trace.
@@ -337,6 +364,9 @@ Qualifying signals:
 Good ordinary completion shape:
 
 ```text
+本次啟用：3 個 role-agents（規劃、方法、品質；單一回覆中分工處理）
+目前階段：文稿修訂完成
+
 我先用規劃、方法、品質三個視角處理這次修訂。
 
 我已經完成這次方法章節修訂，現在可直接進入 reviewer 回覆整合。
