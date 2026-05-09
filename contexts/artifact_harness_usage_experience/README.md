@@ -44,6 +44,9 @@ Current target artifacts:
   defines invocation wrapper semantics:
   `Explicit Roster invocation should produce Roster-shaped work` and
   `entry framing -> useful work -> role-action receipt -> convergence`.
+- [`ROSTER_V0_11_4_STABLE_TEAM_STATUS_RECEIPT.md`](./ROSTER_V0_11_4_STABLE_TEAM_STATUS_RECEIPT.md)
+  patches wrapper stability with explicit team-state visibility:
+  `agent count + workflow state -> useful work -> role-action receipt -> convergence`.
 
 ## Core UX Principle
 

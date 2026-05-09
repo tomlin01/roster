@@ -252,7 +252,7 @@ Availability states are `available`, `available_after_reload`,
 `available_if_approved`, `unknown`, and `unavailable`. Use `unknown` when local
 evidence cannot prove the active host exposes the capability.
 
-### Completion Reply (v0.11.3 Invocation Response Wrapper + v0.11.2 Receipt Trigger Clarification)
+### Completion Reply (v0.11.4 Stable Team Status Receipt + v0.11.3 Invocation Response Wrapper + v0.11.2 Receipt Trigger Clarification)
 
 Invocation Response Wrapper:
 
@@ -264,7 +264,7 @@ For non-trivial explicit invocation (`Roster，...`, `Roster, ...`, `/roster ...
 `@roster ...`, or installed Roster surfaces), use:
 
 ```text
-entry framing -> useful work -> role-action receipt -> convergence
+agent count + workflow state -> useful work -> role-action receipt -> convergence
 ```
 
 Key constraints:
@@ -281,6 +281,31 @@ but make later completion replies auditable in a compact way:
 
 ```text
 outcome -> role actions -> convergence
+```
+
+Team status receipt rules:
+
+- declare active count with `本次啟用：<N> 個 agent`
+- one-agent tasks still declare one-agent workflow
+- declare current stage with `目前階段：...`
+- for future-artifact prompts where the user delays formal output, state turn
+  scope as stage:
+  `目前階段：初步規劃；正式 artifact 這輪先不產出。`
+- do not claim parallel runtime execution unless actual subagents were run
+- if a future-artifact planning answer separates product, customer/support,
+  engineering, data/delivery, or quality responsibilities, count them as
+  role-agents rather than hiding them inside `1 個 agent`
+
+Good status examples:
+
+```text
+本次啟用：1 個 agent（單一整合流程）
+Workflow：釐清目標 -> 整理資訊 -> 自我檢查 -> 收斂下一步
+```
+
+```text
+本次啟用：5 個 role-agents（使用者研究、客服分析、產品排序、工程評估、品質驗收；單一回覆中分工處理）
+目前階段：初步規劃；正式 artifact 這輪先不產出。
 ```
 
 Ordinary completion replies should include a lightweight Role Execution Receipt:
@@ -320,6 +345,9 @@ Qualifying signals:
 Example:
 
 ```text
+本次啟用：3 個 role-agents（規劃、技術、品質；單一回覆中分工處理）
+目前階段：規劃收斂
+
 我先用規劃、技術、品質三個視角收斂這次規劃。
 
 我已經把這次規劃收斂成可直接執行的三步。
@@ -335,14 +363,18 @@ Example:
 Trigger-clarification example (two-week plan prompt):
 
 ```text
-我先用使用者痛點、工程可行性、產品與品質三個視角收斂這段回饋。
+本次啟用：4 個 role-agents（使用者痛點、工程可行性、產品排序、品質驗收）
+目前階段：初步規劃
+
+我先用使用者痛點、工程可行性、產品排序、品質驗收四個視角收斂這段回饋。
 
 我已經把使用者回饋收斂成 2 週內可執行的改善方案。
 
 本次分工執行：
 - 使用者痛點視角：整理高頻卡點並轉成可驗收需求。
 - 工程可行性視角：限定兩週內可落地改動，排除高風險重構。
-- 產品與品質視角：完成優先序與驗收條件，保留必要限制說明。
+- 產品排序視角：把直接影響第一次成功的項目排在前面。
+- 品質驗收視角：補上完成條件，保留必要限制說明。
 
 最後收斂：先做入口指引與驗收一致性，後續再擴功能。
 ```

@@ -523,6 +523,64 @@ Direction note:
 
 - `contexts/artifact_harness_usage_experience/ROSTER_V0_11_3_INVOCATION_RESPONSE_WRAPPER.md`
 
+### v0.11.4: Stable Team Status Receipt
+
+Goal:
+
+- Make Roster's team state visible even when the user prompt is vague.
+- Require explicit agent count and workflow state for non-trivial Roster
+  invocation.
+- Preserve useful artifact/planning output while making it clear how many agents
+  or role-agents were used.
+
+User-facing behavior:
+
+- A qualifying `Roster，...`, `/roster`, or `@roster` answer starts with a
+  compact status line such as:
+  `本次啟用：5 個 role-agents（使用者研究、客服分析、產品排序、工程評估、品質驗收；單一回覆中分工處理）`.
+- If only one agent is needed, Roster still says so:
+  `本次啟用：1 個 agent（單一整合流程）`.
+- The response declares current workflow stage, especially when the final
+  artifact is not produced yet:
+  `目前階段：初步規劃；正式 artifact 這輪先不產出。`
+- `本次分工執行` remains concrete: role actions, not only role names or
+  perspectives.
+
+Internal behavior:
+
+- Agent count is inferred by Roster; the user should not need to specify team
+  size.
+- Small tasks can stay one-agent, but still show the one-agent workflow when
+  Roster is explicitly invoked.
+- Do not claim parallel runtime execution unless actual subagents were used.
+- Do not inflate agent count just to make Roster look more complex.
+
+In scope:
+
+- Roster response-contract docs.
+- Examples for fuzzy planning prompts with explicit future artifact scope.
+- One-agent workflow examples.
+- Good and bad examples for agent count and workflow stage visibility.
+
+Out of scope:
+
+- runtime enforcement;
+- required subagent spawning;
+- install, health, slash, or plugin behavior changes;
+- fixed team-size rules;
+- exposing packet, CAP, control-plane, or runtime details in ordinary replies.
+
+Acceptance signal:
+
+- Fuzzy Roster planning prompts declare active agent count.
+- One-agent Roster answers declare a one-agent workflow.
+- Artifact planning answers distinguish current stage from capability limit.
+- The answer still leads with useful work and ends with convergence.
+
+Direction note:
+
+- `contexts/artifact_harness_usage_experience/ROSTER_V0_11_4_STABLE_TEAM_STATUS_RECEIPT.md`
+
 ### v1.0.0: Stable Public Contract
 
 Goal:
