@@ -105,6 +105,15 @@
 - Current alias routing policy lives in [`policy/NAMED_TEAM_ALIAS_ROUTING_V0.md`](./policy/NAMED_TEAM_ALIAS_ROUTING_V0.md).
 - Current machine-readable alias registry lives in [`contexts/team_alias_registry.json`](./contexts/team_alias_registry.json).
 
+## Roster v0.11.5 Visible Response Guard
+- For ordinary explicit Roster invocation (`Roster, ...`, `Roster，...`, `/roster ...`, `@roster ...`), every visible assistant message must stay user-facing.
+- Do not expose `route check`, packet, preference, routing, adapter, or governance diagnostics in ordinary Roster replies.
+- Do not send pre-tool status lines such as "I will run a route check", "I will create/check packet routing", "not creating a packet", or "checking preference memory" unless the user explicitly asks for debug, review, implementation, or governance detail.
+- If a visible pre-tool note is needed, use the same public framing as the final answer: active role count, current stage, and ordinary task scope. When in doubt, skip the pre-tool note and answer at the end.
+- Final non-trivial Roster replies must begin with `本次啟用：...`, include `目前階段：...`, useful work, `本次分工執行：...`, and `最後收斂：...`.
+- The `本次啟用` line must name a concrete agent count with literal `agent` or `role-agents`; do not replace it with only `角色`, `小組`, `視角`, or `流程`.
+- The internal adapter layer may still run, but adapter names and packet/preference/routing diagnostics stay out of ordinary user-facing output.
+
 ## Multi-Agent Runtime Adapter Policy
 - Runtime adapters execute local operating packets; they do not replace local role governance.
 - Prefer `Team Architect` generated task graphs before using an external multi-agent runtime for governed work.

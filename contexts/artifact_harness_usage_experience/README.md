@@ -47,6 +47,11 @@ Current target artifacts:
 - [`ROSTER_V0_11_4_STABLE_TEAM_STATUS_RECEIPT.md`](./ROSTER_V0_11_4_STABLE_TEAM_STATUS_RECEIPT.md)
   patches wrapper stability with explicit team-state visibility:
   `agent count + workflow state -> useful work -> role-action receipt -> convergence`.
+- [`ROSTER_V0_11_5_HARD_RESPONSE_WRAPPER.md`](./ROSTER_V0_11_5_HARD_RESPONSE_WRAPPER.md)
+  hardens the ordinary reply gate so non-trivial Roster answers must include
+  agent count, stage, useful work, role actions, and convergence before sending,
+  while keeping internal route/packet/preference diagnostics out of normal
+  user-facing text.
 
 ## Core UX Principle
 

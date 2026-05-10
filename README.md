@@ -252,7 +252,7 @@ Availability states are `available`, `available_after_reload`,
 `available_if_approved`, `unknown`, and `unavailable`. Use `unknown` when local
 evidence cannot prove the active host exposes the capability.
 
-### Completion Reply (v0.11.4 Stable Team Status Receipt + v0.11.3 Invocation Response Wrapper + v0.11.2 Receipt Trigger Clarification)
+### Completion Reply (v0.11.5 Hard Response Wrapper + v0.11.4 Stable Team Status Receipt + v0.11.3 Invocation Response Wrapper + v0.11.2 Receipt Trigger Clarification)
 
 Invocation Response Wrapper:
 
@@ -266,6 +266,31 @@ For non-trivial explicit invocation (`Roster，...`, `Roster, ...`, `/roster ...
 ```text
 agent count + workflow state -> useful work -> role-action receipt -> convergence
 ```
+
+Before sending an ordinary non-trivial Roster reply, Codex should silently
+verify that the reply includes:
+
+- `本次啟用：...`
+- `目前階段：...`
+- useful work
+- `本次分工執行：...`
+- `最後收斂：...`
+
+If any part is missing, the answer should be rewritten before sending. The user
+should not see this internal check.
+
+Ordinary replies must not leak adapter diagnostics such as `route check`,
+`packet-route`, `artifact-harness`, `preference`, `registry`, `CAP`, runtime
+adapter, or control-plane wording. Those belong in review/debug/implementation
+mode. For ordinary users, collapse the same fact into scope wording such as
+`這輪不建立正式檔案`.
+
+Planning-only turns should not run routing just to decide whether Roster can
+answer. If the user says the formal artifact, PRD, review, file, or content
+draft should not be produced this turn, answer with the wrapper first. Treat
+`未來`, `之後`, `later`, and `future` as artifact-direction words unless the
+user explicitly says to remember, save, record, set a default, always apply it,
+or do it every time.
 
 Key constraints:
 
@@ -383,6 +408,12 @@ Bad trigger-miss example:
 
 ```text
 以下是 2 週方案，角色摘要放到未來功能再做。
+```
+
+Bad internal-leakage example:
+
+```text
+我做了 route check，因為 preference route 誤判，所以沒有建立 packet。
 ```
 
 ## What Roster Does

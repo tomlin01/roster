@@ -2423,6 +2423,78 @@ def test_packet_route_roster_aliases_route_to_artifact_harness() -> None:
         assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "route aliases without --create should not write packets")
 
 
+def test_roster_response_contract_docs_require_v0115_hard_gate() -> None:
+    files = [
+        ROOT / "AGENTS.md",
+        ROOT / "skills" / "roster" / "SKILL.md",
+        ROOT / "plugins" / "roster" / "commands" / "roster.md",
+        ROOT / "README.md",
+        ROOT / "contexts" / "artifact_harness_usage_experience" / "README.target-user-experience.draft.md",
+        ROOT / "contexts" / "artifact_harness_usage_experience" / "ROSTER_V0_11_5_HARD_RESPONSE_WRAPPER.md",
+    ]
+    required_terms = [
+        "v0.11.5",
+        "本次啟用",
+        "目前階段",
+        "本次分工執行",
+        "最後收斂",
+        "route check",
+        "preference",
+        "packet",
+    ]
+    barrier_markers = [
+        "Do not mention `route check`",
+        "Do not expose `route check`",
+        "must not mention:",
+        "must not leak adapter diagnostics",
+        "Do not show internal adapter diagnostics",
+    ]
+    for path in files:
+        text = path.read_text(encoding="utf-8")
+        for term in required_terms:
+            assert_true(term in text, f"{path} should include Roster v0.11.5 hard-gate term {term!r}")
+        assert_true(
+            any(marker in text for marker in barrier_markers),
+            f"{path} should keep internal diagnostics out of ordinary replies",
+        )
+    skill_text = (ROOT / "skills" / "roster" / "SKILL.md").read_text(encoding="utf-8")
+    plugin_text = (ROOT / "plugins" / "roster" / "commands" / "roster.md").read_text(encoding="utf-8")
+    assert_true(
+        skill_text.index("## Mandatory Final Answer Shape") < skill_text.index("## Operating Boundary"),
+        "Roster skill must put the hard response wrapper before internal governance details",
+    )
+    assert_true(
+        plugin_text.index("## Mandatory Final Answer Shape") < plugin_text.index("## Arguments"),
+        "Roster plugin command must put the hard response wrapper before adapter instructions",
+    )
+    assert_true(
+        "MUST begin\nwith `本次啟用" in skill_text,
+        "Roster skill must require final answers to begin with the active-agent receipt",
+    )
+    assert_true(
+        "A non-trivial Roster\nanswer that starts with `目前階段`" in skill_text,
+        "Roster skill must reject responses that start at stage without active-agent receipt",
+    )
+    assert_true(
+        "literal word `agent` or `role-agents`" in skill_text
+        and "Do not write\nonly `角色`" in skill_text,
+        "Roster skill must require an explicit agent count instead of generic role wording",
+    )
+    assert_true(
+        "literal `agent` or `role-agents`" in (ROOT / "AGENTS.md").read_text(encoding="utf-8"),
+        "Repo guard must require explicit agent-count wording before Roster skill loading",
+    )
+    assert_true(
+        "description: Use when the user invokes Roster" in skill_text
+        and "must begin with 本次啟用" in skill_text.split("---", 2)[1],
+        "Roster skill metadata must expose the hard wrapper before the model reads the body",
+    )
+    assert_true(
+        "description: Coordinate with Roster; ordinary replies begin with 本次啟用" in plugin_text,
+        "Roster plugin command metadata must expose the hard wrapper before the command body",
+    )
+
+
 def test_packet_route_roster_quality_direction_is_plain_self_check() -> None:
     with tempfile.TemporaryDirectory(prefix="system-hub-packet-route-roster-quality-") as tmp_s:
         ws = make_workspace(Path(tmp_s))
@@ -2601,6 +2673,27 @@ def test_packet_route_roster_preference_memory_routes_to_remember_without_writin
             assert_true("artifact-harness" not in payload["recommended_command"], "preference route should not emit an artifact-harness command")
         assert_true(not (folder / "contexts" / "roster_preferences.json").exists(), "packet-route should not create roster preference memory")
         assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "preference route should not write artifact packet output")
+
+
+def test_packet_route_future_artifact_wording_is_not_preference_memory() -> None:
+    with tempfile.TemporaryDirectory(prefix="system-hub-roster-preferences-route-future-artifact-") as tmp_s:
+        ws = make_workspace(Path(tmp_s))
+        folder = ws / "planning_case"
+        folder.mkdir(parents=True, exist_ok=True)
+        cases = [
+            "Roster，我想做一個漂浮城市的夜市導覽。它未來可能變成簡報、互動網頁、遊戲規則或展示原型，但這輪先不要產出正式內容。",
+            "Roster，我想把一份中醫體質問卷做成 APP。之後可能會變成產品需求文件或原型，但這輪先不要產出正式 PRD。",
+        ]
+
+        for utterance in cases:
+            route = run_brain(ws, "packet-route", utterance, "--path", str(folder), "--json")
+            assert_true(route.returncode == 0, f"packet-route expected 0 for future-artifact wording, got {route.returncode}, stderr={route.stderr}")
+            payload = json.loads(route.stdout)
+            assert_true(payload["recommended_route"] != "roster_preferences", "future artifact wording should not route to Roster preference memory")
+            assert_true(payload["user_intent"] != "roster_preference_memory", "future artifact wording should not expose preference-memory intent")
+            assert_true(payload["preference_memory"]["detected"] is False, "future artifact wording should not be detected as preference memory")
+        assert_true(not (folder / "contexts" / "roster_preferences.json").exists(), "future-artifact route should not create roster preference memory")
+        assert_true(not (folder / "contexts" / "artifact_harness_registry.json").exists(), "future-artifact route without --create should not write packet output")
 
 
 def test_packet_route_roster_preference_memory_create_refuses_without_writing_packets() -> None:
@@ -4321,6 +4414,7 @@ def main() -> int:
         test_packet_route_keyword_routes_to_artifact_harness,
         test_packet_route_natural_artifact_missions_are_create_ready,
         test_packet_route_roster_aliases_route_to_artifact_harness,
+        test_roster_response_contract_docs_require_v0115_hard_gate,
         test_packet_route_roster_quality_direction_is_plain_self_check,
         test_packet_route_roster_quality_attached_artifact_is_spec_first,
         test_packet_route_roster_visual_quality_loop_attaches_to_production,
@@ -4329,6 +4423,7 @@ def main() -> int:
         test_roster_preferences_refuses_empty_remember,
         test_packet_route_includes_roster_preferences_without_writing_packets,
         test_packet_route_roster_preference_memory_routes_to_remember_without_writing,
+        test_packet_route_future_artifact_wording_is_not_preference_memory,
         test_packet_route_roster_preference_memory_create_refuses_without_writing_packets,
         test_packet_route_invalid_roster_preferences_registry_reports_nonblocking_diagnostic,
         test_packet_route_visual_cv_create_carries_request_into_packet_scaffolds,

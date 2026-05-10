@@ -581,6 +581,63 @@ Direction note:
 
 - `contexts/artifact_harness_usage_experience/ROSTER_V0_11_4_STABLE_TEAM_STATUS_RECEIPT.md`
 
+### v0.11.5: Hard Response Wrapper
+
+Goal:
+
+- Turn the v0.11.4 response contract from advisory guidance into a mandatory
+  pre-send check for ordinary non-trivial Roster replies.
+- Prevent useful planning answers from drifting back into generic assistant
+  style.
+- Keep internal adapter diagnostics out of ordinary user-facing text.
+
+User-facing behavior:
+
+- Non-trivial Roster replies visibly start with agent count and workflow stage.
+- The answer still provides useful work before any long explanation.
+- `本次分工執行` lists concrete role actions in the current turn.
+- The answer ends with a convergence line, not only a suggested next prompt.
+- Internal terms such as route checks, packet adapters, preference routing,
+  registries, CAP, runtime adapters, and control-plane details do not appear in
+  ordinary replies.
+
+Internal behavior:
+
+- Before sending, Roster checks for five required parts:
+  `本次啟用`, `目前階段`, useful work, `本次分工執行`, and `最後收斂`.
+- If a required part is missing, Roster rewrites the reply before sending.
+- Background adapter diagnostics are either omitted or translated into plain
+  scope wording such as `這輪不建立正式檔案`.
+
+In scope:
+
+- Roster skill and plugin response-contract docs.
+- README and usage-experience contract wording.
+- Examples based on the floating-city/future-artifact planning failure.
+- Text audits or regression checks that ensure the hard gate is documented.
+
+Out of scope:
+
+- runtime enforcement;
+- required subagent spawning;
+- changing route, install, health, or packet engine behavior;
+- making small one-line tasks verbose;
+- exposing internal governance in ordinary replies.
+
+Acceptance signal:
+
+- A fuzzy non-trivial `Roster，...` planning prompt includes `本次啟用`,
+  `目前階段`, `本次分工執行`, and `最後收斂`.
+- A prompt that delays artifact production says this is current stage, not a
+  capability limit.
+- Ordinary answers do not mention route checks, packet-route, preference route,
+  registries, CAP, runtime adapters, or control plane unless the user asks for
+  debug/review details.
+
+Direction note:
+
+- `contexts/artifact_harness_usage_experience/ROSTER_V0_11_5_HARD_RESPONSE_WRAPPER.md`
+
 ### v1.0.0: Stable Public Contract
 
 Goal:

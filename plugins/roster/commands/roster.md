@@ -1,5 +1,5 @@
 ---
-description: Coordinate an artifact task with Roster
+description: Coordinate with Roster; ordinary replies begin with 本次啟用 and avoid route/packet internals
 argument-hint: [artifact-task]
 allowed-tools: [Read, Glob, Grep, Bash, Write, Edit]
 ---
@@ -8,6 +8,35 @@ allowed-tools: [Read, Glob, Grep, Bash, Write, Edit]
 
 Use Roster to coordinate the user's artifact task with a working team, quality
 checks, tool boundaries, and resumable packet output in the active workspace.
+
+## Mandatory Final Answer Shape
+
+For every non-trivial explicit `/roster` or `@roster` invocation, the final
+answer MUST begin with `本次啟用：...` and MUST include:
+
+```text
+本次啟用：<N> 個 agent 或 role-agents（簡短說明）
+目前階段：<目前工作階段；若正式 artifact 這輪不產出就明說>
+
+<useful work for the user's request>
+
+本次分工執行：
+- <role or perspective>：<concrete action done in this answer>
+
+最後收斂：<single convergence judgment or next decision>
+```
+
+This wrapper is mandatory even when the user asks only for initial planning,
+does not want a formal artifact yet, or says not to expand debug trace. A final
+answer that starts with `目前階段`, `我會先`, `這輪先`, or a generic plan is not a
+valid Roster reply; rewrite it before sending.
+
+The first line must use the literal word `agent` or `role-agents`. Do not write
+only `角色`, `小組`, `視角`, or `流程` in place of the agent count.
+
+Do not expose `route check`, `packet-route`, `artifact-harness`, `preference`,
+`roster_preferences`, `registry`, `routing score`, `CAP`, `runtime adapter`, or
+`control plane` in ordinary replies. Tool output is not the final answer.
 
 ## Arguments
 
@@ -21,22 +50,30 @@ The user invoked this command with: $ARGUMENTS
    available. Use its `brain_command` value instead of guessing the kit path.
 3. If the manifest is unavailable, ask for the local Roster kit folder before
    running adapter commands.
-4. Route the task through Roster:
+4. If the request is a planning-only turn where the user explicitly delays the
+   formal artifact, answer with the v0.11.5 response wrapper before any adapter
+   mechanics. Do not run routing merely to decide whether the ordinary answer
+   can be given.
+5. Route packet-ready, resume, inspect, or debug tasks through Roster:
 
 ```bash
 <brain_command> packet-route "$ARGUMENTS" --path <workspace> --json
 ```
 
-5. Create packet files only when the route is create-ready or the user clearly
+6. Create packet files only when the route is create-ready or the user clearly
    asks to set up the task forms:
 
 ```bash
 <brain_command> packet-route "$ARGUMENTS" --path <workspace> --create --json
 ```
 
-6. Reply in plain user-facing language first. Do not expose Artifact Harness,
+7. Reply in plain user-facing language first. Do not expose Artifact Harness,
    HR, Team Architect, CAP, runtime, control-plane, or packet-chain terminology
    unless the user asks for review, debug, or governance detail.
+
+Treat `未來`, `之後`, `later`, and `future` as artifact-direction wording, not
+preference memory, unless the user explicitly says to remember, save, record,
+default, always, or apply it every time.
 
 ## First-Touch Response
 
@@ -78,7 +115,7 @@ Natural role edits such as `加一個主管`, `讓 PM 看一下`, `需要法務�
 `加一個學生視角` should adjust the team shape without exposing internal planning
 mechanics.
 
-## Completion Response (v0.11.4 Stable Team Status Receipt + v0.11.3 Invocation Response Wrapper + v0.11.2 Receipt Trigger Clarification)
+## Completion Response (v0.11.5 Hard Response Wrapper + v0.11.4 Stable Team Status Receipt + v0.11.3 Invocation Response Wrapper + v0.11.2 Receipt Trigger Clarification)
 
 Invocation Response Wrapper core rule:
 
@@ -92,6 +129,30 @@ For non-trivial explicit invocation (`Roster，...`, `Roster, ...`, `/roster ...
 ```text
 agent count + workflow state -> useful work -> role-action receipt -> convergence
 ```
+
+Hard response gate:
+
+Before sending an ordinary non-trivial `/roster` or `@roster` reply, silently
+verify the reply contains:
+
+- `本次啟用：...`
+- `目前階段：...`
+- useful work for the user's request
+- `本次分工執行：...`
+- `最後收斂：...`
+
+If any part is missing, rewrite before sending. Do not tell the user about this
+gate.
+
+Internal diagnostics barrier:
+
+- Do not expose `route check`, `packet-route`, `artifact-harness`,
+  `preference`, `roster_preferences`, `registry`, `routing score`, `CAP`,
+  `runtime adapter`, or `control plane` in ordinary replies.
+- Background adapter checks should be omitted or summarized as ordinary scope,
+  for example `這輪不建立正式檔案`.
+- Use adapter names only in review/debug/implementation replies or when the
+  user asks for routing detail.
 
 Wrapper rules:
 
@@ -201,6 +262,35 @@ Bad trigger-miss pattern:
 
 If this answer used multiple perspectives, this is not acceptable. Keep a short
 current-turn receipt.
+
+Bad internal-leakage pattern:
+
+```text
+我做了 route check，因為 preference route 誤判，所以沒有建立 packet。
+```
+
+Use ordinary scope wording instead:
+
+```text
+目前階段：初步規劃；這輪不建立正式檔案。
+```
+
+Good fuzzy planning pattern:
+
+```text
+本次啟用：4 個 role-agents（體驗規劃、互動設計、資料紀錄、品質檢查；單一回覆中分工處理）
+目前階段：初步規劃；正式 artifact 這輪先不產出。
+
+我先把這個需求收斂成「3 分鐘決策體驗」，暫時不選簡報、網頁、遊戲或原型。
+
+本次分工執行：
+- 體驗規劃：把任務改寫成 3 分鐘內可完成的理解、比較、選擇流程。
+- 互動設計：檢查攤位選項是否有可比較差異，而不只是風格不同。
+- 資料紀錄：釐清選擇紀錄要支撐的後續用途。
+- 品質檢查：抓出太早選媒介、世界觀過量、選擇無取捨三個偏移風險。
+
+最後收斂：這輪只固定判斷框架；下一輪才決定是否進入正式內容或原型。
+```
 
 ## Role Context
 

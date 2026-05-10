@@ -9675,33 +9675,32 @@ def packet_route_roster_preference_text(utterance: str) -> str:
 
 
 def packet_route_roster_preference_memory_details(utterance: str, front_doors: list[str]) -> dict[str, Any]:
-    markers = (
+    explicit_markers = (
         "remember",
         "remember that",
         "save this",
+        "record this",
         "memorize",
-        "going forward",
-        "from now on",
-        "next time",
-        "for future",
-        "in future",
-        "always",
         "記住",
         "记住",
         "記錄",
         "记录",
-        "以後",
-        "以后",
-        "之後",
-        "之后",
-        "往後",
-        "往后",
-        "未來",
-        "未来",
-        "每次",
-        "都先",
     )
-    matched_terms = match_artifact_harness_keywords(utterance, list(markers))
+    matched_terms = match_artifact_harness_keywords(utterance, list(explicit_markers))
+    if not matched_terms:
+        default_patterns: list[tuple[str, str]] = [
+            ("going forward", r"\bgoing\s+forward\b"),
+            ("from now on", r"\bfrom\s+now\s+on\b"),
+            ("next time", r"\bnext\s+time\b"),
+            ("always", r"\balways\b"),
+            ("default", r"\bdefault(?:s|ing)?\b|\bprefer(?:red|ence)?\b"),
+            ("以後都", r"(?:以後|以后|往後|往后).{0,40}(?:都|都先|預設|默认|固定|每次)"),
+            ("每次", r"每次.{0,40}(?:都|先|要|需要|固定|預設|默认)"),
+            ("預設", r"(?:預設|默认).{0,40}(?:都|先|要|需要|固定|每次)?"),
+        ]
+        for label, pattern in default_patterns:
+            if re.search(pattern, utterance, flags=re.IGNORECASE):
+                matched_terms.append(label)
     detected = "roster" in front_doors and bool(matched_terms)
     return {
         "detected": detected,

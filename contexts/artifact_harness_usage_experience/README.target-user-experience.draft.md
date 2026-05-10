@@ -375,6 +375,31 @@ For qualifying non-trivial completion, keep this compact order:
 outcome -> role actions -> convergence
 ```
 
+v0.11.5 hard response wrapper:
+
+Before sending the answer, run a silent response gate. A qualifying ordinary
+Roster answer must contain:
+
+- `本次啟用：...`
+- `目前階段：...`
+- useful work
+- `本次分工執行：...`
+- `最後收斂：...`
+
+If one of these is missing, rewrite the answer before sending. Do not expose
+the check itself.
+
+Do not show internal adapter diagnostics such as `route check`, `packet-route`,
+`artifact-harness`, `preference`, `registry`, `CAP`, runtime adapter, or
+control-plane wording in ordinary replies. If needed, say the ordinary scope
+instead, such as `這輪不建立正式檔案`.
+
+For planning-only turns, do not run routing only to decide whether Roster can
+answer. If the user delays the formal artifact, PRD, review, file, or content
+draft, answer with the wrapper first. Treat `未來`, `之後`, `later`, and
+`future` as artifact-direction words unless the user explicitly asks Roster to
+remember, save, record, set a default, always apply it, or do it every time.
+
 Team status receipt expectations:
 
 - declare active count with `本次啟用：<N> 個 agent`
@@ -463,6 +488,18 @@ Bad trigger-miss shape:
 ```
 
 If the answer used multiple perspectives, this is not acceptable.
+
+Bad internal-leakage shape:
+
+```text
+我做了 route check，因為 preference route 誤判，所以沒有建立 packet。
+```
+
+This should be rewritten as ordinary scope, for example:
+
+```text
+目前階段：初步規劃；這輪不建立正式檔案。
+```
 
 You should not need to remember or type `brain.sh`, `packet-route`, or
 `artifact-harness` during ordinary work. Those commands are internal adapters
